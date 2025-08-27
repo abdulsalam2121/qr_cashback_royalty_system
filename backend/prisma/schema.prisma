@@ -1,0 +1,273 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SubscriptionStatus {
+  NONE
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+model Tenant {
+  id                    String             @id @default(cuid())
+  slug                  String             @unique
+  name                  String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  
+  // SaaS billing
+  stripeCustomerId      String?
+  stripeSubscriptionId  String?
+  subscriptionStatus    SubscriptionStatus @default(NONE)
+  planId                String?
+  trialEndsAt           DateTime?
+  graceEndsAt           DateTime?
+
+  stores        Store[]
+  users         User[]
+  customers     Customer[]
+  cards         Card[]
+  transactions  Transaction[]
+  tierRules     TierRule[]
+  cashbackRules CashbackRule[]
+  offers        Offer[]
+  notifications Notification[]
+
+  @@map("tenants")
+}
+
+model Store {
+  id       String  @id @default(cuid())
+  tenantId String
+  name     String
+  address  String?
+  active   Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users        User[]
+  cards        Card[]
+  transactions Transaction[]
+
+  @@map("stores")
+}
+
+enum Role {
+  platform_admin
+  tenant_admin
+  cashier
+  customer
+}
+
+model User {
+  id           String   @id @default(cuid())
+  tenantId     String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  storeId      String?
+  firstName    String?
+  lastName     String?
+  active       Boolean  @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastLogin DateTime?
+
+  tenant                Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store                 Store?        @relation(fields: [storeId], references: [id])
+  transactionsProcessed Transaction[] @relation("CashierTransactions")
+
+  @@map("users")
+}
+
+enum Tier {
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+model Customer {
+  id          String      @id @default(cuid())
+  tenantId    String
+  firstName   String
+  lastName    String
+  phone       String?
+  email       String?     @unique
+  tier        Tier        @default(SILVER)
+  totalSpend  Decimal     @default(0)
+  active      Boolean     @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cards         Card[]
+  transactions  Transaction[]
+  notifications Notification[]
+
+  @@map("customers")
+}
+
+enum CardStatus {
+  UNASSIGNED
+  ACTIVE
+  BLOCKED
+}
+
+model Card {
+  id             String      @id @default(cuid())
+  tenantId       String
+  cardUid        String      @unique
+  customerId     String?
+  activatedAt    DateTime?
+  storeId        String?
+  status         CardStatus  @default(UNASSIGNED)
+  qrUrl          String?
+  balanceCents   Int         @default(0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer     Customer?     @relation(fields: [customerId], references: [id])
+  store        Store?        @relation(fields: [storeId], references: [id])
+  transactions Transaction[]
+
+  @@map("cards")
+}
+
+enum TxType {
+  EARN
+  REDEEM
+  ADJUST
+}
+
+enum TxCategory {
+  PURCHASE
+  REPAIR
+  OTHER
+}
+
+model Transaction {
+  id                  String       @id @default(cuid())
+  tenantId            String
+  storeId             String
+  cardId              String
+  customerId          String
+  cashierId           String
+  type                TxType
+  category            TxCategory
+  amountCents         Int
+  cashbackCents       Int          @default(0)
+  beforeBalanceCents  Int
+  afterBalanceCents   Int
+  note                String?
+  sourceIp            String?
+  
+  createdAt DateTime @default(now())
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store    Store    @relation(fields: [storeId], references: [id])
+  card     Card     @relation(fields: [cardId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+  cashier  User     @relation("CashierTransactions", fields: [cashierId], references: [id])
+
+  @@map("transactions")
+}
+
+model TierRule {
+  id                  String @id @default(cuid())
+  tenantId            String
+  tier                Tier
+  name                String
+  minTotalSpendCents  Int
+  baseRateBps         Int    // basis points, e.g., 500 = 5%
+  isActive            Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, tier])
+  @@map("tier_rules")
+}
+
+model CashbackRule {
+  id          String     @id @default(cuid())
+  tenantId    String
+  category    TxCategory
+  baseRateBps Int        // basis points, e.g., 700 = 7%
+  startAt     DateTime?
+  endAt       DateTime?
+  isActive    Boolean    @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, category])
+  @@map("cashback_rules")
+}
+
+model Offer {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  name                String
+  description         String?
+  rateMultiplierBps   Int      // additional basis points, e.g., 200 = +2%
+  startAt             DateTime
+  endAt               DateTime
+  isActive            Boolean  @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("offers")
+}
+
+enum NotifChannel {
+  SMS
+  WHATSAPP
+}
+
+enum NotifStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model Notification {
+  id         String        @id @default(cuid())
+  tenantId   String
+  customerId String
+  channel    NotifChannel
+  template   String
+  payload    Json
+  status     NotifStatus   @default(PENDING)
+  error      String?
+  
+  createdAt DateTime @default(now())
+  sentAt    DateTime?
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@map("notifications")
+}
