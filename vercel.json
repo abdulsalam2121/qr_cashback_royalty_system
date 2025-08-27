@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/healthz", "destination": "https://qr-cashback-royalty-system-backend.vercel.app/healthz" },
+    { "source": "/api/(.*)",    "destination": "https://qr-cashback-royalty-system-backend.vercel.app/api/$1" }
+  ]
+}
