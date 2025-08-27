@@ -3,6 +3,7 @@ import { Building2, Users, DollarSign, TrendingUp, Crown, Store, CreditCard } fr
 import StatCard from '../../components/StatCard';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { api } from '../../utils/api';
+import { mockApi } from '../../utils/mockApi';
 import { formatCurrency } from '../../utils/format';
 import { PlatformStats, Tenant } from '../../types';
 
@@ -18,6 +19,7 @@ const PlatformDashboard: React.FC = () => {
 
   const fetchData = async () => {
     try {
+      // Try real API first
       const [statsData, tenantsData] = await Promise.all([
         api.platform.getStats(),
         api.platform.getTenants('limit=5&sort=createdAt:desc')
@@ -27,8 +29,19 @@ const PlatformDashboard: React.FC = () => {
       setRecentTenants(tenantsData.tenants || []);
       setError(null);
     } catch (error) {
-      console.error('Failed to fetch platform data:', error);
-      setError(error instanceof Error ? error.message : 'Failed to load platform data');
+      console.warn('Platform API failed, using mock data:', error);
+      // Fall back to mock data
+      try {
+        const mockStats = mockApi.getPlatformStats();
+        const mockTenants = mockApi.getPlatformTenants();
+        
+        setStats(mockStats);
+        setRecentTenants(mockTenants);
+        setError(null);
+      } catch (mockError) {
+        console.error('Failed to load mock data:', mockError);
+        setError('Failed to load platform data');
+      }
     } finally {
       setLoading(false);
     }

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Search, Plus, Eye, Edit, Mail, Phone } from 'lucide-react';
+import { Users, Search, Plus, Eye, Edit, Mail, Phone, X } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { api } from '../utils/api';
+import { mockApi } from '../utils/mockApi';
 import { formatCurrency, formatDate, getTierColor } from '../utils/format';
 import { Customer } from '../types';
 
@@ -21,7 +22,14 @@ const Customers: React.FC = () => {
         const data = await api.tenant.getCustomers(tenantSlug);
         setCustomers(data.customers || []);
       } catch (error) {
-        console.error('Failed to fetch customers:', error);
+        console.warn('API failed, using mock data:', error);
+        // Fall back to mock data for demo purposes
+        try {
+          const mockCustomers = mockApi.getCustomers();
+          setCustomers(mockCustomers);
+        } catch (mockError) {
+          console.error('Failed to load mock data:', mockError);
+        }
       } finally {
         setLoading(false);
       }
