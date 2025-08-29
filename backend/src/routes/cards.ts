@@ -7,6 +7,8 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { validate } from '../middleware/validate.js';
 import { auth } from '../middleware/auth.js';
 import { rbac } from '../middleware/rbac.js';
+import { trackCardActivation } from '../services/trialService.js';
+import { trackCardActivation } from '../services/trialService.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -215,6 +217,21 @@ router.post('/activate', auth, rbac(['tenant_admin', 'cashier']), validate(activ
   const { cardUid, storeId, customer, customerId } = req.body;
   const { tenantId } = req.user;
 
+  // Check trial limits first
+  const trialResult = await trackCardActivation(tenantId, cardUid);
+  
+  if (!trialResult.success) {
+    return res.status(403).json({
+      error: 'Activation limit reached',
+      message: trialResult.message,
+      trialStatus: {
+        activationsUsed: trialResult.activationsUsed,
+        activationsRemaining: trialResult.activationsRemaining,
+        trialExceeded: trialResult.trialExceeded
+      }
+    });
+  }
+
   // Start transaction
   const result = await prisma.$transaction(async (tx) => {
     const card = await tx.card.findUnique({
@@ -295,6 +312,11 @@ router.post('/activate', auth, rbac(['tenant_admin', 'cashier']), validate(activ
   res.json({
     message: 'Card activated successfully',
     card: result.card,
+    trialStatus: {
+      activationsUsed: trialResult.activationsUsed,
+      activationsRemaining: trialResult.activationsRemaining,
+      trialExceeded: trialResult.trialExceeded
+    }
   });
 }));
 

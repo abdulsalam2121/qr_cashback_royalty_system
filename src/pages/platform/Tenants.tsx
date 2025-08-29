@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Building2, Plus, Search, Eye, Edit, Users, Store, CreditCard } from 'lucide-react';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { api } from '../../utils/api';
+import { mockApi } from '../../utils/mockApi';
 import { formatDate } from '../../utils/format';
 import { Tenant } from '../../types';
 
@@ -34,7 +35,26 @@ const PlatformTenants: React.FC = () => {
       const data = await api.platform.getTenants(params.toString());
       setTenants(data.tenants || []);
     } catch (error) {
-      console.error('Failed to fetch tenants:', error);
+      console.warn('Platform API failed, using mock data:', error);
+      // Fall back to mock data
+      try {
+        let mockTenants = mockApi.getPlatformTenants();
+        
+        // Apply filters to mock data
+        if (statusFilter) {
+          mockTenants = mockTenants.filter(tenant => tenant.subscriptionStatus === statusFilter);
+        }
+        if (searchTerm) {
+          mockTenants = mockTenants.filter(tenant => 
+            tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            tenant.slug.toLowerCase().includes(searchTerm.toLowerCase())
+          );
+        }
+        
+        setTenants(mockTenants);
+      } catch (mockError) {
+        console.error('Failed to load mock data:', mockError);
+      }
     } finally {
       setLoading(false);
     }

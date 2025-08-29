@@ -28,10 +28,15 @@ model Tenant {
   // SaaS billing
   stripeCustomerId      String?
   stripeSubscriptionId  String?
-  subscriptionStatus    SubscriptionStatus @default(NONE)
+  subscriptionStatus    SubscriptionStatus @default(TRIALING)
   planId                String?
   trialEndsAt           DateTime?
   graceEndsAt           DateTime?
+  
+  // Free trial tracking
+  freeTrialActivations  Int                @default(0)
+  freeTrialLimit        Int                @default(40)
+  trialExpiredNotified  Boolean            @default(false)
 
   stores        Store[]
   users         User[]
@@ -42,6 +47,7 @@ model Tenant {
   cashbackRules CashbackRule[]
   offers        Offer[]
   notifications Notification[]
+  cardOrders    CardOrder[]
 
   @@map("tenants")
 }
@@ -270,4 +276,46 @@ model Notification {
   customer Customer @relation(fields: [customerId], references: [id])
 
   @@map("notifications")
+}
+
+enum CardType {
+  SINGLE_SIDED
+  DOUBLE_SIDED_CUSTOM
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model CardOrder {
+  id                String      @id @default(cuid())
+  tenantId          String
+  cardType          CardType
+  quantity          Int
+  unitPrice         Decimal     // Price per card in USD
+  totalPrice        Decimal     // Total order price
+  status            OrderStatus @default(PENDING)
+  
+  // Customization details (for double-sided custom cards)
+  storeName         String?
+  storePhone        String?
+  storeAddress      String?
+  customDesign      String?     // JSON or text description
+  
+  // Shipping details
+  shippingAddress   String?
+  trackingNumber    String?
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  shippedAt         DateTime?
+  deliveredAt       DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("card_orders")
 }

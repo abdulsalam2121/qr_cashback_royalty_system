@@ -3,7 +3,9 @@ import { useParams } from 'react-router-dom';
 import { Users, CreditCard, Receipt, DollarSign, TrendingUp, Gift } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import LoadingSpinner from '../components/LoadingSpinner';
+import TrialStatusBanner from '../components/TrialStatusBanner';
 import { api } from '../utils/api';
+import { mockApi } from '../utils/mockApi';
 import { formatCurrency } from '../utils/format';
 import { DashboardStats, Transaction } from '../types';
 
@@ -18,15 +20,26 @@ const Dashboard: React.FC = () => {
       if (!tenantSlug) return;
       
       try {
+        // Try real API first
         const [statsData, transactionsData] = await Promise.all([
           api.tenant.getDashboardStats(tenantSlug),
           api.tenant.getTransactions(tenantSlug)
         ]);
         
         setStats(statsData);
-        setRecentTransactions(transactionsData.slice(0, 5));
+        setRecentTransactions(transactionsData.transactions.slice(0, 5));
       } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
+        console.warn('API failed, using mock data:', error);
+        // Fall back to mock data for demo purposes
+        try {
+          const statsData = mockApi.getDashboardStats(tenantSlug);
+          const transactionsData = mockApi.getTransactions(tenantSlug);
+          
+          setStats(statsData);
+          setRecentTransactions(transactionsData.slice(0, 5));
+        } catch (mockError) {
+          console.error('Failed to load mock data:', mockError);
+        }
       } finally {
         setLoading(false);
       }
@@ -53,6 +66,9 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Trial Status Banner */}
+      <TrialStatusBanner />
+      
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <StatCard

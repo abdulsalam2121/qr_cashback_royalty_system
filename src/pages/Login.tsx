@@ -3,6 +3,120 @@ import { useNavigate } from 'react-router-dom';
 import { CreditCard, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { api } from '../utils/api';
+import { User, Tenant } from '../types';
+
+// Mock data for demo accounts
+const mockAccounts = {
+  'platform@example.com': {
+    user: {
+      id: 'platform-admin-1',
+      email: 'platform@example.com',
+      role: 'platform_admin' as const,
+      firstName: 'Platform',
+      lastName: 'Admin'
+    }
+  },
+  'owner@alpha.com': {
+    user: {
+      id: 'tenant-admin-1',
+      email: 'owner@alpha.com',
+      role: 'tenant_admin' as const,
+      firstName: 'Alpha',
+      lastName: 'Owner',
+      tenantId: 'alpha-tenant-1',
+      tenantSlug: 'alpha-shop',
+      tenantName: 'Alpha Phone Shop'
+    },
+    tenant: {
+      id: 'alpha-tenant-1',
+      slug: 'alpha-shop',
+      name: 'Alpha Phone Shop',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      subscriptionStatus: 'ACTIVE' as const,
+      planId: 'pro-plan',
+      _count: {
+        stores: 2,
+        users: 3,
+        customers: 25,
+        cards: 150
+      }
+    }
+  },
+  'cashier@alpha.com': {
+    user: {
+      id: 'cashier-1',
+      email: 'cashier@alpha.com',
+      role: 'cashier' as const,
+      firstName: 'Alpha',
+      lastName: 'Cashier',
+      tenantId: 'alpha-tenant-1',
+      tenantSlug: 'alpha-shop',
+      tenantName: 'Alpha Phone Shop',
+      storeId: 'store-1',
+      storeName: 'Main Store'
+    },
+    tenant: {
+      id: 'alpha-tenant-1',
+      slug: 'alpha-shop',
+      name: 'Alpha Phone Shop',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      subscriptionStatus: 'ACTIVE' as const,
+      planId: 'pro-plan'
+    }
+  },
+  'owner@beta.com': {
+    user: {
+      id: 'tenant-admin-2',
+      email: 'owner@beta.com',
+      role: 'tenant_admin' as const,
+      firstName: 'Beta',
+      lastName: 'Owner',
+      tenantId: 'beta-tenant-1',
+      tenantSlug: 'beta-repairs',
+      tenantName: 'Beta Mobile Repairs'
+    },
+    tenant: {
+      id: 'beta-tenant-1',
+      slug: 'beta-repairs',
+      name: 'Beta Mobile Repairs',
+      createdAt: '2024-02-01T00:00:00.000Z',
+      subscriptionStatus: 'TRIALING' as const,
+      trialEndsAt: '2024-03-01T00:00:00.000Z',
+      _count: {
+        stores: 1,
+        users: 1,
+        customers: 8,
+        cards: 25
+      }
+    }
+  }
+};
+
+// Mock login function
+const mockLogin = async (email: string, password: string): Promise<{ user: User; tenant?: Tenant }> => {
+  // Simulate network delay
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  const account = mockAccounts[email as keyof typeof mockAccounts];
+  
+  if (!account) {
+    throw new Error('Invalid email or password');
+  }
+  
+  // Simple password validation for demo
+  const validPasswords = {
+    'platform@example.com': 'AdminPass123!',
+    'owner@alpha.com': 'TenantAdmin123!',
+    'cashier@alpha.com': 'Cashier123!',
+    'owner@beta.com': 'TenantAdmin123!'
+  };
+  
+  if (password !== validPasswords[email as keyof typeof validPasswords]) {
+    throw new Error('Invalid email or password');
+  }
+  
+  return account;
+};
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -21,7 +135,18 @@ const Login: React.FC = () => {
     setError('');
 
     try {
-      const response = await api.login(formData.email, formData.password);
+      // Try mock login first for demo accounts
+      let response;
+      try {
+        response = await mockLogin(formData.email, formData.password);
+      } catch (mockError) {
+        // If mock login fails, try real API as fallback
+        try {
+          response = await api.login(formData.email, formData.password);
+        } catch (apiError) {
+          throw mockError; // Show the mock error message
+        }
+      }
       
       const { user, tenant } = response;
       if (!user) {
@@ -145,19 +270,65 @@ const Login: React.FC = () => {
           <div className="mt-6 pt-6 border-t border-gray-200">
             <div className="text-sm text-gray-600">
               <p className="mb-2 font-medium">Demo Accounts:</p>
-              <div className="space-y-1 text-xs">
-                <p><strong>Platform Admin:</strong> platform@example.com / AdminPass123!</p>
-                <p className="text-gray-500">→ Go to: localhost:5173/platform/login</p>
-                <div className="mt-2">
-                  <p><strong>Alpha Phone Shop (Tenant 1):</strong></p>
-                  <p className="ml-2">Admin: owner@alpha.com / TenantAdmin123!</p>
-                  <p className="ml-2">Cashier: cashier@alpha.com / Cashier123!</p>
-                  <p className="text-gray-500 ml-2">→ Go to: localhost:5173/t/alpha-shop/login</p>
-                </div>
-                <div className="mt-2">
-                  <p><strong>Beta Mobile Repairs (Tenant 2 - trial):</strong></p>
-                  <p className="ml-2">Admin: owner@beta.com / TenantAdmin123!</p>
-                  <p className="text-gray-500 ml-2">→ Go to: localhost:5173/t/beta-repairs/login</p>
+              <div className="space-y-2">
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p><strong>Platform Admin:</strong> platform@example.com / AdminPass123!</p>
+                      <p className="text-gray-500">→ Go to: localhost:5173/platform/login</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ email: 'platform@example.com', password: 'AdminPass123!' })}
+                      className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                    >
+                      Fill
+                    </button>
+                  </div>
+                  <div className="mt-2">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p><strong>Alpha Phone Shop (Tenant 1):</strong></p>
+                        <p className="ml-2">Admin: owner@alpha.com / TenantAdmin123!</p>
+                        <p className="text-gray-500 ml-2">→ Go to: localhost:5173/t/alpha-shop/login</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ email: 'owner@alpha.com', password: 'TenantAdmin123!' })}
+                        className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
+                      >
+                        Fill
+                      </button>
+                    </div>
+                    <div className="flex justify-between items-center mt-1">
+                      <div>
+                        <p className="ml-2">Cashier: cashier@alpha.com / Cashier123!</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ email: 'cashier@alpha.com', password: 'Cashier123!' })}
+                        className="px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200"
+                      >
+                        Fill
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p><strong>Beta Mobile Repairs (Tenant 2 - trial):</strong></p>
+                        <p className="ml-2">Admin: owner@beta.com / TenantAdmin123!</p>
+                        <p className="text-gray-500 ml-2">→ Go to: localhost:5173/t/beta-repairs/login</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ email: 'owner@beta.com', password: 'TenantAdmin123!' })}
+                        className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
+                      >
+                        Fill
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

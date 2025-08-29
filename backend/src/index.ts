@@ -19,6 +19,8 @@ import userRoutes from './routes/users.js';
 import platformRoutes from './routes/platform.js';
 import tenantRoutes from './routes/tenant.js';
 import stripeRoutes from './routes/stripe.js';
+import trialRoutes from './routes/trial.js';
+import cardOrderRoutes from './routes/cardOrders.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 
@@ -118,6 +120,8 @@ app.use('/api/t/:tenantSlug/reports', reportRoutes);
 app.use('/api/t/:tenantSlug/notifications', notificationRoutes);
 app.use('/api/t/:tenantSlug/stores', storeRoutes);
 app.use('/api/t/:tenantSlug/users', userRoutes);
+app.use('/api/t/:tenantSlug/trial', trialRoutes);
+app.use('/api/t/:tenantSlug/card-orders', cardOrderRoutes);
 
 // Error handling
 app.use(errorHandler);
