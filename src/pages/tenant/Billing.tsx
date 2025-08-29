@@ -2,21 +2,45 @@ import React, { useState, useEffect } from 'react';
 import { CreditCard, Check, Crown, Zap, Building, ExternalLink } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import TrialStatusBanner from '../../components/TrialStatusBanner';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../utils/api';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { Plan } from '../../types';
 
+interface TrialStatus {
+  activationsUsed: number;
+  activationsRemaining: number;
+  trialLimit: number;
+  isTrialActive: boolean;
+  subscriptionRequired: boolean;
+  subscriptionStatus: string;
+}
+
 const TenantBilling: React.FC = () => {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const { tenant, updateTenant } = useAuthStore();
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [trialStatus, setTrialStatus] = useState<TrialStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchPlans();
+    fetchData();
   }, []);
+
+  const fetchData = async () => {
+    try {
+      await Promise.all([
+        fetchPlans(),
+        fetchTrialStatus()
+      ]);
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchPlans = async () => {
     try {
@@ -24,8 +48,24 @@ const TenantBilling: React.FC = () => {
       setPlans(plans);
     } catch (error) {
       console.error('Failed to fetch plans:', error);
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const fetchTrialStatus = async () => {
+    try {
+      const response = await fetch(`/api/t/${tenantSlug}/trial/status`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setTrialStatus(data.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch trial status:', error);
     }
   };
 
@@ -76,6 +116,9 @@ const TenantBilling: React.FC = () => {
           <p className="text-gray-600">Manage your subscription and billing information</p>
         </div>
       </div>
+
+      {/* Trial Status Banner */}
+      <TrialStatusBanner />
 
       {/* Current Subscription Status */}
       {tenant && (
