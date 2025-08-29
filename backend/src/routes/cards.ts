@@ -35,7 +35,7 @@ const blockSchema = z.object({
 });
 
 // Create batch of cards
-router.post('/batch', auth, rbac(['admin']), validate(createBatchSchema), asyncHandler(async (req: Request, res: Response) => {
+router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema), asyncHandler(async (req: Request, res: Response) => {
   const { count, storeId } = req.body;
   const { tenantId } = req.user;
 
@@ -96,7 +96,7 @@ router.post('/batch', auth, rbac(['admin']), validate(createBatchSchema), asyncH
 }));
 
 // Get all cards
-router.get('/', auth, rbac(['admin', 'cashier']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req: Request, res: Response) => {
   const { tenantId, storeId, role } = req.user;
   const { status, search, page = 1, limit = 50 } = req.query;
 
@@ -211,7 +211,7 @@ router.get('/:cardUid', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // Activate card
-router.post('/activate', auth, rbac(['admin', 'cashier']), validate(activateSchema), asyncHandler(async (req: Request, res: Response) => {
+router.post('/activate', auth, rbac(['tenant_admin', 'cashier']), validate(activateSchema), asyncHandler(async (req: Request, res: Response) => {
   const { cardUid, storeId, customer, customerId } = req.body;
   const { tenantId } = req.user;
 
@@ -299,7 +299,7 @@ router.post('/activate', auth, rbac(['admin', 'cashier']), validate(activateSche
 }));
 
 // Block/unblock card
-router.post('/:cardUid/block', auth, rbac(['admin']), validate(blockSchema), asyncHandler(async (req: Request, res: Response) => {
+router.post('/:cardUid/block', auth, rbac(['tenant_admin']), validate(blockSchema), asyncHandler(async (req: Request, res: Response) => {
   const { cardUid } = req.params as { cardUid: string };
   const { reason } = req.body;
   const { tenantId } = req.user;

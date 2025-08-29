@@ -29,7 +29,7 @@ const updateUserSchema = z.object({
 });
 
 // Get all users
-router.get('/', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { tenantId } = req.user;
 
   const users = await prisma.user.findMany({
@@ -55,7 +55,7 @@ router.get('/', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Re
 }));
 
 // Get user by ID
-router.get('/:id', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { tenantId } = req.user;
   const { id } = req.params as { id: string };
 
@@ -86,7 +86,7 @@ router.get('/:id', auth, rbac(['admin']), asyncHandler(async (req: Request, res:
 }));
 
 // Create user
-router.post('/', auth, rbac(['admin']), validate(createUserSchema), asyncHandler(async (req: Request, res: Response) => {
+router.post('/', auth, rbac(['tenant_admin']), validate(createUserSchema), asyncHandler(async (req: Request, res: Response) => {
   const { tenantId } = req.user;
   const { email, firstName, lastName, password, role, storeId } = req.body;
 
@@ -133,7 +133,7 @@ router.post('/', auth, rbac(['admin']), validate(createUserSchema), asyncHandler
 }));
 
 // Update user
-router.put('/:id', auth, rbac(['admin']), validate(updateUserSchema), asyncHandler(async (req: Request, res: Response) => {
+router.put('/:id', auth, rbac(['tenant_admin']), validate(updateUserSchema), asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   const { tenantId } = req.user;
   const updateData = req.body;
@@ -182,7 +182,7 @@ router.put('/:id', auth, rbac(['admin']), validate(updateUserSchema), asyncHandl
 }));
 
 // Change password
-router.put('/:id/password', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.put('/:id/password', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   const { tenantId } = req.user;
   const { password } = req.body;

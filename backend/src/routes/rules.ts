@@ -47,7 +47,7 @@ const updateOfferSchema = z.object({
 });
 
 // Get cashback rules
-router.get('/cashback', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/cashback', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { tenantId } = req.user;
 
   const rules = await prisma.cashbackRule.findMany({
@@ -60,7 +60,7 @@ router.get('/cashback', auth, rbac(['admin']), asyncHandler(async (req: Request,
 }));
 
 // Update cashback rules
-router.put('/cashback', auth, rbac(['admin']), validate(updateCashbackRulesSchema), asyncHandler(async (req: Request, res: Response) => {
+router.put('/cashback', auth, rbac(['tenant_admin']), validate(updateCashbackRulesSchema), asyncHandler(async (req: Request, res: Response) => {
   const { rules } = req.body;
   const { tenantId } = req.user;
 
@@ -92,7 +92,7 @@ router.put('/cashback', auth, rbac(['admin']), validate(updateCashbackRulesSchem
 }));
 
 // Get tier rules
-router.get('/tiers', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/tiers', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { tenantId } = req.user;
 
   const rules = await prisma.tierRule.findMany({
@@ -105,7 +105,7 @@ router.get('/tiers', auth, rbac(['admin']), asyncHandler(async (req: Request, re
 }));
 
 // Update tier rules
-router.put('/tiers', auth, rbac(['admin']), validate(updateTierRulesSchema), asyncHandler(async (req: Request, res: Response) => {
+router.put('/tiers', auth, rbac(['tenant_admin']), validate(updateTierRulesSchema), asyncHandler(async (req: Request, res: Response) => {
   const { rules } = req.body;
   const { tenantId } = req.user;
 
@@ -141,7 +141,7 @@ router.put('/tiers', auth, rbac(['admin']), validate(updateTierRulesSchema), asy
 }));
 
 // Get offers
-router.get('/offers', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/offers', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { tenantId } = req.user;
 
   const offers = await prisma.offer.findMany({
@@ -154,7 +154,7 @@ router.get('/offers', auth, rbac(['admin']), asyncHandler(async (req: Request, r
 }));
 
 // Create offer
-router.post('/offers', auth, rbac(['admin']), validate(createOfferSchema), asyncHandler(async (req: Request, res: Response) => {
+router.post('/offers', auth, rbac(['tenant_admin']), validate(createOfferSchema), asyncHandler(async (req: Request, res: Response) => {
   const { name, description, rateMultiplierBps, startAt, endAt, isActive } = req.body;
   const { tenantId } = req.user;
 
@@ -175,7 +175,7 @@ router.post('/offers', auth, rbac(['admin']), validate(createOfferSchema), async
 }));
 
 // Update offer
-router.put('/offers/:id', auth, rbac(['admin']), validate(updateOfferSchema), asyncHandler(async (req: Request, res: Response) => {
+router.put('/offers/:id', auth, rbac(['tenant_admin']), validate(updateOfferSchema), asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   const { tenantId } = req.user;
   const updateData = req.body;
@@ -209,7 +209,7 @@ router.put('/offers/:id', auth, rbac(['admin']), validate(updateOfferSchema), as
 }));
 
 // Delete offer
-router.delete('/offers/:id', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.delete('/offers/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   const { tenantId } = req.user;
 

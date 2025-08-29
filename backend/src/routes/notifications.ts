@@ -18,7 +18,7 @@ const testNotificationSchema = z.object({
 });
 
 // Send test notification
-router.post('/test', auth, rbac(['admin']), validate(testNotificationSchema), asyncHandler(async (req: Request, res: Response) => {
+router.post('/test', auth, rbac(['tenant_admin']), validate(testNotificationSchema), asyncHandler(async (req: Request, res: Response) => {
   const { customerId, template, variables = {} } = req.body;
   const { tenantId } = req.user;
 
@@ -55,7 +55,7 @@ router.post('/test', auth, rbac(['admin']), validate(testNotificationSchema), as
 }));
 
 // Get notification history
-router.get('/', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { tenantId } = req.user;
   const { customerId, status, page = 1, limit = 50 } = req.query;
 
@@ -97,7 +97,7 @@ router.get('/', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Re
 }));
 
 // Get notification statistics
-router.get('/stats', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/stats', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { tenantId } = req.user;
 
   const [
@@ -142,7 +142,7 @@ router.get('/stats', auth, rbac(['admin']), asyncHandler(async (req: Request, re
 }));
 
 // Retry failed notifications
-router.post('/retry-failed', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.post('/retry-failed', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { tenantId } = req.user;
 
   const failedNotifications = await prisma.notification.findMany({

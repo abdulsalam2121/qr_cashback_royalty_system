@@ -18,6 +18,9 @@ import Customer from './pages/Customer';
 import CardView from './pages/CardView';
 import PlatformDashboard from './pages/platform/Dashboard';
 import PlatformTenants from './pages/platform/Tenants';
+import PlatformAnalytics from './pages/platform/Analytics';
+import PlatformPlans from './pages/platform/Plans';
+import PlatformSettings from './pages/platform/Settings';
 import TenantBilling from './pages/tenant/Billing';
 import { X } from 'lucide-react';
 
@@ -123,6 +126,30 @@ function App() {
                 element={
                   <ProtectedRoute roles={['platform_admin']}>
                     <PlatformTenants />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="analytics" 
+                element={
+                  <ProtectedRoute roles={['platform_admin']}>
+                    <PlatformAnalytics />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="plans" 
+                element={
+                  <ProtectedRoute roles={['platform_admin']}>
+                    <PlatformPlans />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="settings" 
+                element={
+                  <ProtectedRoute roles={['platform_admin']}>
+                    <PlatformSettings />
                   </ProtectedRoute>
                 } 
               />

@@ -30,7 +30,7 @@ const redeemSchema = z.object({
 });
 
 // Earn cashback
-router.post('/earn', auth, rbac(['admin', 'cashier']), validate(earnSchema), asyncHandler(async (req: Request, res: Response) => {
+router.post('/earn', auth, rbac(['tenant_admin', 'cashier']), validate(earnSchema), asyncHandler(async (req: Request, res: Response) => {
   const { cardUid, amountCents, category, storeId, note } = req.body;
   const { tenantId, userId: cashierId } = req.user;
 
@@ -160,7 +160,7 @@ router.post('/earn', auth, rbac(['admin', 'cashier']), validate(earnSchema), asy
 }));
 
 // Redeem cashback
-router.post('/redeem', auth, rbac(['admin', 'cashier']), validate(redeemSchema), asyncHandler(async (req: Request, res: Response) => {
+router.post('/redeem', auth, rbac(['tenant_admin', 'cashier']), validate(redeemSchema), asyncHandler(async (req: Request, res: Response) => {
   const { cardUid, amountCents, storeId, note } = req.body;
   const { tenantId, userId: cashierId } = req.user;
 
@@ -279,7 +279,7 @@ router.post('/redeem', auth, rbac(['admin', 'cashier']), validate(redeemSchema),
 }));
 
 // Get transactions
-router.get('/', auth, rbac(['admin', 'cashier']), asyncHandler(async (req, res) => {
+router.get('/', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req, res) => {
   const { tenantId, storeId, role } = req.user;
   const { 
     type, 
@@ -366,7 +366,7 @@ router.get('/', auth, rbac(['admin', 'cashier']), asyncHandler(async (req, res) 
 }));
 
 // Get transaction by ID
-router.get('/:id', auth, rbac(['admin', 'cashier']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/:id', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   const { tenantId, storeId, role } = req.user;
 

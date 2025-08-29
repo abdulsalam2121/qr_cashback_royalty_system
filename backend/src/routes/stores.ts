@@ -22,7 +22,7 @@ const updateStoreSchema = z.object({
 });
 
 // Get all stores
-router.get('/', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { tenantId } = req.user;
 
   const stores = await prisma.store.findMany({
@@ -44,7 +44,7 @@ router.get('/', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Re
 }));
 
 // Get store by ID
-router.get('/:id', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   const { tenantId } = req.user;
 
@@ -73,7 +73,7 @@ router.get('/:id', auth, rbac(['admin']), asyncHandler(async (req: Request, res:
 }));
 
 // Create store
-router.post('/', auth, rbac(['admin']), validate(createStoreSchema), asyncHandler(async (req: Request, res: Response) => {
+router.post('/', auth, rbac(['tenant_admin']), validate(createStoreSchema), asyncHandler(async (req: Request, res: Response) => {
   const { name, address } = req.body;
   const { tenantId } = req.user;
 
@@ -91,7 +91,7 @@ router.post('/', auth, rbac(['admin']), validate(createStoreSchema), asyncHandle
 }));
 
 // Update store
-router.put('/:id', auth, rbac(['admin']), validate(updateStoreSchema), asyncHandler(async (req: Request, res: Response) => {
+router.put('/:id', auth, rbac(['tenant_admin']), validate(updateStoreSchema), asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   const { tenantId } = req.user;
   const updateData = req.body;
@@ -116,7 +116,7 @@ router.put('/:id', auth, rbac(['admin']), validate(updateStoreSchema), asyncHand
 }));
 
 // Delete store (soft delete by setting active to false)
-router.delete('/:id', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.delete('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   const { tenantId } = req.user;
 

@@ -24,7 +24,7 @@ const updateCustomerSchema = z.object({
 });
 
 // Get all customers
-router.get('/', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { tenantId } = req.user;
   const { search, page = 1, limit = 50 } = req.query;
 
@@ -69,7 +69,7 @@ router.get('/', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Re
 }));
 
 // Get customer by ID
-router.get('/:id', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   const { tenantId } = req.user;
 
@@ -102,7 +102,7 @@ router.get('/:id', auth, rbac(['admin']), asyncHandler(async (req: Request, res:
 }));
 
 // Create customer
-router.post('/', auth, rbac(['admin']), validate(createCustomerSchema), asyncHandler(async (req: Request, res: Response) => {
+router.post('/', auth, rbac(['tenant_admin']), validate(createCustomerSchema), asyncHandler(async (req: Request, res: Response) => {
   const { firstName, lastName, email, phone } = req.body;
   const { tenantId } = req.user;
 
@@ -138,7 +138,7 @@ router.post('/', auth, rbac(['admin']), validate(createCustomerSchema), asyncHan
 }));
 
 // Update customer
-router.put('/:id', auth, rbac(['admin']), validate(updateCustomerSchema), asyncHandler(async (req: Request, res: Response) => {
+router.put('/:id', auth, rbac(['tenant_admin']), validate(updateCustomerSchema), asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   const { tenantId } = req.user;
   const updateData = req.body;
@@ -178,7 +178,7 @@ router.put('/:id', auth, rbac(['admin']), validate(updateCustomerSchema), asyncH
 }));
 
 // Get customer transactions
-router.get('/:id/transactions', auth, rbac(['admin']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/:id/transactions', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   const { tenantId } = req.user;
   const { page = 1, limit = 50 } = req.query;

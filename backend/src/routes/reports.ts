@@ -8,7 +8,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 // Get dashboard statistics
-router.get('/dashboard', auth, rbac(['admin', 'cashier']), asyncHandler(async (req, res) => {
+router.get('/dashboard', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req, res) => {
   const { tenantId, storeId, role } = req.user;
 
   const where: any = { tenantId };
@@ -71,7 +71,7 @@ router.get('/dashboard', auth, rbac(['admin', 'cashier']), asyncHandler(async (r
 }));
 
 // Get transaction reports
-router.get('/transactions', auth, rbac(['admin', 'cashier']), asyncHandler(async (req, res) => {
+router.get('/transactions', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req, res) => {
   const { tenantId, storeId, role } = req.user;
   const { 
     from, 
@@ -88,7 +88,7 @@ router.get('/transactions', auth, rbac(['admin', 'cashier']), asyncHandler(async
   // Cashiers only see their store's data
   if (role === 'cashier' && storeId) {
     where.storeId = storeId;
-  } else if (storeFilter && role === 'admin') {
+  } else if (storeFilter && role === 'tenant_admin') {
     where.storeId = storeFilter;
   }
 
@@ -161,7 +161,7 @@ router.get('/transactions', auth, rbac(['admin', 'cashier']), asyncHandler(async
 }));
 
 // Get top customers
-router.get('/top-customers', auth, rbac(['admin']), asyncHandler(async (req, res) => {
+router.get('/top-customers', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
   const { tenantId } = req.user;
   const { limit = 50 } = req.query;
 
@@ -189,7 +189,7 @@ router.get('/top-customers', auth, rbac(['admin']), asyncHandler(async (req, res
 }));
 
 // Export customers CSV
-router.get('/export/customers', auth, rbac(['admin']), asyncHandler(async (req, res) => {
+router.get('/export/customers', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
   const { tenantId } = req.user;
 
   const customers = await prisma.customer.findMany({
@@ -234,7 +234,7 @@ router.get('/export/customers', auth, rbac(['admin']), asyncHandler(async (req, 
 }));
 
 // Export transactions CSV
-router.get('/export/transactions', auth, rbac(['admin', 'cashier']), asyncHandler(async (req, res) => {
+router.get('/export/transactions', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req, res) => {
   const { tenantId, storeId, role } = req.user;
   const { from, to, storeFilter, category, type } = req.query;
 
@@ -243,7 +243,7 @@ router.get('/export/transactions', auth, rbac(['admin', 'cashier']), asyncHandle
   // Cashiers only see their store's data
   if (role === 'cashier' && storeId) {
     where.storeId = storeId;
-  } else if (storeFilter && role === 'admin') {
+  } else if (storeFilter && role === 'tenant_admin') {
     where.storeId = storeFilter;
   }
 

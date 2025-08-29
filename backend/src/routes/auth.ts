@@ -157,7 +157,7 @@ router.post('/signup', validate(registerSchema), asyncHandler(async (req: Reques
 }));
 
 // Register (admin only for creating staff)
-router.post('/register', auth, rbac(['admin']), validate(registerSchema), asyncHandler(async (req: Request, res: Response) => {
+router.post('/register', auth, rbac(['tenant_admin']), validate(registerSchema), asyncHandler(async (req: Request, res: Response) => {
   const { email, password, firstName, lastName, role = 'customer', storeId } = req.body;
   const { tenantId } = req.user;
 
