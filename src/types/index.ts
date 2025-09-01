@@ -141,6 +141,8 @@ export interface Plan {
   name: string;
   description: string;
   priceMonthly: number;
+  billingPeriod: 'monthly' | '3months' | '6months' | 'yearly';
+  billingPeriodMultiplier: number; // 1 for monthly, 3 for 3months, 6 for 6months, 12 for yearly
   stripePriceId: string;
   features: string[];
   limits: {

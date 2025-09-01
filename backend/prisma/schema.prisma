@@ -30,6 +30,7 @@ model Tenant {
   stripeSubscriptionId  String?
   subscriptionStatus    SubscriptionStatus @default(TRIALING)
   planId                String?
+  plan                  Plan?              @relation(fields: [planId], references: [id])
   trialEndsAt           DateTime?
   graceEndsAt           DateTime?
   
@@ -319,4 +320,37 @@ model CardOrder {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("card_orders")
+}
+
+enum BillingPeriod {
+  MONTHLY
+  THREE_MONTHS  
+  SIX_MONTHS
+  YEARLY
+}
+
+model Plan {
+  id                      String        @id @default(cuid())
+  name                    String
+  description             String
+  priceMonthly            Int           // Price in cents
+  billingPeriod           BillingPeriod @default(MONTHLY)
+  billingPeriodMultiplier Int           @default(1)
+  stripePriceId           String
+  features                String[]      // Array of feature strings
+  
+  // Limits
+  maxStores               Int           @default(-1) // -1 means unlimited
+  maxStaff                Int           @default(-1)
+  maxCards                Int           @default(-1)
+  maxTransactions         Int           @default(-1)
+  
+  isActive                Boolean       @default(true)
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  
+  // Relations
+  tenants                 Tenant[]      // Tenants subscribed to this plan
+
+  @@map("plans")
 }

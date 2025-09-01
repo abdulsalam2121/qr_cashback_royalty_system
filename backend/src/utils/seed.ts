@@ -43,7 +43,7 @@ async function main() {
     create: {
       name: 'Alpha Phone Shop',
       slug: 'alpha-shop',
-      planId: 'basic',
+      planId: null,
       subscriptionStatus: SubscriptionStatus.ACTIVE,
       stripeCustomerId: 'cus_demo123',
       stripeSubscriptionId: 'sub_demo123',
@@ -137,7 +137,7 @@ async function main() {
     create: {
       name: 'Beta Mobile Repairs',
       slug: 'beta-repairs',
-      planId: 'pro',
+      planId: null,
       subscriptionStatus: SubscriptionStatus.TRIALING,
       trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
     },

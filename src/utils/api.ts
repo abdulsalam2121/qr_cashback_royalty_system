@@ -41,6 +41,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       throw new ApiError(errorMessage, response.status);
     }
 
+    // Handle 204 No Content responses (typically from DELETE operations)
+    if (response.status === 204) {
+      console.log('API Response: No content (204)');
+      return {} as T;
+    }
+
     const data = await response.json();
     console.log('API Response Data:', data);
     return data;
@@ -141,6 +147,19 @@ export const api = {
       return request('/platform/plans', {
         method: 'POST',
         body: JSON.stringify(planData),
+      });
+    },
+
+    updatePlan: async (id: string, data: any): Promise<{ plan: Plan }> => {
+      return request(`/platform/plans/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+
+    deletePlan: async (id: string): Promise<void> => {
+      return request(`/platform/plans/${id}`, {
+        method: 'DELETE',
       });
     },
   },
