@@ -4,16 +4,19 @@ import { UserCheck, Plus, Edit, Mail, Shield, Store, Eye, EyeOff } from 'lucide-
 import LoadingSpinner from '../components/LoadingSpinner';
 import { api } from '../utils/api';
 import { formatDate } from '../utils/format';
+import { useToast } from '../hooks/useToast';
 import { User, Store as StoreType } from '../types';
 
 const Staff: React.FC = () => {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const { showToast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [stores, setStores] = useState<StoreType[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -39,6 +42,7 @@ const Staff: React.FC = () => {
       setStores(storesData.stores || []);
     } catch (error) {
       console.error('Failed to fetch data:', error);
+      showToast('Failed to load staff data. Please refresh the page.', 'error');
     } finally {
       setLoading(false);
     }
@@ -46,23 +50,32 @@ const Staff: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!tenantSlug) return;
     
     try {
+      setSaving(true);
       if (editingUser) {
-        const updateData = { ...formData };
+        const updateData: any = { ...formData };
         delete updateData.password; // Don't update password in edit mode
         delete updateData.email; // Don't update email in edit mode
         
-        const { user } = await api.updateUser(editingUser.id, updateData);
+        const { user } = await api.tenant.updateUser(tenantSlug, editingUser.id, updateData);
         setUsers(prev => prev.map(u => u.id === user.id ? user : u));
+        showToast('Staff member updated successfully', 'success');
       } else {
-        const { user } = await api.createUser(formData);
+        const { user } = await api.tenant.createUser(tenantSlug, formData);
         setUsers(prev => [user, ...prev]);
+        showToast('Staff member created successfully', 'success');
       }
       
       resetForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save user:', error);
+      const errorMessage = error.response?.data?.error || 
+        `Failed to ${editingUser ? 'update' : 'create'} staff member. Please try again.`;
+      showToast(errorMessage, 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -87,7 +100,7 @@ const Staff: React.FC = () => {
       password: '',
       firstName: user.firstName || '',
       lastName: user.lastName || '',
-      role: user.role,
+      role: user.role === 'platform_admin' ? 'tenant_admin' : user.role as 'tenant_admin' | 'cashier' | 'customer',
       storeId: user.storeId || ''
     });
     setShowCreateModal(true);
@@ -192,10 +205,10 @@ const Staff: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {user.storeName ? (
+                    {user.store?.name ? (
                       <div className="flex items-center text-sm text-gray-900">
                         <Store className="w-4 h-4 text-gray-400 mr-2" />
-                        {user.storeName}
+                        {user.store.name}
                       </div>
                     ) : (
                       <span className="text-sm text-gray-500">All stores</span>
@@ -362,9 +375,14 @@ const Staff: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  disabled={saving}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
                 >
-                  {editingUser ? 'Update Staff Member' : 'Create Staff Member'}
+                  {saving && <LoadingSpinner size="sm" className="mr-2" />}
+                  {saving 
+                    ? (editingUser ? 'Updating...' : 'Creating...') 
+                    : (editingUser ? 'Update Staff Member' : 'Create Staff Member')
+                  }
                 </button>
               </div>
             </form>

@@ -330,6 +330,40 @@ export const api = {
       return request(`/t/${tenantSlug}/users`);
     },
 
+    createUser: async (tenantSlug: string, userData: {
+      email: string;
+      password: string;
+      firstName: string;
+      lastName: string;
+      role: 'tenant_admin' | 'cashier' | 'customer';
+      storeId?: string;
+    }): Promise<{ user: User }> => {
+      return request(`/t/${tenantSlug}/users`, {
+        method: 'POST',
+        body: JSON.stringify(userData),
+      });
+    },
+
+    updateUser: async (tenantSlug: string, id: string, userData: {
+      firstName?: string;
+      lastName?: string;
+      role?: 'tenant_admin' | 'cashier' | 'customer';
+      storeId?: string;
+      active?: boolean;
+    }): Promise<{ user: User }> => {
+      return request(`/t/${tenantSlug}/users/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(userData),
+      });
+    },
+
+    changeUserPassword: async (tenantSlug: string, id: string, password: string): Promise<{ message: string }> => {
+      return request(`/t/${tenantSlug}/users/${id}/password`, {
+        method: 'PUT',
+        body: JSON.stringify({ password }),
+      });
+    },
+
     // Rules
     getCashbackRules: async (tenantSlug: string): Promise<{ rules: CashbackRule[] }> => {
       return request(`/t/${tenantSlug}/rules/cashback`);

@@ -16,14 +16,14 @@ const createUserSchema = z.object({
   password: z.string().min(6),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
-  role: z.enum(['admin', 'cashier', 'customer']),
+  role: z.enum(['tenant_admin', 'cashier', 'customer']),
   storeId: z.string().optional(),
 });
 
 const updateUserSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
-  role: z.enum(['admin', 'cashier', 'customer']).optional(),
+  role: z.enum(['tenant_admin', 'cashier', 'customer']).optional(),
   storeId: z.string().optional(),
   active: z.boolean().optional(),
 });
