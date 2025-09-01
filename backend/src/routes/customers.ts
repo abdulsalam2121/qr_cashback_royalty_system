@@ -177,6 +177,57 @@ router.put('/:id', auth, rbac(['tenant_admin']), validate(updateCustomerSchema),
   return;
 }));
 
+// Delete customer
+router.delete('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params as { id: string };
+  const { tenantId } = req.user;
+
+  // Check if customer exists and belongs to tenant
+  const existingCustomer = await prisma.customer.findFirst({
+    where: { id, tenantId },
+    include: {
+      cards: true,
+      transactions: true
+    }
+  });
+
+  if (!existingCustomer) {
+    res.status(404).json({ error: 'Customer not found' });
+    return;
+  }
+
+  // Check if customer has active cards or transactions
+  if (existingCustomer.cards.length > 0) {
+    res.status(400).json({ 
+      error: 'Cannot delete customer with active cards. Please deactivate or reassign cards first.',
+      details: `Customer has ${existingCustomer.cards.length} active card(s)`
+    });
+    return;
+  }
+
+  if (existingCustomer.transactions.length > 0) {
+    res.status(400).json({ 
+      error: 'Cannot delete customer with transaction history. This action cannot be undone.',
+      details: `Customer has ${existingCustomer.transactions.length} transaction(s)`
+    });
+    return;
+  }
+
+  // Delete customer
+  await prisma.customer.delete({
+    where: { id }
+  });
+
+  res.json({ 
+    message: 'Customer deleted successfully',
+    deletedCustomer: {
+      id: existingCustomer.id,
+      name: `${existingCustomer.firstName} ${existingCustomer.lastName}`
+    }
+  });
+  return;
+}));
+
 // Get customer transactions
 router.get('/:id/transactions', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };

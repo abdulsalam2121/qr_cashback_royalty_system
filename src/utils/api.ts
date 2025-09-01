@@ -211,6 +211,12 @@ export const api = {
       });
     },
 
+    deleteCustomer: async (tenantSlug: string, id: string): Promise<{ message: string }> => {
+      return request(`/t/${tenantSlug}/customers/${id}`, {
+        method: 'DELETE',
+      });
+    },
+
     // Cards
     getCards: async (tenantSlug: string, params?: string): Promise<{ cards: Card[]; total: number; page: number; pages: number }> => {
       const query = params ? `?${params}` : '';
@@ -231,14 +237,21 @@ export const api = {
       });
     },
 
-    activateCard: async (tenantSlug: string, cardUid: string, customerData: any, storeId: string): Promise<{ card: Card; message: string }> => {
+    activateCard: async (tenantSlug: string, cardUid: string, customerData: any, storeId: string, customerId?: string): Promise<{ card: Card; message: string }> => {
+      const body: any = {
+        cardUid,
+        storeId,
+      };
+      
+      if (customerId) {
+        body.customerId = customerId;
+      } else {
+        body.customer = customerData;
+      }
+
       return request(`/t/${tenantSlug}/cards/activate`, {
         method: 'POST',
-        body: JSON.stringify({
-          cardUid,
-          customer: customerData,
-          storeId,
-        }),
+        body: JSON.stringify(body),
       });
     },
 
