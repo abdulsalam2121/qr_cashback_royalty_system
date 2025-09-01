@@ -1,25 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { CreditCard, Search, Plus, QrCode, User, Eye, Ban, CheckCircle } from 'lucide-react';
+import { CreditCard, Search, Plus, QrCode, User, Eye, Ban, CheckCircle, UserPlus, Store, Users } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { api } from '../utils/api';
 import { formatCurrency, formatDate, getStatusColor } from '../utils/format';
 import { useAuthStore } from '../store/authStore';
 import { useToast } from '../hooks/useToast';
-import { Card } from '../types';
+import { Card, Customer, Store as StoreType } from '../types';
 
 const Cards: React.FC = () => {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const { tenant } = useAuthStore();
   const { showToast } = useToast();
   const [cards, setCards] = useState<Card[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [stores, setStores] = useState<StoreType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [showCreateBatch, setShowCreateBatch] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [cardToAssign, setCardToAssign] = useState<Card | null>(null);
   const [batchCount, setBatchCount] = useState(10);
   const [creatingBatch, setCreatingBatch] = useState(false);
+  const [assigningCard, setAssigningCard] = useState(false);
+  const [assignmentData, setAssignmentData] = useState({
+    customerId: '',
+    storeId: '',
+    newCustomer: {
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: ''
+    }
+  });
+  const [createNewCustomer, setCreateNewCustomer] = useState(false);
   
   const isSubscriptionActive = tenant?.subscriptionStatus === 'ACTIVE' || 
     tenant?.subscriptionStatus === 'TRIALING' ||
@@ -39,6 +55,8 @@ const Cards: React.FC = () => {
   useEffect(() => {
     fetchCards();
     fetchTenantInfo();
+    fetchCustomers();
+    fetchStores();
   }, [statusFilter]);
 
   const fetchTenantInfo = async () => {
@@ -68,6 +86,28 @@ const Cards: React.FC = () => {
       console.error('Failed to fetch cards:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCustomers = async () => {
+    if (!tenantSlug) return;
+    
+    try {
+      const data = await api.tenant.getCustomers(tenantSlug);
+      setCustomers(data.customers || []);
+    } catch (error) {
+      console.error('Failed to fetch customers:', error);
+    }
+  };
+
+  const fetchStores = async () => {
+    if (!tenantSlug) return;
+    
+    try {
+      const data = await api.tenant.getStores(tenantSlug);
+      setStores(data.stores || []);
+    } catch (error) {
+      console.error('Failed to fetch stores:', error);
     }
   };
 
@@ -132,8 +172,72 @@ const Cards: React.FC = () => {
       if (selectedCard && selectedCard.cardUid === cardUid) {
         setSelectedCard(prev => prev ? { ...prev, status: prev.status === 'BLOCKED' ? 'ACTIVE' : 'BLOCKED' } : null);
       }
+
+      showToast(`Card ${card.status === 'BLOCKED' ? 'unblocked' : 'blocked'} successfully`, 'success');
     } catch (error) {
       console.error('Failed to toggle card status:', error);
+      showToast('Failed to update card status', 'error');
+    }
+  };
+
+  const handleAssignCard = (card: Card) => {
+    setCardToAssign(card);
+    setAssignmentData({
+      customerId: '',
+      storeId: stores.length > 0 ? stores[0].id : '',
+      newCustomer: {
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: ''
+      }
+    });
+    setCreateNewCustomer(false);
+    setShowAssignModal(true);
+  };
+
+  const handleCardAssignment = async () => {
+    if (!tenantSlug || !cardToAssign) return;
+
+    try {
+      setAssigningCard(true);
+      
+      let response;
+      if (createNewCustomer) {
+        response = await api.tenant.activateCard(
+          tenantSlug, 
+          cardToAssign.cardUid, 
+          assignmentData.newCustomer,
+          assignmentData.storeId
+        );
+      } else {
+        response = await api.tenant.activateCard(
+          tenantSlug, 
+          cardToAssign.cardUid, 
+          null,
+          assignmentData.storeId,
+          assignmentData.customerId
+        );
+      }
+      
+      // Update local state
+      setCards(prev => prev.map(c => 
+        c.cardUid === cardToAssign.cardUid ? response.card : c
+      ));
+
+      if (createNewCustomer) {
+        // Refresh customers list to include the new customer
+        fetchCustomers();
+      }
+
+      setShowAssignModal(false);
+      setCardToAssign(null);
+      showToast('Card assigned successfully', 'success');
+    } catch (error: any) {
+      console.error('Failed to assign card:', error);
+      showToast(error.response?.data?.message || 'Failed to assign card', 'error');
+    } finally {
+      setAssigningCard(false);
     }
   };
 
@@ -316,13 +420,25 @@ const Cards: React.FC = () => {
             )}
 
             <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-              <button
-                onClick={() => setSelectedCard(card)}
-                className="flex items-center px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-              >
-                <Eye className="w-4 h-4 mr-1" />
-                View
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setSelectedCard(card)}
+                  className="flex items-center px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                >
+                  <Eye className="w-4 h-4 mr-1" />
+                  View
+                </button>
+                
+                {card.status === 'UNASSIGNED' && (
+                  <button
+                    onClick={() => handleAssignCard(card)}
+                    className="flex items-center px-3 py-1 text-sm text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                  >
+                    <UserPlus className="w-4 h-4 mr-1" />
+                    Assign
+                  </button>
+                )}
+              </div>
               
               {card.status !== 'UNASSIGNED' && (
                 <button
@@ -518,12 +634,72 @@ const Cards: React.FC = () => {
                   </p>
                 </div>
                 <div className="bg-green-50 p-4 rounded-lg">
-                  <p className="text-sm text-green-600 font-medium">Store</p>
-                  <p className="text-2xl font-bold text-green-900">
+                  <p className="text-sm text-green-600 font-medium">Assigned Store</p>
+                  <p className="text-lg font-bold text-green-900">
                     {selectedCard.storeName || 'Not assigned'}
                   </p>
+                  {stores.length > 1 && (
+                    <p className="text-xs text-green-600 mt-1">
+                      {stores.length - 1} other store{stores.length > 2 ? 's' : ''} available
+                    </p>
+                  )}
                 </div>
               </div>
+
+              {/* Store Management for Assigned Cards */}
+              {selectedCard.status !== 'UNASSIGNED' && stores.length > 1 && (
+                <div>
+                  <h4 className="text-lg font-medium text-gray-900 mb-3">Store Management</h4>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-2">
+                      This card is currently assigned to: <strong>{selectedCard.storeName}</strong>
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      You have {stores.length} stores total. Card reassignment can be done through the admin panel or by contacting support.
+                    </p>
+                    <div className="mt-2">
+                      <p className="text-xs font-medium text-gray-600">Available stores:</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {stores.map(store => (
+                          <span 
+                            key={store.id}
+                            className={`px-2 py-1 text-xs rounded-full ${
+                              store.name === selectedCard.storeName 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-gray-100 text-gray-600'
+                            }`}
+                          >
+                            {store.name}
+                            {store.name === selectedCard.storeName && ' (current)'}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Unassigned Card Actions */}
+              {selectedCard.status === 'UNASSIGNED' && (
+                <div>
+                  <h4 className="text-lg font-medium text-gray-900 mb-3">Card Assignment</h4>
+                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                    <p className="text-sm text-yellow-800 mb-3">
+                      This card is not yet assigned to any customer or store.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setSelectedCard(null);
+                        handleAssignCard(selectedCard);
+                      }}
+                      className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Assign Card Now
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Activation Date */}
               {selectedCard.activatedAt && (
@@ -534,6 +710,219 @@ const Cards: React.FC = () => {
                   </p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Card Modal */}
+      {showAssignModal && cardToAssign && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Assign Card</h3>
+              <button
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setCardToAssign(null);
+                  setCreateNewCustomer(false);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <span className="sr-only">Close</span>
+                ×
+              </button>
+            </div>
+
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                Card: <span className="font-mono font-medium">{cardToAssign.cardUid}</span>
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Store Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Store className="w-4 h-4 inline mr-1" />
+                  Assign to Store *
+                </label>
+                <select
+                  value={assignmentData.storeId}
+                  onChange={(e) => setAssignmentData(prev => ({ ...prev, storeId: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                >
+                  {stores.length === 0 ? (
+                    <option value="">No stores available</option>
+                  ) : (
+                    stores.map(store => (
+                      <option key={store.id} value={store.id}>
+                        {store.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              {/* Customer Selection Toggle */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Users className="w-4 h-4 inline mr-1" />
+                  Customer Assignment
+                </label>
+                <div className="space-y-2">
+                  <div className="flex items-center">
+                    <input
+                      id="existing-customer"
+                      name="customer-type"
+                      type="radio"
+                      checked={!createNewCustomer}
+                      onChange={() => setCreateNewCustomer(false)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <label htmlFor="existing-customer" className="ml-2 text-sm text-gray-700">
+                      Assign to existing customer
+                    </label>
+                  </div>
+                  <div className="flex items-center">
+                    <input
+                      id="new-customer"
+                      name="customer-type"
+                      type="radio"
+                      checked={createNewCustomer}
+                      onChange={() => setCreateNewCustomer(true)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <label htmlFor="new-customer" className="ml-2 text-sm text-gray-700">
+                      Create new customer
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Existing Customer Selection */}
+              {!createNewCustomer && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Customer *
+                  </label>
+                  <select
+                    value={assignmentData.customerId}
+                    onChange={(e) => setAssignmentData(prev => ({ ...prev, customerId: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required={!createNewCustomer}
+                  >
+                    <option value="">Select a customer...</option>
+                    {customers.map(customer => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.firstName} {customer.lastName} 
+                        {customer.email && ` (${customer.email})`}
+                      </option>
+                    ))}
+                  </select>
+                  {customers.length === 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      No customers available. Create a new customer instead.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* New Customer Form */}
+              {createNewCustomer && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        First Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={assignmentData.newCustomer.firstName}
+                        onChange={(e) => setAssignmentData(prev => ({ 
+                          ...prev, 
+                          newCustomer: { ...prev.newCustomer, firstName: e.target.value }
+                        }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="John"
+                        required={createNewCustomer}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Last Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={assignmentData.newCustomer.lastName}
+                        onChange={(e) => setAssignmentData(prev => ({ 
+                          ...prev, 
+                          newCustomer: { ...prev.newCustomer, lastName: e.target.value }
+                        }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Doe"
+                        required={createNewCustomer}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={assignmentData.newCustomer.email}
+                      onChange={(e) => setAssignmentData(prev => ({ 
+                        ...prev, 
+                        newCustomer: { ...prev.newCustomer, email: e.target.value }
+                      }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="john@example.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={assignmentData.newCustomer.phone}
+                      onChange={(e) => setAssignmentData(prev => ({ 
+                        ...prev, 
+                        newCustomer: { ...prev.newCustomer, phone: e.target.value }
+                      }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="(555) 123-4567"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowAssignModal(false);
+                    setCardToAssign(null);
+                    setCreateNewCustomer(false);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCardAssignment}
+                  disabled={
+                    assigningCard || 
+                    !assignmentData.storeId || 
+                    (!createNewCustomer && !assignmentData.customerId) ||
+                    (createNewCustomer && (!assignmentData.newCustomer.firstName || !assignmentData.newCustomer.lastName))
+                  }
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {assigningCard ? 'Assigning...' : 'Assign Card'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

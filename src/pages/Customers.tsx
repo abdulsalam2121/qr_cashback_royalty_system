@@ -1,20 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Search, Plus, Eye, Edit, Mail, Phone, X } from 'lucide-react';
+import { Users, Search, Plus, Eye, Edit, Mail, Phone, X, Trash2 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { api } from '../utils/api';
 import { formatCurrency, formatDate, getTierColor } from '../utils/format';
 import { Customer } from '../types';
+import { useToast } from '../hooks/useToast';
 
 const Customers: React.FC = () => {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const { showToast } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [addingCustomer, setAddingCustomer] = useState(false);
+  const [updatingCustomer, setUpdatingCustomer] = useState(false);
+  const [deletingCustomer, setDeletingCustomer] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: ''
+  });
+  const [editCustomer, setEditCustomer] = useState({
     firstName: '',
     lastName: '',
     email: '',
@@ -50,11 +64,70 @@ const Customers: React.FC = () => {
       setCustomers(prev => [data.customer, ...prev]);
       setShowAddModal(false);
       setNewCustomer({ firstName: '', lastName: '', email: '', phone: '' });
+      showToast('Customer created successfully', 'success');
     } catch (error) {
       console.error('Failed to create customer:', error);
-      alert('Failed to create customer. Please try again.');
+      showToast('Failed to create customer. Please try again.', 'error');
     } finally {
       setAddingCustomer(false);
+    }
+  };
+
+  const handleEditCustomer = (customer: Customer) => {
+    setEditingCustomer(customer);
+    setEditCustomer({
+      firstName: customer.firstName,
+      lastName: customer.lastName,
+      email: customer.email || '',
+      phone: customer.phone || ''
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tenantSlug || !editingCustomer) return;
+
+    try {
+      setUpdatingCustomer(true);
+      const data = await api.tenant.updateCustomer(tenantSlug, editingCustomer.id, editCustomer);
+      setCustomers(prev => prev.map(c => c.id === editingCustomer.id ? data.customer : c));
+      setShowEditModal(false);
+      setEditingCustomer(null);
+      setEditCustomer({ firstName: '', lastName: '', email: '', phone: '' });
+      showToast('Customer updated successfully', 'success');
+    } catch (error) {
+      console.error('Failed to update customer:', error);
+      showToast('Failed to update customer. Please try again.', 'error');
+    } finally {
+      setUpdatingCustomer(false);
+    }
+  };
+
+  const handleDeleteCustomer = (customer: Customer) => {
+    setCustomerToDelete(customer);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteCustomer = async () => {
+    if (!tenantSlug || !customerToDelete) return;
+
+    try {
+      setDeletingCustomer(true);
+      await api.tenant.deleteCustomer(tenantSlug, customerToDelete.id);
+      setCustomers(prev => prev.filter(c => c.id !== customerToDelete.id));
+      setShowDeleteModal(false);
+      setCustomerToDelete(null);
+      // Close detail modal if this customer was selected
+      if (selectedCustomer?.id === customerToDelete.id) {
+        setSelectedCustomer(null);
+      }
+      showToast('Customer deleted successfully', 'success');
+    } catch (error) {
+      console.error('Failed to delete customer:', error);
+      showToast('Failed to delete customer. Please try again.', 'error');
+    } finally {
+      setDeletingCustomer(false);
     }
   };
 
@@ -193,11 +266,23 @@ const Customers: React.FC = () => {
                       <button
                         onClick={() => setSelectedCustomer(customer)}
                         className="text-blue-600 hover:text-blue-900 p-1 rounded"
+                        title="View Details"
                       >
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button className="text-gray-600 hover:text-gray-900 p-1 rounded">
+                      <button 
+                        onClick={() => handleEditCustomer(customer)}
+                        className="text-gray-600 hover:text-gray-900 p-1 rounded"
+                        title="Edit Customer"
+                      >
                         <Edit className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteCustomer(customer)}
+                        className="text-red-600 hover:text-red-900 p-1 rounded"
+                        title="Delete Customer"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </td>
@@ -406,6 +491,183 @@ const Customers: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Customer Modal */}
+      {showEditModal && editingCustomer && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Edit Customer</h3>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingCustomer(null);
+                  setEditCustomer({ firstName: '', lastName: '', email: '', phone: '' });
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateCustomer} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editCustomer.firstName}
+                    onChange={(e) => setEditCustomer(prev => ({ ...prev, firstName: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="John"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editCustomer.lastName}
+                    onChange={(e) => setEditCustomer(prev => ({ ...prev, lastName: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Doe"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={editCustomer.email}
+                  onChange={(e) => setEditCustomer(prev => ({ ...prev, email: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="john@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone
+                </label>
+                <input
+                  type="tel"
+                  value={editCustomer.phone}
+                  onChange={(e) => setEditCustomer(prev => ({ ...prev, phone: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="(555) 123-4567"
+                />
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingCustomer(null);
+                    setEditCustomer({ firstName: '', lastName: '', email: '', phone: '' });
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updatingCustomer}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {updatingCustomer ? 'Updating...' : 'Update Customer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Customer Modal */}
+      {showDeleteModal && customerToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-red-600">Delete Customer</h3>
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setCustomerToDelete(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-red-800">
+                      Warning: This action cannot be undone!
+                    </h3>
+                    <div className="mt-2 text-sm text-red-700">
+                      <p>
+                        You are about to permanently delete the customer "{customerToDelete.firstName} {customerToDelete.lastName}".
+                      </p>
+                      <ul className="mt-2 list-disc list-inside">
+                        <li>All customer data will be permanently removed</li>
+                        <li>This action cannot be reversed</li>
+                        <li>Any associated cards must be unassigned first</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-sm text-gray-600">
+                Customer: <span className="font-semibold">{customerToDelete.firstName} {customerToDelete.lastName}</span>
+              </p>
+              {customerToDelete.email && (
+                <p className="text-sm text-gray-600">
+                  Email: <span className="font-semibold">{customerToDelete.email}</span>
+                </p>
+              )}
+              <p className="text-sm text-gray-600 mt-2">
+                Cards: <span className="font-semibold">{customerToDelete.cards?.length || 0}</span>
+              </p>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setCustomerToDelete(null);
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteCustomer}
+                disabled={deletingCustomer}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                {deletingCustomer ? 'Deleting...' : 'Delete Customer'}
+              </button>
+            </div>
           </div>
         </div>
       )}
