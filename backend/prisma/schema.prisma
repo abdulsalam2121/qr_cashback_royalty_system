@@ -286,6 +286,7 @@ enum CardType {
 }
 
 enum OrderStatus {
+  PENDING_PAYMENT
   PENDING
   PROCESSING
   SHIPPED
@@ -300,7 +301,12 @@ model CardOrder {
   quantity          Int
   unitPrice         Decimal     // Price per card in USD
   totalPrice        Decimal     // Total order price
-  status            OrderStatus @default(PENDING)
+  status            OrderStatus @default(PENDING_PAYMENT)
+  
+  // Payment tracking
+  stripeSessionId   String?     // Stripe checkout session ID
+  stripePaymentId   String?     // Stripe payment intent ID
+  paidAt            DateTime?   // When payment was confirmed
   
   // Customization details (for double-sided custom cards)
   storeName         String?

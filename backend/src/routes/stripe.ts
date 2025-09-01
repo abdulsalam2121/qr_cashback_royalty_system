@@ -25,6 +25,16 @@ router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(
 
   try {
     switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        
+        // Handle card order payments
+        if (session.metadata?.orderId) {
+          await handleCardOrderPayment(session);
+        }
+        break;
+      }
+
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
@@ -71,6 +81,16 @@ router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(
         break;
       }
 
+      case 'payment_intent.succeeded': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        
+        // Handle one-time payments (like card orders)
+        if (paymentIntent.metadata?.orderId) {
+          await handleCardOrderPaymentIntent(paymentIntent);
+        }
+        break;
+      }
+
       default:
         console.log(`Unhandled event type: ${event.type}`);
     }
@@ -82,6 +102,58 @@ router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(
     res.status(500).json({ error: 'Webhook processing failed' });
     return;
   }
+}));
+
+// Handle card order payment completion
+async function handleCardOrderPayment(session: Stripe.Checkout.Session) {
+  const orderId = session.metadata?.orderId;
+  
+  if (!orderId) {
+    console.error('No order ID in session metadata');
+    return;
+  }
+
+  try {
+    await prisma.cardOrder.update({
+      where: { id: orderId },
+      data: {
+        status: 'PENDING',
+        stripeSessionId: session.id,
+        stripePaymentId: session.payment_intent as string,
+        paidAt: new Date(),
+      }
+    });
+
+    console.log(`Card order ${orderId} payment confirmed`);
+  } catch (error) {
+    console.error(`Failed to update card order ${orderId}:`, error);
+  }
+}
+
+// Handle payment intent for card orders
+async function handleCardOrderPaymentIntent(paymentIntent: Stripe.PaymentIntent) {
+  const orderId = paymentIntent.metadata?.orderId;
+  
+  if (!orderId) {
+    console.error('No order ID in payment intent metadata');
+    return;
+  }
+
+  try {
+    await prisma.cardOrder.update({
+      where: { id: orderId },
+      data: {
+        status: 'PENDING',
+        stripePaymentId: paymentIntent.id,
+        paidAt: new Date(),
+      }
+    });
+
+    console.log(`Card order ${orderId} payment intent succeeded`);
+  } catch (error) {
+    console.error(`Failed to update card order ${orderId}:`, error);
+  }
+}
 }));
 
 async function updateTenantSubscription(subscription: Stripe.Subscription) {

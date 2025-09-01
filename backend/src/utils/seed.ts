@@ -1,102 +1,378 @@
 import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
-
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
+  console.log('🌱 Starting database seeding...');
+
   // ------------------------------------------------------------
-  // 0) PLATFORM TENANT (for platform_admin user attachment)
+  // 1) CREATE DEFAULT PLANS
   // ------------------------------------------------------------
+  console.log('📋 Creating subscription plans...');
+  
+  const plans = [
+    {
+      name: 'Starter Plan',
+      description: 'Perfect for small businesses - unlimited card activations after trial',
+      priceMonthly: 1999, // $19.99
+      billingPeriod: 'MONTHLY' as const,
+      billingPeriodMultiplier: 1,
+      stripePriceId: process.env.STRIPE_PRICE_ID_BASIC || 'price_starter',
+      features: [
+        'Unlimited card activations',
+        'Up to 3 store locations',
+        'Up to 10 staff members',
+        'Unlimited loyalty cards',
+        'Basic cashback rules',
+        'Email support',
+        'Card ordering system'
+      ],
+      maxStores: 3,
+      maxStaff: 10,
+      maxCards: -1,
+      maxTransactions: -1,
+    },
+    {
+      name: 'Professional',
+      description: 'Advanced features for growing businesses',
+      priceMonthly: 4999, // $49.99
+      billingPeriod: 'MONTHLY' as const,
+      billingPeriodMultiplier: 1,
+      stripePriceId: process.env.STRIPE_PRICE_ID_PRO || 'price_pro',
+      features: [
+        'Everything in Starter',
+        'Unlimited store locations',
+        'Unlimited staff members',
+        'Advanced cashback rules',
+        'Special offer campaigns',
+        'Priority support',
+        'Custom branding',
+        'Advanced analytics'
+      ],
+      maxStores: -1,
+      maxStaff: -1,
+      maxCards: -1,
+      maxTransactions: -1,
+    }
+  ];
+
+  for (const planData of plans) {
+    const existingPlan = await prisma.plan.findFirst({
+      where: { name: planData.name }
+    });
+
+    if (!existingPlan) {
+      await prisma.plan.create({
+        data: planData
+      });
+      console.log(`✅ Created plan: ${planData.name}`);
+    } else {
+      console.log(`⏭️  Plan already exists: ${planData.name}`);
+    }
+  }
+
+  // ------------------------------------------------------------
+  // 2) PLATFORM TENANT (for platform_admin user attachment)
+  // ------------------------------------------------------------
+  console.log('🏗️  Creating platform tenant...');
+  
   const platformTenant = await prisma.tenant.upsert({
     where: { slug: 'platform' },
     update: {},
     create: {
       slug: 'platform',
-      name: 'Platform (System Owner)',
+      name: 'Platform Administration',
       subscriptionStatus: SubscriptionStatus.NONE,
       planId: null,
     },
   });
+  console.log('✅ Platform tenant ready');
 
   // ------------------------------------------------------------
-  // 1) PLATFORM ADMIN (linked to platform tenant to satisfy schema)
-  //    Your app logic should still treat role=platform_admin as global.
+  // 3) PLATFORM ADMIN USER
   // ------------------------------------------------------------
+  console.log('👤 Creating platform admin user...');
+  
   const platformAdmin = await prisma.user.upsert({
-    where: { email: 'platform@example.com' },
+    where: { email: 'admin@platform.com' },
     update: {},
     create: {
-      email: 'platform@example.com',
-      passwordHash: await bcrypt.hash('AdminPass123!', 10),
+      email: 'admin@platform.com',
+      firstName: 'Platform',
+      lastName: 'Administrator',
+      passwordHash: await bcrypt.hash('AdminSecure123!', 12),
       role: 'platform_admin',
-      tenant: { connect: { id: platformTenant.id } }, // <-- attach required tenant
+      tenantId: platformTenant.id,
     },
   });
+  console.log('✅ Platform admin created: admin@platform.com / AdminSecure123!');
 
   // ------------------------------------------------------------
-  // 2) TENANT #1: Alpha Phone Shop (ACTIVE)
+  // 4) DEMO TENANT (ACTIVE SUBSCRIPTION)
   // ------------------------------------------------------------
-  const tenant1 = await prisma.tenant.upsert({
-    where: { slug: 'alpha-shop' },
+  console.log('🏪 Creating demo tenant...');
+  
+  const demoTenant = await prisma.tenant.upsert({
+    where: { slug: 'demo-store' },
     update: {},
     create: {
-      name: 'Alpha Phone Shop',
-      slug: 'alpha-shop',
+      name: 'Demo Electronics Store',
+      slug: 'demo-store',
       planId: null,
       subscriptionStatus: SubscriptionStatus.ACTIVE,
-      stripeCustomerId: 'cus_demo123',
-      stripeSubscriptionId: 'sub_demo123',
+      stripeCustomerId: null, // Will be created when needed
+      stripeSubscriptionId: null,
+      freeTrialActivations: 0,
+      freeTrialCardsCreated: 0,
+      freeTrialLimit: 50,
     },
   });
+  console.log('✅ Demo tenant created');
 
-  const store1 = await prisma.store.upsert({
-    where: { id: `${tenant1.id}-store-1` }, // synthetic stable key if you don't have uniques; else use create
+  // Create demo store location
+  const demoStore = await prisma.store.upsert({
+    where: { id: `${demoTenant.id}-main` },
     update: {},
     create: {
-      id: `${tenant1.id}-store-1`,
-      tenantId: tenant1.id,
-      name: 'Alpha Main Branch',
-      address: '123 Market Street',
+      id: `${demoTenant.id}-main`,
+      tenantId: demoTenant.id,
+      name: 'Demo Store - Main Branch',
+      address: '123 Demo Street, Demo City, DC 12345',
       active: true,
     },
   });
+  console.log('✅ Demo store location created');
 
-  const tenantAdmin1 = await prisma.user.upsert({
-    where: { email: 'owner@alpha.com' },
+  // Create demo tenant admin
+  const demoAdmin = await prisma.user.upsert({
+    where: { email: 'admin@demo.com' },
     update: {},
     create: {
-      email: 'owner@alpha.com',
-      passwordHash: await bcrypt.hash('TenantAdmin123!', 10),
+      email: 'admin@demo.com',
+      firstName: 'Demo',
+      lastName: 'Administrator',
+      passwordHash: await bcrypt.hash('DemoAdmin123!', 12),
       role: 'tenant_admin',
-      tenantId: tenant1.id,
+      tenantId: demoTenant.id,
     },
   });
+  console.log('✅ Demo admin created: admin@demo.com / DemoAdmin123!');
 
-  const cashier1 = await prisma.user.upsert({
-    where: { email: 'cashier@alpha.com' },
+  // Create demo cashier
+  const demoCashier = await prisma.user.upsert({
+    where: { email: 'cashier@demo.com' },
     update: {},
     create: {
-      email: 'cashier@alpha.com',
-      passwordHash: await bcrypt.hash('Cashier123!', 10),
+      email: 'cashier@demo.com',
+      firstName: 'Demo',
+      lastName: 'Cashier',
+      passwordHash: await bcrypt.hash('DemoCashier123!', 12),
       role: 'cashier',
-      tenantId: tenant1.id,
-      storeId: store1.id,
+      tenantId: demoTenant.id,
+      storeId: demoStore.id,
     },
   });
+  console.log('✅ Demo cashier created: cashier@demo.com / DemoCashier123!');
 
-  const customer1 = await prisma.customer.upsert({
-    where: { email: 'john@example.com' },
+  // Create demo customer
+  const demoCustomer = await prisma.customer.upsert({
+    where: { email: 'customer@demo.com' },
     update: {},
     create: {
-      tenantId: tenant1.id,
+      tenantId: demoTenant.id,
       firstName: 'John',
-      lastName: 'Doe',
-      email: 'john@example.com',
-      phone: '+123456789',
+      lastName: 'Customer',
+      email: 'customer@demo.com',
+      phone: '+1234567890',
       tier: 'SILVER',
-      totalSpend: new Prisma.Decimal(100), // optional
+      totalSpend: new Prisma.Decimal(150.00),
     },
+  });
+  console.log('✅ Demo customer created');
+
+  // ------------------------------------------------------------
+  // 5) DEFAULT CASHBACK AND TIER RULES
+  // ------------------------------------------------------------
+  console.log('⚙️  Setting up default business rules...');
+
+  // Create default tier rules
+  const tierRules = [
+    { tier: 'SILVER', minSpend: new Prisma.Decimal(0), maxSpend: new Prisma.Decimal(500) },
+    { tier: 'GOLD', minSpend: new Prisma.Decimal(500), maxSpend: new Prisma.Decimal(2000) },
+    { tier: 'PLATINUM', minSpend: new Prisma.Decimal(2000), maxSpend: null },
+  ];
+
+  for (const ruleData of tierRules) {
+    const existingRule = await prisma.tierRule.findFirst({
+      where: { 
+        tenantId: demoTenant.id,
+        tier: ruleData.tier as any 
+      }
+    });
+
+    if (!existingRule) {
+      await prisma.tierRule.create({
+        data: {
+          tenantId: demoTenant.id,
+          tier: ruleData.tier as any,
+          minSpend: ruleData.minSpend,
+          maxSpend: ruleData.maxSpend,
+        }
+      });
+      console.log(`✅ Created tier rule: ${ruleData.tier}`);
+    }
+  }
+
+  // Create default cashback rules
+  const cashbackRules = [
+    { category: 'PURCHASE', tier: 'SILVER', cashbackPercentage: new Prisma.Decimal(2.0) },
+    { category: 'PURCHASE', tier: 'GOLD', cashbackPercentage: new Prisma.Decimal(3.0) },
+    { category: 'PURCHASE', tier: 'PLATINUM', cashbackPercentage: new Prisma.Decimal(5.0) },
+    { category: 'REPAIR', tier: 'SILVER', cashbackPercentage: new Prisma.Decimal(1.5) },
+    { category: 'REPAIR', tier: 'GOLD', cashbackPercentage: new Prisma.Decimal(2.5) },
+    { category: 'REPAIR', tier: 'PLATINUM', cashbackPercentage: new Prisma.Decimal(4.0) },
+    { category: 'OTHER', tier: 'SILVER', cashbackPercentage: new Prisma.Decimal(1.0) },
+    { category: 'OTHER', tier: 'GOLD', cashbackPercentage: new Prisma.Decimal(1.5) },
+    { category: 'OTHER', tier: 'PLATINUM', cashbackPercentage: new Prisma.Decimal(2.5) },
+  ];
+
+  for (const ruleData of cashbackRules) {
+    const existingRule = await prisma.cashbackRule.findFirst({
+      where: { 
+        tenantId: demoTenant.id,
+        category: ruleData.category as any,
+        tier: ruleData.tier as any 
+      }
+    });
+
+    if (!existingRule) {
+      await prisma.cashbackRule.create({
+        data: {
+          tenantId: demoTenant.id,
+          category: ruleData.category as any,
+          tier: ruleData.tier as any,
+          cashbackPercentage: ruleData.cashbackPercentage,
+          isActive: true,
+        }
+      });
+      console.log(`✅ Created cashback rule: ${ruleData.category} - ${ruleData.tier}`);
+    }
+  }
+
+  // ------------------------------------------------------------
+  // 6) SAMPLE DATA FOR DEMO
+  // ------------------------------------------------------------
+  console.log('📊 Creating sample demo data...');
+
+  // Create a sample card for the demo customer
+  const { nanoid } = await import('nanoid');
+  const jwt = await import('jsonwebtoken');
+  
+  const cardUid = nanoid(12);
+  const qrToken = jwt.sign(
+    { cardUid, tenantId: demoTenant.id },
+    process.env.JWT_SECRET || 'your-secret-key',
+    { expiresIn: '365d' }
+  );
+  
+  const qrUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/c/${cardUid}?t=${qrToken}`;
+
+  const demoCard = await prisma.card.upsert({
+    where: { cardUid },
+    update: {},
+    create: {
+      tenantId: demoTenant.id,
+      cardUid,
+      qrUrl,
+      status: 'ACTIVE',
+      customerId: demoCustomer.id,
+      storeId: demoStore.id,
+      balanceCents: 2500, // $25.00 demo balance
+      activatedAt: new Date(),
+      activatedBy: demoCashier.id,
+    },
+  });
+  console.log(`✅ Demo card created: ${cardUid}`);
+
+  // Create sample transactions
+  const sampleTransactions = [
+    {
+      type: 'EARN',
+      category: 'PURCHASE',
+      amountCents: 5000, // $50.00
+      cashbackCents: 100, // $1.00 (2% for silver)
+      note: 'Phone accessories purchase'
+    },
+    {
+      type: 'EARN',
+      category: 'REPAIR',
+      amountCents: 8000, // $80.00
+      cashbackCents: 120, // $1.20 (1.5% for silver)
+      note: 'Screen repair service'
+    },
+    {
+      type: 'REDEEM',
+      category: 'OTHER',
+      amountCents: 500, // $5.00
+      cashbackCents: 0,
+      note: 'Cashback redemption'
+    }
+  ];
+
+  let currentBalance = 0;
+  for (const [index, txData] of sampleTransactions.entries()) {
+    const beforeBalance = currentBalance;
+    const afterBalance = txData.type === 'EARN' 
+      ? currentBalance + txData.cashbackCents 
+      : currentBalance - txData.amountCents;
+    
+    await prisma.transaction.create({
+      data: {
+        tenantId: demoTenant.id,
+        storeId: demoStore.id,
+        cardId: demoCard.id,
+        customerId: demoCustomer.id,
+        cashierId: demoCashier.id,
+        type: txData.type as any,
+        category: txData.category as any,
+        amountCents: txData.amountCents,
+        cashbackCents: txData.cashbackCents,
+        beforeBalanceCents: beforeBalance,
+        afterBalanceCents: afterBalance,
+        note: txData.note,
+        sourceIp: '127.0.0.1',
+        createdAt: new Date(Date.now() - (sampleTransactions.length - index) * 24 * 60 * 60 * 1000)
+      },
+    });
+    
+    currentBalance = afterBalance;
+    console.log(`✅ Created sample transaction: ${txData.type} - ${txData.note}`);
+  }
+
+  // Update card balance to match final transaction state
+  await prisma.card.update({
+    where: { id: demoCard.id },
+    data: { balanceCents: 2720 } // Final calculated balance
+  });
+
+  console.log('🎉 Database seeding completed successfully!');
+  console.log('\n📋 Demo Credentials:');
+  console.log('Platform Admin: admin@platform.com / AdminSecure123!');
+  console.log('Demo Store Admin: admin@demo.com / DemoAdmin123!');
+  console.log('Demo Cashier: cashier@demo.com / DemoCashier123!');
+  console.log(`Demo Customer Card: ${cardUid}`);
+  console.log(`Demo Store Slug: demo-store`);
+  console.log('\n🚀 System is ready for deployment!');
+}
+
+main()
+  .catch((e) => {
+    console.error('❌ Seeding failed:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
   });
 
   const card1 = await prisma.card.upsert({
