@@ -262,6 +262,13 @@ export const api = {
       });
     },
 
+    updateCardStore: async (tenantSlug: string, cardUid: string, storeId: string): Promise<{ card: Card; message: string }> => {
+      return request(`/t/${tenantSlug}/cards/${cardUid}/store`, {
+        method: 'PUT',
+        body: JSON.stringify({ storeId }),
+      });
+    },
+
     // Transactions
     getTransactions: async (tenantSlug: string, params?: string): Promise<{ transactions: Transaction[]; total: number; page: number; pages: number }> => {
       const query = params ? `?${params}` : '';

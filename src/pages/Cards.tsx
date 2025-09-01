@@ -21,7 +21,10 @@ const Cards: React.FC = () => {
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [showCreateBatch, setShowCreateBatch] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showStoreAssignModal, setShowStoreAssignModal] = useState(false);
   const [cardToAssign, setCardToAssign] = useState<Card | null>(null);
+  const [cardToReassign, setCardToReassign] = useState<Card | null>(null);
+  const [selectedStoreId, setSelectedStoreId] = useState('');
   const [batchCount, setBatchCount] = useState(10);
   const [creatingBatch, setCreatingBatch] = useState(false);
   const [assigningCard, setAssigningCard] = useState(false);
@@ -59,6 +62,11 @@ const Cards: React.FC = () => {
     fetchStores();
   }, [statusFilter]);
 
+  useEffect(() => {
+    console.log('Stores data:', stores);
+    console.log('Stores length:', stores.length);
+  }, [stores]);
+
   const fetchTenantInfo = async () => {
     if (!tenantSlug) return;
     
@@ -81,6 +89,7 @@ const Cards: React.FC = () => {
       if (searchTerm) params.append('search', searchTerm);
 
       const data = await api.tenant.getCards(tenantSlug, params.toString());
+      console.log('Cards data from API:', data.cards);
       setCards(data.cards || []);
     } catch (error) {
       console.error('Failed to fetch cards:', error);
@@ -236,6 +245,42 @@ const Cards: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to assign card:', error);
       showToast(error.response?.data?.message || 'Failed to assign card', 'error');
+    } finally {
+      setAssigningCard(false);
+    }
+  };
+
+  const handleStoreAssignment = (card: Card) => {
+    setCardToReassign(card);
+    setSelectedStoreId(card.storeId || '');
+    setShowStoreAssignModal(true);
+  };
+
+  const handleStoreReassignment = async () => {
+    if (!tenantSlug || !cardToReassign || !selectedStoreId) return;
+
+    try {
+      setAssigningCard(true);
+      
+      const response = await api.tenant.updateCardStore(tenantSlug, cardToReassign.cardUid, selectedStoreId);
+      
+      // Update local state
+      setCards(prev => prev.map(c => 
+        c.cardUid === cardToReassign.cardUid ? response.card : c
+      ));
+
+      // Update selectedCard if it's the one being updated
+      if (selectedCard && selectedCard.cardUid === cardToReassign.cardUid) {
+        setSelectedCard(response.card);
+      }
+
+      setShowStoreAssignModal(false);
+      setCardToReassign(null);
+      setSelectedStoreId('');
+      showToast('Card store assignment updated successfully', 'success');
+    } catch (error: any) {
+      console.error('Failed to update card store:', error);
+      showToast(error.response?.data?.message || 'Failed to update card store assignment', 'error');
     } finally {
       setAssigningCard(false);
     }
@@ -436,6 +481,16 @@ const Cards: React.FC = () => {
                   >
                     <UserPlus className="w-4 h-4 mr-1" />
                     Assign
+                  </button>
+                )}
+
+                {card.status !== 'UNASSIGNED' && stores.length > 1 && (
+                  <button
+                    onClick={() => handleStoreAssignment(card)}
+                    className="flex items-center px-3 py-1 text-sm text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                  >
+                    <Store className="w-4 h-4 mr-1" />
+                    Assign Store
                   </button>
                 )}
               </div>
@@ -921,6 +976,75 @@ const Cards: React.FC = () => {
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
                   {assigningCard ? 'Assigning...' : 'Assign Card'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Store Assignment Modal */}
+      {showStoreAssignModal && cardToReassign && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">Assign Store to Card</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Card ID: {cardToReassign.cardUid}
+              </p>
+              {cardToReassign.customer && (
+                <p className="text-sm text-gray-600">
+                  Customer: {cardToReassign.customer.firstName} {cardToReassign.customer.lastName}
+                </p>
+              )}
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Store *
+                </label>
+                <select
+                  value={selectedStoreId}
+                  onChange={(e) => setSelectedStoreId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                >
+                  <option value="">Select a store...</option>
+                  {stores.map(store => (
+                    <option key={store.id} value={store.id}>
+                      {store.name} - {store.address}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-blue-800">
+                  <strong>Current Store:</strong> {cardToReassign.storeName || 'None assigned'}
+                </p>
+                <p className="text-sm text-blue-600 mt-1">
+                  This will update which store this card is associated with. Transactions and points will remain with the customer.
+                </p>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowStoreAssignModal(false);
+                    setCardToReassign(null);
+                    setSelectedStoreId('');
+                  }}
+                  className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleStoreReassignment}
+                  disabled={!selectedStoreId || assigningCard}
+                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                >
+                  {assigningCard ? 'Updating...' : 'Update Store'}
                 </button>
               </div>
             </div>
