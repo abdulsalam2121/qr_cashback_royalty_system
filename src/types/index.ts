@@ -9,6 +9,13 @@ export interface User {
   tenantName?: string;
   storeId?: string;
   storeName?: string;
+  active?: boolean;
+  lastLogin?: string;
+  createdAt?: string;
+  store?: {
+    id: string;
+    name: string;
+  };
 }
 
 export interface Tenant {
