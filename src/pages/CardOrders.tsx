@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { CreditCard, Package, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { CreditCard, Package, CheckCircle, XCircle } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { api } from '../utils/api';
@@ -42,6 +42,20 @@ export default function CardOrders() {
     }
   });
   const [loading, setLoading] = useState(false);
+  const [orderStatus, setOrderStatus] = useState<'form' | 'success' | 'cancelled'>('form');
+
+  // Check URL parameters for payment result
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get('success');
+    const cancelled = urlParams.get('canceled');
+    
+    if (success === 'true') {
+      setOrderStatus('success');
+    } else if (cancelled === 'true') {
+      setOrderStatus('cancelled');
+    }
+  }, []);
 
   const cardTypes = [
     {
@@ -91,30 +105,15 @@ export default function CardOrders() {
         customDesign: orderForm.cardType === 'DOUBLE_SIDED_CUSTOM' ? orderForm.customDesign : undefined,
       };
 
-      await api.tenant.createCardOrder(user?.tenantSlug || '', orderData);
+      // Create Stripe checkout session
+      const { checkoutUrl } = await api.tenant.createCardOrderCheckout(user?.tenantSlug || '', orderData);
       
-      alert('Order submitted successfully! You will receive a confirmation email shortly.');
+      // Redirect to Stripe checkout
+      window.location.href = checkoutUrl;
       
-      // Reset form
-      setOrderForm({
-        cardType: 'SINGLE_SIDED',
-        quantity: 100,
-        storeName: '',
-        storePhone: '',
-        storeAddress: '',
-        customDesign: '',
-        shippingAddress: {
-          name: '',
-          address1: '',
-          city: '',
-          state: '',
-          zipCode: '',
-          country: 'US'
-        }
-      });
     } catch (error) {
-      console.error('Failed to submit order:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to submit order. Please try again.';
+      console.error('Failed to create checkout session:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create checkout session. Please try again.';
       alert(errorMessage);
     } finally {
       setLoading(false);
@@ -135,8 +134,40 @@ export default function CardOrders() {
           </p>
         </div>
 
-        {/* Card Type Selection */}
-        <div className="space-y-6">
+        {/* Payment Status Messages */}
+        {orderStatus === 'success' && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+            <div className="flex items-center">
+              <CheckCircle className="w-8 h-8 text-green-500 mr-3" />
+              <div>
+                <h3 className="text-lg font-medium text-green-900">Payment Successful!</h3>
+                <p className="text-green-700">
+                  Your card order has been received and payment confirmed. You'll receive an email confirmation shortly.
+                  Production will begin within 1 business day.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {orderStatus === 'cancelled' && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+            <div className="flex items-center">
+              <XCircle className="w-8 h-8 text-yellow-500 mr-3" />
+              <div>
+                <h3 className="text-lg font-medium text-yellow-900">Payment Cancelled</h3>
+                <p className="text-yellow-700">
+                  Your payment was cancelled. Your order has not been processed. You can try again below.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {orderStatus === 'form' && (
+          <>
+            {/* Card Type Selection */}
+            <div className="space-y-6">
           <h2 className="text-xl font-semibold text-gray-900">Select Card Type</h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {cardTypes.map((cardType) => (
@@ -407,8 +438,8 @@ export default function CardOrders() {
               <LoadingSpinner />
             ) : (
               <>
-                Place Order
-                <ArrowRight className="w-5 h-5 ml-2" />
+                Proceed to Payment
+                <CreditCard className="w-5 h-5 ml-2" />
               </>
             )}
           </button>
@@ -417,6 +448,8 @@ export default function CardOrders() {
             Production time is 5-7 business days. Shipping takes an additional 3-5 business days.
           </p>
         </form>
+        </>
+        )}
       </div>
     </Layout>
   );

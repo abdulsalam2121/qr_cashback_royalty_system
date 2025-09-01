@@ -1,6 +1,11 @@
 import { User, Customer, Card, Transaction, Store, DashboardStats, CashbackRule, TierRule, Offer, Tenant, PlatformStats, Plan } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Get API base URL from environment variables
+const API_BASE_URL = import.meta.env.VITE_API_URL || (
+  import.meta.env.DEV 
+    ? 'http://localhost:3001/api' 
+    : `${window.location.protocol}//${window.location.host}/api`
+);
 
 class ApiError extends Error {
   constructor(message: string, public status: number) {
@@ -12,7 +17,10 @@ class ApiError extends Error {
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   
-  console.log(`API Request: ${options.method || 'GET'} ${url}`);
+  // Only log in development
+  if (import.meta.env.DEV) {
+    console.log(`API Request: ${options.method || 'GET'} ${url}`);
+  }
   
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -28,7 +36,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   try {
     const response = await fetch(url, config);
     
-    console.log(`API Response: ${response.status} ${response.statusText}`);
+    if (import.meta.env.DEV) {
+      console.log(`API Response: ${response.status} ${response.statusText}`);
+    }
     
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
@@ -43,15 +53,21 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     // Handle 204 No Content responses (typically from DELETE operations)
     if (response.status === 204) {
-      console.log('API Response: No content (204)');
+      if (import.meta.env.DEV) {
+        console.log('API Response: No content (204)');
+      }
       return {} as T;
     }
 
     const data = await response.json();
-    console.log('API Response Data:', data);
+    if (import.meta.env.DEV) {
+      console.log('API Response Data:', data);
+    }
     return data;
   } catch (error) {
-    console.error(`API Error for ${url}:`, error);
+    if (import.meta.env.DEV) {
+      console.error(`API Error for ${url}:`, error);
+    }
     if (error instanceof ApiError) {
       throw error;
     }
@@ -450,6 +466,21 @@ export const api = {
       shippingAddress: string;
     }): Promise<{ order: any }> => {
       return request(`/t/${tenantSlug}/card-orders`, {
+        method: 'POST',
+        body: JSON.stringify(orderData),
+      });
+    },
+
+    createCardOrderCheckout: async (tenantSlug: string, orderData: {
+      cardType: 'SINGLE_SIDED' | 'DOUBLE_SIDED_CUSTOM';
+      quantity: number;
+      storeName?: string;
+      storePhone?: string;
+      storeAddress?: string;
+      customDesign?: string;
+      shippingAddress: string;
+    }): Promise<{ checkoutUrl: string; orderId: string; sessionId: string }> => {
+      return request(`/t/${tenantSlug}/card-orders/checkout`, {
         method: 'POST',
         body: JSON.stringify(orderData),
       });
