@@ -108,6 +108,7 @@ app.get('/healthz', async (req, res) => {
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/platform', platformRoutes);
+app.use('/api/card-orders', cardOrderRoutes); // Global card orders routes (pricing, etc.)
 app.use('/api/t', tenantRoutes);
 app.use('/api/stripe', stripeRoutes);
 

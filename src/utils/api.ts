@@ -80,7 +80,7 @@ export const api = {
     password: string;
     firstName: string;
     lastName: string;
-  }): Promise<{ user: User }> => {
+  }): Promise<{ user: User; tenant: Tenant }> => {
     return request('/auth/signup', {
       method: 'POST',
       body: JSON.stringify(userData),
@@ -353,6 +353,41 @@ export const api = {
         credentials: 'include',
       });
       return response.blob();
+    },
+
+    // Card Orders
+    getCardOrders: async (tenantSlug: string, params?: string): Promise<{ orders: any[]; pagination: any }> => {
+      const query = params ? `?${params}` : '';
+      return request(`/t/${tenantSlug}/card-orders${query}`);
+    },
+
+    createCardOrder: async (tenantSlug: string, orderData: {
+      cardType: 'SINGLE_SIDED' | 'DOUBLE_SIDED_CUSTOM';
+      quantity: number;
+      storeName?: string;
+      storePhone?: string;
+      storeAddress?: string;
+      customDesign?: string;
+      shippingAddress: string;
+    }): Promise<{ order: any }> => {
+      return request(`/t/${tenantSlug}/card-orders`, {
+        method: 'POST',
+        body: JSON.stringify(orderData),
+      });
+    },
+
+    getCardOrder: async (tenantSlug: string, orderId: string): Promise<{ order: any }> => {
+      return request(`/t/${tenantSlug}/card-orders/${orderId}`);
+    },
+
+    cancelCardOrder: async (tenantSlug: string, orderId: string): Promise<{ order: any }> => {
+      return request(`/t/${tenantSlug}/card-orders/${orderId}`, {
+        method: 'DELETE',
+      });
+    },
+
+    getCardPricing: async (): Promise<{ prices: { SINGLE_SIDED: number; DOUBLE_SIDED_CUSTOM: number }; currency: string }> => {
+      return request('/card-orders/pricing');
     },
   },
 

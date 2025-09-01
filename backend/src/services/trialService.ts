@@ -87,13 +87,25 @@ export async function trackCardActivation(tenantId: string, cardId: string): Pro
  */
 async function handleTrialExpired(tenantId: string): Promise<void> {
   try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      include: { users: { where: { role: 'tenant_admin' } } }
+    });
+
+    if (!tenant) return;
+
     // Mark as notified
     await prisma.tenant.update({
       where: { id: tenantId },
       data: { trialExpiredNotified: true }
     });
 
-    console.log(`Trial expired for tenant ${tenantId}. Notification would be sent via email/dashboard.`);
+    // In a real implementation, you would send email notifications here
+    // For now, we'll log it
+    console.log(`Trial expired for tenant ${tenantId} (${tenant.name}). Used ${tenant.freeTrialActivations}/${tenant.freeTrialLimit} activations.`);
+    
+    // You could integrate with an email service here
+    // Example: await sendEmail(tenant.users[0]?.email, 'trial-expired', { ... });
 
   } catch (error) {
     console.error('Error handling trial expiration:', error);
@@ -105,7 +117,18 @@ async function handleTrialExpired(tenantId: string): Promise<void> {
  */
 async function sendTrialWarning(tenantId: string, activationsRemaining: number): Promise<void> {
   try {
-    console.log(`Trial warning for tenant ${tenantId}: ${activationsRemaining} activations remaining`);
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      include: { users: { where: { role: 'tenant_admin' } } }
+    });
+
+    if (!tenant) return;
+
+    console.log(`Trial warning for tenant ${tenantId} (${tenant.name}): ${activationsRemaining} activations remaining`);
+    
+    // In a real implementation, you would send email notifications here
+    // Example: await sendEmail(tenant.users[0]?.email, 'trial-warning', { activationsRemaining });
+
   } catch (error) {
     console.error('Error sending trial warning:', error);
   }

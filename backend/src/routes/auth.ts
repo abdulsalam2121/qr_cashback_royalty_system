@@ -105,7 +105,7 @@ router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, r
   return;
 }));
 
-// Public signup (for customers)
+// Public signup (for store owners)
 router.post('/signup', validate(registerSchema), asyncHandler(async (req: Request, res: Response) => {
   const { email, password, firstName, lastName } = req.body;
 
@@ -120,24 +120,60 @@ router.post('/signup', validate(registerSchema), asyncHandler(async (req: Reques
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  // Create a default tenant for new signups
+  // Generate unique slug for tenant
+  const baseSlug = `${firstName}-${lastName}-store`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  let slug = baseSlug;
+  let counter = 1;
+  
+  // Ensure slug is unique
+  while (await prisma.tenant.findUnique({ where: { slug } })) {
+    slug = `${baseSlug}-${counter}`;
+    counter++;
+  }
+
+  // Create a tenant for the new store owner with trial settings
   const tenant = await prisma.tenant.create({
     data: {
       name: `${firstName} ${lastName}'s Store`,
-      slug: `${firstName}-${lastName}-store`.toLowerCase().replace(/\s+/g, '-'),
+      slug,
+      subscriptionStatus: 'TRIALING',
+      freeTrialActivations: 0,
+      freeTrialLimit: 40,
+      trialExpiredNotified: false,
     },
   });
 
+  // Create the user as tenant admin
   const user = await prisma.user.create({
     data: {
       email,
       passwordHash,
       firstName,
       lastName,
-      role: 'customer', // Default role for public signups
+      role: 'tenant_admin', // Store owners are tenant admins
       tenantId: tenant.id,
     },
     include: { store: true, tenant: true },
+  });
+
+  // Create JWT token for immediate login
+  const token = jwt.sign(
+    { 
+      userId: user.id, 
+      email: user.email, 
+      role: user.role,
+      tenantId: user.tenantId,
+      storeId: user.storeId,
+    },
+    process.env.JWT_SECRET!,
+    { expiresIn: '7d' }
+  );
+
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
   const userResponse = {
@@ -150,9 +186,25 @@ router.post('/signup', validate(registerSchema), asyncHandler(async (req: Reques
     storeName: user.store?.name,
     tenantId: user.tenantId,
     tenantName: user.tenant?.name,
+    tenantSlug: user.tenant?.slug,
   };
 
-  res.status(201).json({ user: userResponse });
+  const response = { 
+    user: userResponse,
+    tenant: {
+      id: tenant.id,
+      slug: tenant.slug,
+      name: tenant.name,
+      subscriptionStatus: tenant.subscriptionStatus,
+      planId: tenant.planId,
+      trialEndsAt: tenant.trialEndsAt,
+      graceEndsAt: tenant.graceEndsAt,
+      freeTrialActivations: tenant.freeTrialActivations,
+      freeTrialLimit: tenant.freeTrialLimit,
+    }
+  };
+
+  res.status(201).json(response);
   return;
 }));
 

@@ -35,6 +35,7 @@ model Tenant {
   
   // Free trial tracking
   freeTrialActivations  Int                @default(0)
+  freeTrialCardsCreated Int                @default(0)
   freeTrialLimit        Int                @default(40)
   trialExpiredNotified  Boolean            @default(false)
 

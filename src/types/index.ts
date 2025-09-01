@@ -22,6 +22,9 @@ export interface Tenant {
   planId?: string;
   trialEndsAt?: string;
   graceEndsAt?: string;
+  freeTrialActivations?: number;
+  freeTrialCardsCreated?: number;
+  freeTrialLimit?: number;
   stores?: Store[];
   _count?: {
     stores: number;
@@ -54,6 +57,7 @@ export interface Card {
   status: 'UNASSIGNED' | 'ACTIVE' | 'BLOCKED';
   balanceCents: number;
   qrUrl?: string;
+  createdAt: string;
 }
 
 export interface Transaction {

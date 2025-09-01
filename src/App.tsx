@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { ToastProvider } from './hooks/useToast';
 import TenantLayout from './components/TenantLayout';
 import PlatformLayout from './components/PlatformLayout';
 import Login from './pages/Login';
@@ -52,13 +53,21 @@ function App() {
   const [isInitialized, setIsInitialized] = React.useState(false);
 
   useEffect(() => {
-    const init = () => {
-      initialize();
-      setIsInitialized(true);
+    const init = async () => {
+      try {
+        // Wait a bit for Zustand persist to rehydrate
+        await new Promise(resolve => setTimeout(resolve, 100));
+        initialize();
+        setIsInitialized(true);
+      } catch (error) {
+        console.error('Error during initialization:', error);
+        setIsInitialized(true); // Continue anyway
+      }
     };
     init();
   }, [initialize]);
 
+  // Show loading only for a brief moment during initialization
   if (!isInitialized) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -69,8 +78,9 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <Router>
-        <div className="min-h-screen bg-gray-50">
+      <ToastProvider>
+        <Router>
+          <div className="min-h-screen bg-gray-50">
           <Routes>
             {/* Public Routes */}
             <Route 
@@ -251,11 +261,13 @@ function App() {
               path="/" 
               element={
                 <Navigate to={
-                  user?.role === 'platform_admin' ? '/platform/dashboard' :
-                  user?.role === 'tenant_admin' && tenant ? `/t/${tenant.slug}/dashboard` :
-                  user?.role === 'cashier' && tenant ? `/t/${tenant.slug}/pos` :
-                  user?.role === 'customer' && tenant ? `/t/${tenant.slug}/customer` :
-                  '/login'
+                  isAuthenticated && user ? (
+                    user.role === 'platform_admin' ? '/platform/dashboard' :
+                    user.role === 'tenant_admin' && tenant ? `/t/${tenant.slug}/dashboard` :
+                    user.role === 'cashier' && tenant ? `/t/${tenant.slug}/pos` :
+                    user.role === 'customer' && tenant ? `/t/${tenant.slug}/customer` :
+                    '/login'
+                  ) : '/login'
                 } replace />
               } 
             />
@@ -282,6 +294,7 @@ function App() {
           </Routes>
         </div>
       </Router>
+      </ToastProvider>
     </ErrorBoundary>
   );
 }

@@ -23,6 +23,14 @@ const templates = {
   WELCOME: {
     SMS: "Welcome to our loyalty program, {customerName}! Your card {cardUid} is now active. Start earning cashback today!",
     WHATSAPP: "👋 Welcome to our loyalty program!\n\nHi {customerName}, your card {cardUid} is now active.\n\nStart earning cashback on every purchase and unlock exclusive rewards! 🎁"
+  },
+  TRIAL_EXPIRING: {
+    SMS: "Your free trial expires soon! You have {activationsRemaining} card activations left. Upgrade to $19.99/month to continue.",
+    WHATSAPP: "⚠️ Trial Expiring Soon!\n\nYou have {activationsRemaining} card activations remaining in your free trial.\n\nUpgrade to our $19.99/month plan to continue using the system without interruption."
+  },
+  TRIAL_EXPIRED: {
+    SMS: "Your free trial has ended after {activationsUsed} activations. Upgrade to $19.99/month to continue using the system.",
+    WHATSAPP: "🚨 Free Trial Ended\n\nYou've used all {activationsUsed} free card activations.\n\nUpgrade to our $19.99/month subscription to:\n• Continue activating cards\n• Access all features\n• Get priority support\n\nUpgrade now to keep your business running smoothly!"
   }
 };
 

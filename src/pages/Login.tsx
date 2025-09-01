@@ -1,122 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { CreditCard, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { api } from '../utils/api';
-import { User, Tenant } from '../types';
-
-// Mock data for demo accounts
-const mockAccounts = {
-  'platform@example.com': {
-    user: {
-      id: 'platform-admin-1',
-      email: 'platform@example.com',
-      role: 'platform_admin' as const,
-      firstName: 'Platform',
-      lastName: 'Admin'
-    }
-  },
-  'owner@alpha.com': {
-    user: {
-      id: 'tenant-admin-1',
-      email: 'owner@alpha.com',
-      role: 'tenant_admin' as const,
-      firstName: 'Alpha',
-      lastName: 'Owner',
-      tenantId: 'alpha-tenant-1',
-      tenantSlug: 'alpha-shop',
-      tenantName: 'Alpha Phone Shop'
-    },
-    tenant: {
-      id: 'alpha-tenant-1',
-      slug: 'alpha-shop',
-      name: 'Alpha Phone Shop',
-      createdAt: '2024-01-01T00:00:00.000Z',
-      subscriptionStatus: 'ACTIVE' as const,
-      planId: 'pro-plan',
-      _count: {
-        stores: 2,
-        users: 3,
-        customers: 25,
-        cards: 150
-      }
-    }
-  },
-  'cashier@alpha.com': {
-    user: {
-      id: 'cashier-1',
-      email: 'cashier@alpha.com',
-      role: 'cashier' as const,
-      firstName: 'Alpha',
-      lastName: 'Cashier',
-      tenantId: 'alpha-tenant-1',
-      tenantSlug: 'alpha-shop',
-      tenantName: 'Alpha Phone Shop',
-      storeId: 'store-1',
-      storeName: 'Main Store'
-    },
-    tenant: {
-      id: 'alpha-tenant-1',
-      slug: 'alpha-shop',
-      name: 'Alpha Phone Shop',
-      createdAt: '2024-01-01T00:00:00.000Z',
-      subscriptionStatus: 'ACTIVE' as const,
-      planId: 'pro-plan'
-    }
-  },
-  'owner@beta.com': {
-    user: {
-      id: 'tenant-admin-2',
-      email: 'owner@beta.com',
-      role: 'tenant_admin' as const,
-      firstName: 'Beta',
-      lastName: 'Owner',
-      tenantId: 'beta-tenant-1',
-      tenantSlug: 'beta-repairs',
-      tenantName: 'Beta Mobile Repairs'
-    },
-    tenant: {
-      id: 'beta-tenant-1',
-      slug: 'beta-repairs',
-      name: 'Beta Mobile Repairs',
-      createdAt: '2024-02-01T00:00:00.000Z',
-      subscriptionStatus: 'TRIALING' as const,
-      trialEndsAt: '2024-03-01T00:00:00.000Z',
-      _count: {
-        stores: 1,
-        users: 1,
-        customers: 8,
-        cards: 25
-      }
-    }
-  }
-};
-
-// Mock login function
-const mockLogin = async (email: string, password: string): Promise<{ user: User; tenant?: Tenant }> => {
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  const account = mockAccounts[email as keyof typeof mockAccounts];
-  
-  if (!account) {
-    throw new Error('Invalid email or password');
-  }
-  
-  // Simple password validation for demo
-  const validPasswords = {
-    'platform@example.com': 'AdminPass123!',
-    'owner@alpha.com': 'TenantAdmin123!',
-    'cashier@alpha.com': 'Cashier123!',
-    'owner@beta.com': 'TenantAdmin123!'
-  };
-  
-  if (password !== validPasswords[email as keyof typeof validPasswords]) {
-    throw new Error('Invalid email or password');
-  }
-  
-  return account;
-};
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -135,18 +21,8 @@ const Login: React.FC = () => {
     setError('');
 
     try {
-      // Try mock login first for demo accounts
-      let response;
-      try {
-        response = await mockLogin(formData.email, formData.password);
-      } catch (mockError) {
-        // If mock login fails, try real API as fallback
-        try {
-          response = await api.login(formData.email, formData.password);
-        } catch (apiError) {
-          throw mockError; // Show the mock error message
-        }
-      }
+      // Use real API authentication
+      const response = await api.login(formData.email, formData.password);
       
       const { user, tenant } = response;
       if (!user) {
@@ -266,6 +142,22 @@ const Login: React.FC = () => {
               )}
             </button>
           </form>
+
+          {/* Sign Up Link */}
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Don't have a store account?{' '}
+              <Link
+                to="/signup"
+                className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
+              >
+                Start your free trial here
+              </Link>
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              Get 40 free card activations • No credit card required
+            </p>
+          </div>
 
           <div className="mt-6 pt-6 border-t border-gray-200">
             <div className="text-sm text-gray-600">

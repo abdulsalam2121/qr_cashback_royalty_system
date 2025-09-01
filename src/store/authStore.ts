@@ -40,16 +40,17 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       version: 1,
-      onRehydrateStorage: () => (state, error) => {
+      partialize: (state) => ({ 
+        user: state.user, 
+        tenant: state.tenant, 
+        isAuthenticated: state.isAuthenticated 
+      }),
+      onRehydrateStorage: () => (_state, error) => {
         if (error) {
           console.error('Error rehydrating auth state:', error);
           // Clear corrupted data
           localStorage.removeItem('auth-storage');
           return;
-        }
-        if (state) {
-          // The initialize method will be called after rehydration
-          // We don't need to call it here as it will be called in the useEffect
         }
       },
     }

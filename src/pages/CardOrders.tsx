@@ -2,11 +2,16 @@ import React, { useState } from 'react';
 import { CreditCard, Package, ArrowRight } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { api } from '../utils/api';
+import { useAuthStore } from '../store/authStore';
 
 interface CardOrderForm {
   cardType: 'SINGLE_SIDED' | 'DOUBLE_SIDED_CUSTOM';
   quantity: number;
-  designNotes?: string;
+  storeName?: string;
+  storePhone?: string;
+  storeAddress?: string;
+  customDesign?: string;
   shippingAddress: {
     name: string;
     address1: string;
@@ -19,9 +24,14 @@ interface CardOrderForm {
 }
 
 export default function CardOrders() {
+  const { user } = useAuthStore();
   const [orderForm, setOrderForm] = useState<CardOrderForm>({
     cardType: 'SINGLE_SIDED',
     quantity: 100,
+    storeName: '',
+    storePhone: '',
+    storeAddress: '',
+    customDesign: '',
     shippingAddress: {
       name: '',
       address1: '',
@@ -38,24 +48,24 @@ export default function CardOrders() {
       type: 'SINGLE_SIDED' as const,
       name: 'Single-Sided Cards',
       price: 2.10,
-      description: 'Standard cards with QR code and basic branding on front only',
+      description: 'Single-sided print, no background, not customized',
       features: [
         'QR code for customer activation',
-        'Your logo and branding',
-        'Durable plastic material',
-        'Standard credit card size'
+        'Basic single-sided design',
+        'Standard finish',
+        'Cost-effective option'
       ]
     },
     {
       type: 'DOUBLE_SIDED_CUSTOM' as const,
       name: 'Double-Sided Custom',
       price: 3.90,
-      description: 'Premium cards with full custom design on both sides',
+      description: 'Double-sided print with customization (store name, phone number, address, etc.)',
       features: [
         'QR code for customer activation',
         'Full custom design on both sides',
+        'Store name, phone & address included',
         'Premium finish and materials',
-        'Scratch-resistant coating',
         'Custom colors and graphics'
       ]
     }
@@ -69,12 +79,43 @@ export default function CardOrders() {
     setLoading(true);
 
     try {
-      // This would integrate with the card ordering API
-      console.log('Submitting order:', orderForm);
+      const shippingAddress = `${orderForm.shippingAddress.address1}${orderForm.shippingAddress.address2 ? ', ' + orderForm.shippingAddress.address2 : ''}, ${orderForm.shippingAddress.city}, ${orderForm.shippingAddress.state} ${orderForm.shippingAddress.zipCode}, ${orderForm.shippingAddress.country}`;
+      
+      const orderData = {
+        cardType: orderForm.cardType,
+        quantity: orderForm.quantity,
+        shippingAddress,
+        storeName: orderForm.cardType === 'DOUBLE_SIDED_CUSTOM' ? orderForm.storeName : undefined,
+        storePhone: orderForm.cardType === 'DOUBLE_SIDED_CUSTOM' ? orderForm.storePhone : undefined,
+        storeAddress: orderForm.cardType === 'DOUBLE_SIDED_CUSTOM' ? orderForm.storeAddress : undefined,
+        customDesign: orderForm.cardType === 'DOUBLE_SIDED_CUSTOM' ? orderForm.customDesign : undefined,
+      };
+
+      await api.tenant.createCardOrder(user?.tenantSlug || '', orderData);
+      
       alert('Order submitted successfully! You will receive a confirmation email shortly.');
+      
+      // Reset form
+      setOrderForm({
+        cardType: 'SINGLE_SIDED',
+        quantity: 100,
+        storeName: '',
+        storePhone: '',
+        storeAddress: '',
+        customDesign: '',
+        shippingAddress: {
+          name: '',
+          address1: '',
+          city: '',
+          state: '',
+          zipCode: '',
+          country: 'US'
+        }
+      });
     } catch (error) {
       console.error('Failed to submit order:', error);
-      alert('Failed to submit order. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to submit order. Please try again.';
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -165,16 +206,68 @@ export default function CardOrders() {
             />
           </div>
 
+          {/* Store Details for Custom Cards */}
+          {orderForm.cardType === 'DOUBLE_SIDED_CUSTOM' && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium text-gray-900">Store Information</h3>
+              <p className="text-sm text-gray-600">This information will be printed on your custom cards.</p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Store Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={orderForm.storeName || ''}
+                    onChange={(e) => setOrderForm(prev => ({ ...prev, storeName: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required={orderForm.cardType === 'DOUBLE_SIDED_CUSTOM'}
+                    placeholder="Your Business Name"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Phone Number *
+                  </label>
+                  <input
+                    type="tel"
+                    value={orderForm.storePhone || ''}
+                    onChange={(e) => setOrderForm(prev => ({ ...prev, storePhone: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required={orderForm.cardType === 'DOUBLE_SIDED_CUSTOM'}
+                    placeholder="(555) 123-4567"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Store Address *
+                </label>
+                <input
+                  type="text"
+                  value={orderForm.storeAddress || ''}
+                  onChange={(e) => setOrderForm(prev => ({ ...prev, storeAddress: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required={orderForm.cardType === 'DOUBLE_SIDED_CUSTOM'}
+                  placeholder="123 Main St, City, State 12345"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Design Notes for Custom Cards */}
           {orderForm.cardType === 'DOUBLE_SIDED_CUSTOM' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Design Notes (Optional)
+                Additional Design Notes (Optional)
               </label>
               <textarea
-                value={orderForm.designNotes || ''}
-                onChange={(e) => setOrderForm(prev => ({ ...prev, designNotes: e.target.value }))}
-                placeholder="Describe your design requirements, colors, logos, etc."
+                value={orderForm.customDesign || ''}
+                onChange={(e) => setOrderForm(prev => ({ ...prev, customDesign: e.target.value }))}
+                placeholder="Any special design requirements, preferred colors, logo details, etc."
                 rows={4}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />

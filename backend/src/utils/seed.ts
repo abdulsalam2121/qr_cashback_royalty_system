@@ -166,7 +166,75 @@ async function main() {
     },
   });
 
+  // Add 35 cards to beta-repairs (close to limit)
+  for (let i = 1; i <= 35; i++) {
+    await prisma.card.upsert({
+      where: { cardUid: `BETA-CARD-${i.toString().padStart(3, '0')}` },
+      update: {},
+      create: {
+        tenantId: tenant2.id,
+        cardUid: `BETA-CARD-${i.toString().padStart(3, '0')}`,
+        storeId: store2.id,
+        status: 'UNASSIGNED',
+        balanceCents: 0,
+      },
+    });
+  }
+
   // (optional) add more demo customers/cards/transactions to tenant2...
+
+  // ------------------------------------------------------------
+  // 4) TENANT #3: Gamma Electronics (TRIALING - EXCEEDED LIMIT)
+  // ------------------------------------------------------------
+  const tenant3 = await prisma.tenant.upsert({
+    where: { slug: 'gamma-electronics' },
+    update: {},
+    create: {
+      name: 'Gamma Electronics',
+      slug: 'gamma-electronics',
+      planId: null,
+      subscriptionStatus: SubscriptionStatus.TRIALING,
+      trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  const store3 = await prisma.store.upsert({
+    where: { id: `${tenant3.id}-store-1` },
+    update: {},
+    create: {
+      id: `${tenant3.id}-store-1`,
+      tenantId: tenant3.id,
+      name: 'Gamma Electronics Store',
+      address: '789 Tech Ave',
+      active: true,
+    },
+  });
+
+  const tenantAdmin3 = await prisma.user.upsert({
+    where: { email: 'owner@gamma.com' },
+    update: {},
+    create: {
+      email: 'owner@gamma.com',
+      passwordHash: await bcrypt.hash('TenantAdmin123!', 10),
+      role: 'tenant_admin',
+      tenantId: tenant3.id,
+    },
+  });
+
+  // Add 45 cards to gamma-electronics (exceeded limit)
+  for (let i = 1; i <= 45; i++) {
+    await prisma.card.upsert({
+      where: { cardUid: `GAMMA-CARD-${i.toString().padStart(3, '0')}` },
+      update: {},
+      create: {
+        tenantId: tenant3.id,
+        cardUid: `GAMMA-CARD-${i.toString().padStart(3, '0')}`,
+        storeId: store3.id,
+        status: 'UNASSIGNED',
+        balanceCents: 0,
+      },
+    });
+  }
 
   console.log('🌱 Seed data created successfully');
 }
