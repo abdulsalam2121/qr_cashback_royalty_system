@@ -16,7 +16,6 @@ import Staff from './pages/Staff';
 import Rules from './pages/Rules';
 import Customer from './pages/Customer';
 import CardView from './pages/CardView';
-import CardOrders from './pages/CardOrders';
 import PlatformDashboard from './pages/platform/Dashboard';
 import PlatformTenants from './pages/platform/Tenants';
 import PlatformAnalytics from './pages/platform/Analytics';
@@ -226,22 +225,6 @@ function App() {
                 element={
                   <ProtectedRoute roles={['tenant_admin']}>
                     <Rules />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="billing" 
-                element={
-                  <ProtectedRoute roles={['tenant_admin']}>
-                    <TenantBilling />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="card-orders" 
-                element={
-                  <ProtectedRoute roles={['tenant_admin']}>
-                    <CardOrders />
                   </ProtectedRoute>
                 } 
               />
