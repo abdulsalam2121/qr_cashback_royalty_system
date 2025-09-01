@@ -60,8 +60,13 @@ const Rules: React.FC = () => {
       setSaving(true);
       const { rules } = await api.tenant.updateCashbackRules(tenantSlug, cashbackRules);
       setCashbackRules(rules);
-    } catch (error) {
+      showToast('Cashback rules saved successfully', 'success');
+    } catch (error: any) {
       console.error('Failed to save cashback rules:', error);
+      showToast(
+        error.response?.data?.message || 'Failed to save cashback rules. Please try again.',
+        'error'
+      );
     } finally {
       setSaving(false);
     }
@@ -74,8 +79,33 @@ const Rules: React.FC = () => {
       setSaving(true);
       const { rules } = await api.tenant.updateTierRules(tenantSlug, tierRules);
       setTierRules(rules);
-    } catch (error) {
+      showToast('Tier rules saved successfully', 'success');
+    } catch (error: any) {
       console.error('Failed to save tier rules:', error);
+      showToast(
+        error.response?.data?.message || 'Failed to save tier rules. Please try again.',
+        'error'
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const initializeDefaultRules = async () => {
+    if (!tenantSlug) return;
+    
+    try {
+      setSaving(true);
+      const { cashbackRules: newCashbackRules, tierRules: newTierRules } = await api.tenant.initializeDefaultRules(tenantSlug);
+      setCashbackRules(newCashbackRules);
+      setTierRules(newTierRules);
+      showToast('Default rules initialized successfully', 'success');
+    } catch (error: any) {
+      console.error('Failed to initialize default rules:', error);
+      showToast(
+        error.response?.data?.message || 'Failed to initialize default rules. Please try again.',
+        'error'
+      );
     } finally {
       setSaving(false);
     }
@@ -229,7 +259,24 @@ const Rules: React.FC = () => {
               </div>
 
               <div className="grid gap-4">
-                {cashbackRules.map((rule, index) => (
+                {cashbackRules.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Percent className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Cashback Rules Found</h3>
+                    <p className="text-gray-500 mb-4">
+                      Get started by creating default cashback rules for your store.
+                    </p>
+                    <button
+                      onClick={initializeDefaultRules}
+                      disabled={saving}
+                      className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors mx-auto"
+                    >
+                      {saving ? <LoadingSpinner size="sm" className="mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                      Initialize Default Rules
+                    </button>
+                  </div>
+                ) : (
+                  cashbackRules.map((rule, index) => (
                   <div key={rule.id} className="bg-gray-50 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
@@ -274,7 +321,8 @@ const Rules: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                ))}
+                ))
+                )}
               </div>
             </div>
           )}
@@ -295,7 +343,24 @@ const Rules: React.FC = () => {
               </div>
 
               <div className="grid gap-4">
-                {tierRules.map((rule, index) => (
+                {tierRules.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Tier Rules Found</h3>
+                    <p className="text-gray-500 mb-4">
+                      Get started by creating default loyalty tier rules for your store.
+                    </p>
+                    <button
+                      onClick={initializeDefaultRules}
+                      disabled={saving}
+                      className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors mx-auto"
+                    >
+                      {saving ? <LoadingSpinner size="sm" className="mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                      Initialize Default Rules
+                    </button>
+                  </div>
+                ) : (
+                  tierRules.map((rule, index) => (
                   <div key={rule.id} className="bg-gray-50 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
@@ -363,7 +428,8 @@ const Rules: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                ))}
+                ))
+                )}
               </div>
             </div>
           )}

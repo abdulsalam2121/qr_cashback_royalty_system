@@ -376,7 +376,7 @@ export const api = {
       return request(`/t/${tenantSlug}/rules/cashback`);
     },
 
-    updateCashbackRules: async (tenantSlug: string, rules: Partial<CashbackRule>[]): Promise<{ rules: CashbackRule[] }> => {
+    updateCashbackRules: async (tenantSlug: string, rules: CashbackRule[]): Promise<{ rules: CashbackRule[] }> => {
       return request(`/t/${tenantSlug}/rules/cashback`, {
         method: 'PUT',
         body: JSON.stringify({ rules }),
@@ -387,10 +387,16 @@ export const api = {
       return request(`/t/${tenantSlug}/rules/tiers`);
     },
 
-    updateTierRules: async (tenantSlug: string, rules: Partial<TierRule>[]): Promise<{ rules: TierRule[] }> => {
+    updateTierRules: async (tenantSlug: string, rules: TierRule[]): Promise<{ rules: TierRule[] }> => {
       return request(`/t/${tenantSlug}/rules/tiers`, {
         method: 'PUT',
         body: JSON.stringify({ rules }),
+      });
+    },
+
+    initializeDefaultRules: async (tenantSlug: string): Promise<{ message: string; cashbackRules: CashbackRule[]; tierRules: TierRule[] }> => {
+      return request(`/t/${tenantSlug}/rules/initialize`, {
+        method: 'POST',
       });
     },
 

@@ -1,14 +1,44 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
-import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { validate } from '../middleware/validate.js';
 import { auth } from '../middleware/auth.js';
 import { rbac } from '../middleware/rbac.js';
+import { initializeDefaultRules } from '../utils/initializeDefaults.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// Initialize default rules endpoint
+router.post('/initialize', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
+  const { tenantId } = req.user;
+
+  try {
+    await initializeDefaultRules(tenantId);
+    
+    // Fetch the newly created rules
+    const [cashbackRules, tierRules] = await Promise.all([
+      prisma.cashbackRule.findMany({
+        where: { tenantId },
+        orderBy: { category: 'asc' },
+      }),
+      prisma.tierRule.findMany({
+        where: { tenantId },
+        orderBy: { minTotalSpendCents: 'asc' },
+      }),
+    ]);
+
+    res.json({ 
+      message: 'Default rules initialized successfully',
+      cashbackRules,
+      tierRules
+    });
+  } catch (error) {
+    console.error('Failed to initialize default rules:', error);
+    res.status(500).json({ error: 'Failed to initialize default rules' });
+  }
+}));
 
 const updateCashbackRulesSchema = z.object({
   rules: z.array(z.object({
