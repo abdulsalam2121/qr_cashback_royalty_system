@@ -7,6 +7,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { validate } from '../middleware/validate.js';
 import { auth } from '../middleware/auth.js';
 import { rbac } from '../middleware/rbac.js';
+import { initializeDefaultRules } from '../utils/initializeDefaults.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -155,6 +156,9 @@ router.post('/signup', validate(registerSchema), asyncHandler(async (req: Reques
     },
     include: { store: true, tenant: true },
   });
+
+  // Initialize default cashback rules and tier rules
+  await initializeDefaultRules(tenant.id);
 
   // Create JWT token for immediate login
   const token = jwt.sign(
