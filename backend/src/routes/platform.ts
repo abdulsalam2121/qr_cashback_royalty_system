@@ -29,12 +29,15 @@ router.get('/stats', auth, rbac(['platform_admin']), asyncHandler(async (req: Re
     totalCustomers,
     // Mock revenue data - in real app, calculate from Stripe
     totalRevenue,
+    monthlyRevenue,
   ] = await Promise.all([
     prisma.tenant.count(),
     prisma.tenant.count({ where: { subscriptionStatus: 'ACTIVE' } }),
     prisma.store.count(),
     prisma.customer.count(),
     // Mock revenue calculation
+    Promise.resolve(0),
+    // Mock monthly revenue calculation
     Promise.resolve(0),
   ]);
 
@@ -44,6 +47,7 @@ router.get('/stats', auth, rbac(['platform_admin']), asyncHandler(async (req: Re
     totalStores,
     totalCustomers,
     totalRevenue,
+    monthlyRevenue,
   });
   return;
 }));
@@ -224,57 +228,175 @@ router.put('/tenants/:id', auth, rbac(['platform_admin']), asyncHandler(async (r
 
 // Get plans (accessible to both platform admins and tenant admins)
 router.get('/plans', auth, rbac(['platform_admin', 'tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
-  // Plans for subscription
-  const plans = [
-    {
-      id: 'starter',
-      name: 'Starter Plan',
-      description: 'Perfect for small businesses - unlimited card activations after trial',
-      priceMonthly: 1999, // $19.99
-      stripePriceId: process.env.STRIPE_PRICE_ID_STARTER || 'price_starter',
-      features: [
-        'Unlimited card activations',
-        'Up to 3 store locations',
-        'Up to 10 staff members',
-        'Unlimited loyalty cards',
-        'Basic cashback rules',
-        'Email support',
-        'Card ordering system'
-      ],
-      limits: {
-        stores: 3,
-        staff: 10,
-        cards: -1,
-        transactions: -1
-      },
-      popular: true
+  const plans = await prisma.plan.findMany({
+    where: {
+      isActive: true
     },
-    {
-      id: 'pro',
-      name: 'Professional',
-      description: 'Advanced features for growing businesses',
-      priceMonthly: 4999, // $49.99
-      stripePriceId: process.env.STRIPE_PRICE_ID_PRO || 'price_pro',
-      features: [
-        'Everything in Starter',
-        'Unlimited store locations',
-        'Unlimited staff members',
-        'Advanced cashback rules',
-        'Special offer campaigns',
-        'Priority support',
-        'Custom branding',
-        'Advanced analytics'
-      ],
-      limits: {
-        stores: -1,
-        staff: -1,
-        cards: -1,
-        transactions: -1
-      }
+    orderBy: {
+      createdAt: 'asc'
     }
-  ];
+  });
 
-  res.json({ plans });
+  // Convert database format to frontend format
+  const formattedPlans = plans.map(plan => ({
+    id: plan.id,
+    name: plan.name,
+    description: plan.description,
+    priceMonthly: plan.priceMonthly,
+    billingPeriod: plan.billingPeriod === 'THREE_MONTHS' ? '3months' : 
+                   plan.billingPeriod === 'SIX_MONTHS' ? '6months' :
+                   plan.billingPeriod === 'YEARLY' ? 'yearly' : 'monthly',
+    billingPeriodMultiplier: plan.billingPeriodMultiplier,
+    stripePriceId: plan.stripePriceId,
+    features: plan.features,
+    limits: {
+      stores: plan.maxStores,
+      staff: plan.maxStaff,
+      cards: plan.maxCards,
+      transactions: plan.maxTransactions
+    }
+  }));
+
+  res.json({ plans: formattedPlans });
+  return;
+}));
+
+// Create plan (platform admin only)
+router.post('/plans', auth, rbac(['platform_admin']), asyncHandler(async (req: Request, res: Response) => {
+  const { name, description, priceMonthly, billingPeriod, stripePriceId, features, limits } = req.body;
+
+  // Convert frontend billingPeriod to database format
+  const dbBillingPeriod = billingPeriod === '3months' ? 'THREE_MONTHS' :
+                         billingPeriod === '6months' ? 'SIX_MONTHS' :
+                         billingPeriod === 'yearly' ? 'YEARLY' :
+                         'MONTHLY';
+
+  const billingPeriodMultiplier = {
+    'monthly': 1,
+    '3months': 3,
+    '6months': 6,
+    'yearly': 12
+  }[billingPeriod as string] || 1;
+
+  const newPlan = await prisma.plan.create({
+    data: {
+      name,
+      description,
+      priceMonthly: parseInt(priceMonthly),
+      billingPeriod: dbBillingPeriod as any,
+      billingPeriodMultiplier,
+      stripePriceId,
+      features: Array.isArray(features) ? features : [],
+      maxStores: parseInt(limits?.stores) || -1,
+      maxStaff: parseInt(limits?.staff) || -1,
+      maxCards: parseInt(limits?.cards) || -1,
+      maxTransactions: parseInt(limits?.transactions) || -1,
+    }
+  });
+
+  // Convert back to frontend format
+  const formattedPlan = {
+    id: newPlan.id,
+    name: newPlan.name,
+    description: newPlan.description,
+    priceMonthly: newPlan.priceMonthly,
+    billingPeriod: newPlan.billingPeriod === 'THREE_MONTHS' ? '3months' : 
+                   newPlan.billingPeriod === 'SIX_MONTHS' ? '6months' :
+                   newPlan.billingPeriod === 'YEARLY' ? 'yearly' : 'monthly',
+    billingPeriodMultiplier: newPlan.billingPeriodMultiplier,
+    stripePriceId: newPlan.stripePriceId,
+    features: newPlan.features,
+    limits: {
+      stores: newPlan.maxStores,
+      staff: newPlan.maxStaff,
+      cards: newPlan.maxCards,
+      transactions: newPlan.maxTransactions
+    }
+  };
+
+  res.status(201).json({ plan: formattedPlan });
+  return;
+}));
+
+// Update plan (platform admin only)
+router.put('/plans/:id', auth, rbac(['platform_admin']), asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { name, description, priceMonthly, billingPeriod, stripePriceId, features, limits } = req.body;
+
+  if (!id) {
+    res.status(400).json({ error: 'Plan ID is required' });
+    return;
+  }
+
+  // Convert frontend billingPeriod to database format
+  const dbBillingPeriod = billingPeriod === '3months' ? 'THREE_MONTHS' :
+                         billingPeriod === '6months' ? 'SIX_MONTHS' :
+                         billingPeriod === 'yearly' ? 'YEARLY' :
+                         'MONTHLY';
+
+  const billingPeriodMultiplier = {
+    'monthly': 1,
+    '3months': 3,
+    '6months': 6,
+    'yearly': 12
+  }[billingPeriod as string] || 1;
+
+  const updatedPlan = await prisma.plan.update({
+    where: { id },
+    data: {
+      name,
+      description,
+      priceMonthly: parseInt(priceMonthly),
+      billingPeriod: dbBillingPeriod as any,
+      billingPeriodMultiplier,
+      stripePriceId,
+      features: Array.isArray(features) ? features : [],
+      maxStores: parseInt(limits?.stores) || -1,
+      maxStaff: parseInt(limits?.staff) || -1,
+      maxCards: parseInt(limits?.cards) || -1,
+      maxTransactions: parseInt(limits?.transactions) || -1,
+    }
+  });
+
+  // Convert back to frontend format
+  const formattedPlan = {
+    id: updatedPlan.id,
+    name: updatedPlan.name,
+    description: updatedPlan.description,
+    priceMonthly: updatedPlan.priceMonthly,
+    billingPeriod: updatedPlan.billingPeriod === 'THREE_MONTHS' ? '3months' : 
+                   updatedPlan.billingPeriod === 'SIX_MONTHS' ? '6months' :
+                   updatedPlan.billingPeriod === 'YEARLY' ? 'yearly' : 'monthly',
+    billingPeriodMultiplier: updatedPlan.billingPeriodMultiplier,
+    stripePriceId: updatedPlan.stripePriceId,
+    features: updatedPlan.features,
+    limits: {
+      stores: updatedPlan.maxStores,
+      staff: updatedPlan.maxStaff,
+      cards: updatedPlan.maxCards,
+      transactions: updatedPlan.maxTransactions
+    }
+  };
+
+  res.json({ plan: formattedPlan });
+  return;
+}));
+
+// Delete plan (platform admin only)
+router.delete('/plans/:id', auth, rbac(['platform_admin']), asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  if (!id) {
+    res.status(400).json({ error: 'Plan ID is required' });
+    return;
+  }
+
+  await prisma.plan.update({
+    where: { id },
+    data: { isActive: false }
+  });
+
+  res.status(204).send();
   return;
 }));
 

@@ -12,6 +12,9 @@
     "db:seed": "tsx src/utils/seed.ts",
     "db:reset": "prisma migrate reset --force"
   },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "dependencies": {
     "@prisma/client": "^5.19.1",
     "bcryptjs": "^3.0.2",

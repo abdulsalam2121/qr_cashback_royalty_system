@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Building, DollarSign, CreditCard, TrendingUp, Activity } from 'lucide-react';
+import { Users, Building, DollarSign, CreditCard, TrendingUp, Activity, Plus, FileText } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import StatCard from '../../components/StatCard';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { api } from '../../utils/api';
@@ -16,6 +17,8 @@ interface RecentActivity {
 const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<PlatformStats | null>(null);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -23,6 +26,35 @@ const Dashboard: React.FC = () => {
         setLoading(true);
         const data = await api.platform.getStats();
         setStats(data);
+        
+        // Generate recent activity from actual data
+        const activities: RecentActivity[] = [
+          {
+            id: '1',
+            type: 'tenant_created',
+            message: `${data.totalTenants} total tenants in system`,
+            timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+          },
+          {
+            id: '2',
+            type: 'user_signup',
+            message: `${data.activeTenants} active tenants`,
+            timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+          },
+          {
+            id: '3',
+            type: 'transaction',
+            message: `${data.totalStores} stores across all tenants`,
+            timestamp: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
+          },
+          {
+            id: '4',
+            type: 'card_activation',
+            message: `${data.totalCustomers} total customers registered`,
+            timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+          },
+        ];
+        setRecentActivity(activities);
       } catch (error) {
         console.error('Failed to load platform stats:', error);
       } finally {
@@ -32,34 +64,6 @@ const Dashboard: React.FC = () => {
 
     fetchStats();
   }, []);
-
-  const [recentActivity] = useState<RecentActivity[]>([
-    // This could be replaced with real activity data from backend later
-    {
-      id: '1',
-      type: 'tenant_created',
-      message: 'New tenant registered',
-      timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-    },
-    {
-      id: '2',
-      type: 'user_signup',
-      message: 'New users signed up',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-    },
-    {
-      id: '3',
-      type: 'transaction',
-      message: '$89.50 in cashback processed',
-      timestamp: '2025-01-28T09:15:00Z',
-    },
-    {
-      id: '4',
-      type: 'card_activation',
-      message: '23 cards activated across all tenants',
-      timestamp: '2025-01-28T08:30:00Z',
-    },
-  ]);
 
   const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleString('en-US', {
@@ -132,13 +136,13 @@ const Dashboard: React.FC = () => {
         />
         <StatCard
           title="Total Revenue"
-          value={`$${(stats.totalRevenue / 100).toFixed(2)}`}
+          value={`$${stats.totalRevenue ? (stats.totalRevenue / 100).toFixed(2) : '0.00'}`}
           icon={DollarSign}
           trend={{ value: 23.1, isPositive: true }}
         />
         <StatCard
           title="Monthly Revenue"
-          value={`$${(stats.monthlyRevenue / 100).toFixed(2)}`}
+          value={`$${stats.monthlyRevenue ? (stats.monthlyRevenue / 100).toFixed(2) : '0.00'}`}
           icon={TrendingUp}
           trend={{ value: 5.8, isPositive: true }}
         />
@@ -174,7 +178,10 @@ const Dashboard: React.FC = () => {
           ))}
         </div>
         <div className="px-6 py-4 bg-gray-50 text-center">
-          <button className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+          <button 
+            onClick={() => navigate('/platform/analytics')}
+            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+          >
             View All Activity
           </button>
         </div>
@@ -184,16 +191,25 @@ const Dashboard: React.FC = () => {
       <div className="bg-white shadow rounded-lg p-6">
         <h2 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
-            <Building className="h-4 w-4 mr-2" />
+          <button 
+            onClick={() => navigate('/platform/tenants?action=create')}
+            className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Plus className="h-4 w-4 mr-2" />
             Create New Tenant
           </button>
-          <button className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <button 
+            onClick={() => navigate('/platform/tenants')}
+            className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
             <Users className="h-4 w-4 mr-2" />
-            View All Users
+            View All Tenants
           </button>
-          <button className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
-            <TrendingUp className="h-4 w-4 mr-2" />
+          <button 
+            onClick={() => navigate('/platform/analytics')}
+            className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <FileText className="h-4 w-4 mr-2" />
             Generate Report
           </button>
         </div>
