@@ -35,6 +35,10 @@ const blockSchema = z.object({
   reason: z.string().optional(),
 });
 
+const updateStoreSchema = z.object({
+  storeId: z.string(),
+});
+
 // Create batch of cards
 router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema), asyncHandler(async (req: Request, res: Response) => {
   const { count, storeId } = req.body;
@@ -118,7 +122,10 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
 
   res.status(201).json({
     message: `Created ${createdCards.count} cards`,
-    cards: cardList
+    cards: cardList.map(card => ({
+      ...card,
+      storeName: card.store?.name || null
+    }))
   });
   return;
 }));
@@ -172,7 +179,10 @@ router.get('/', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req
   ]);
 
   res.json({
-    cards,
+    cards: cards.map(card => ({
+      ...card,
+      storeName: card.store?.name || null
+    })),
     total,
     page: Number(page),
     limit: Number(limit),
@@ -230,7 +240,10 @@ router.get('/:cardUid', asyncHandler(async (req: Request, res: Response) => {
 
   // Return full info for authorized requests
   if (isAuthorized) {
-    res.json(card);
+    res.json({
+      ...card,
+      storeName: card.store?.name || null
+    });
     return;
   } else {
     res.status(403).json({ error: 'Unauthorized' });
@@ -339,7 +352,10 @@ router.post('/activate', auth, rbac(['tenant_admin', 'cashier']), validate(activ
 
     res.json({
       message: 'Card activated successfully',
-      card: result.card,
+      card: {
+        ...result.card,
+        storeName: result.card.store?.name || null
+      },
       trialStatus: {
         activationsUsed: trialResult.activationsUsed,
         activationsRemaining: trialResult.activationsRemaining,
@@ -350,6 +366,61 @@ router.post('/activate', auth, rbac(['tenant_admin', 'cashier']), validate(activ
     const message = error instanceof Error ? error.message : 'Unknown error';
     res.status(400).json({ error: message });
   }
+}));
+
+// Update card store assignment
+router.put('/:cardUid/store', auth, rbac(['tenant_admin']), validate(updateStoreSchema), asyncHandler(async (req: Request, res: Response) => {
+  const { cardUid } = req.params as { cardUid: string };
+  const { storeId } = req.body;
+  const { tenantId } = req.user;
+
+  // Find the card
+  const card = await prisma.card.findFirst({
+    where: { cardUid, tenantId },
+    include: {
+      customer: true,
+      store: true,
+    }
+  });
+
+  if (!card) {
+    res.status(404).json({ error: 'Card not found' });
+    return;
+  }
+
+  // Check if the card is assigned to a customer
+  if (card.status === 'UNASSIGNED') {
+    res.status(400).json({ error: 'Cannot assign store to unassigned card. Please assign the card to a customer first.' });
+    return;
+  }
+
+  // Verify the store exists and belongs to the tenant
+  const store = await prisma.store.findFirst({
+    where: { id: storeId, tenantId }
+  });
+
+  if (!store) {
+    res.status(404).json({ error: 'Store not found' });
+    return;
+  }
+
+  // Update the card's store assignment
+  const updatedCard = await prisma.card.update({
+    where: { id: card.id },
+    data: { storeId },
+    include: {
+      customer: true,
+      store: true,
+    },
+  });
+
+  res.json({
+    message: 'Card store assignment updated successfully',
+    card: {
+      ...updatedCard,
+      storeName: updatedCard.store?.name || null,
+    },
+  });
 }));
 
 // Block/unblock card
@@ -382,7 +453,10 @@ router.post('/:cardUid/block', auth, rbac(['tenant_admin']), validate(blockSchem
 
   res.json({
     message: `Card ${newStatus.toLowerCase()} successfully`,
-    card: updatedCard,
+    card: {
+      ...updatedCard,
+      storeName: updatedCard.store?.name || null
+    }
   });
 }));
 

@@ -4,10 +4,12 @@ import { Settings, Save, Plus, Edit, Trash2, Calendar, Percent, Gift, Target } f
 import LoadingSpinner from '../components/LoadingSpinner';
 import { api } from '../utils/api';
 import { formatPercentage, formatCurrency, formatDate } from '../utils/format';
+import { useToast } from '../hooks/useToast';
 import { CashbackRule, TierRule, Offer } from '../types';
 
 const Rules: React.FC = () => {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'cashback' | 'tiers' | 'offers'>('cashback');
   const [cashbackRules, setCashbackRules] = useState<CashbackRule[]>([]);
   const [tierRules, setTierRules] = useState<TierRule[]>([]);
@@ -43,8 +45,9 @@ const Rules: React.FC = () => {
       setCashbackRules(cashbackData.rules || []);
       setTierRules(tierData.rules || []);
       setOffers(offersData.offers || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch rules:', error);
+      showToast('Failed to load rules and offers', 'error');
     } finally {
       setLoading(false);
     }
@@ -82,18 +85,37 @@ const Rules: React.FC = () => {
     e.preventDefault();
     if (!tenantSlug) return;
     
+    console.log('Submitting offer form:', offerForm);
+    
+    // Convert date strings to ISO datetime strings
+    const formData = {
+      ...offerForm,
+      startAt: new Date(offerForm.startAt).toISOString(),
+      endAt: new Date(offerForm.endAt).toISOString(),
+    };
+    
+    console.log('Formatted form data:', formData);
+    
     try {
       setSaving(true);
       if (editingOffer) {
-        const { offer } = await api.tenant.updateOffer(tenantSlug, editingOffer.id, offerForm);
+        console.log('Updating existing offer:', editingOffer.id);
+        const { offer } = await api.tenant.updateOffer(tenantSlug, editingOffer.id, formData);
         setOffers(prev => prev.map(o => o.id === offer.id ? offer : o));
+        showToast('Offer updated successfully', 'success');
       } else {
-        const { offer } = await api.tenant.createOffer(tenantSlug, offerForm);
+        console.log('Creating new offer');
+        const { offer } = await api.tenant.createOffer(tenantSlug, formData);
         setOffers(prev => [offer, ...prev]);
+        showToast('Offer created successfully', 'success');
       }
       resetOfferForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save offer:', error);
+      showToast(
+        error.response?.data?.message || 'Failed to save offer. Please try again.',
+        'error'
+      );
     } finally {
       setSaving(false);
     }
