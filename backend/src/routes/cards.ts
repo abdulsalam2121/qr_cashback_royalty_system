@@ -8,7 +8,6 @@ import { validate } from '../middleware/validate.js';
 import { auth } from '../middleware/auth.js';
 import { rbac } from '../middleware/rbac.js';
 import { trackCardActivation } from '../services/trialService.js';
-import { trackCardActivation } from '../services/trialService.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -40,6 +39,33 @@ const blockSchema = z.object({
 router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema), asyncHandler(async (req: Request, res: Response) => {
   const { count, storeId } = req.body;
   const { tenantId } = req.user;
+
+  // Check trial status and subscription
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId }
+  });
+
+  if (!tenant) {
+    res.status(404).json({ error: 'Tenant not found' });
+    return;
+  }
+
+  // Check if tenant has exceeded free trial and needs subscription for creating more cards
+  const currentCardCount = await prisma.card.count({
+    where: { tenantId }
+  });
+
+  if (currentCardCount + count > tenant.freeTrialLimit && 
+      tenant.subscriptionStatus !== 'ACTIVE') {
+    res.status(403).json({ 
+      error: 'Subscription required',
+      message: `Your free trial allows up to ${tenant.freeTrialLimit} cards. You currently have ${currentCardCount} cards and are trying to create ${count} more. Please upgrade to a paid subscription to continue creating cards.`,
+      cardsCreated: currentCardCount,
+      trialLimit: tenant.freeTrialLimit,
+      requestedCount: count
+    });
+    return;
+  }
 
   const cards: any[] = [];
   
@@ -213,7 +239,7 @@ router.get('/:cardUid', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // Activate card
-router.post('/activate', auth, rbac(['tenant_admin', 'cashier']), validate(activateSchema), asyncHandler(async (req: Request, res: Response) => {
+router.post('/activate', auth, rbac(['tenant_admin', 'cashier']), validate(activateSchema), asyncHandler(async (req: Request, res: Response, next) => {
   const { cardUid, storeId, customer, customerId } = req.body;
   const { tenantId } = req.user;
 
@@ -221,7 +247,7 @@ router.post('/activate', auth, rbac(['tenant_admin', 'cashier']), validate(activ
   const trialResult = await trackCardActivation(tenantId, cardUid);
   
   if (!trialResult.success) {
-    return res.status(403).json({
+    res.status(403).json({
       error: 'Activation limit reached',
       message: trialResult.message,
       trialStatus: {
@@ -230,94 +256,100 @@ router.post('/activate', auth, rbac(['tenant_admin', 'cashier']), validate(activ
         trialExceeded: trialResult.trialExceeded
       }
     });
+    return;
   }
 
   // Start transaction
-  const result = await prisma.$transaction(async (tx) => {
-    const card = await tx.card.findUnique({
-      where: { cardUid },
-      include: { customer: true }
-    });
-
-    if (!card) {
-      throw new Error('Card not found');
-    }
-
-    if (card.tenantId !== tenantId) {
-      throw new Error('Unauthorized');
-    }
-
-    if (card.status !== 'UNASSIGNED') {
-      throw new Error('Card is already activated');
-    }
-
-    // Verify store exists
-    const store = await tx.store.findFirst({
-      where: { id: storeId, tenantId }
-    });
-
-    if (!store) {
-      throw new Error('Store not found');
-    }
-
-    let customerRecord;
-
-    if (customerId) {
-      // Use existing customer
-      customerRecord = await tx.customer.findFirst({
-        where: { id: customerId, tenantId }
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const card = await tx.card.findUnique({
+        where: { cardUid },
+        include: { customer: true }
       });
 
-      if (!customerRecord) {
-        throw new Error('Customer not found');
-      }
-    } else if (customer) {
-      // Create new customer or find existing by email
-      if (customer.email) {
-        customerRecord = await tx.customer.findUnique({
-          where: { email: customer.email }
-        });
+      if (!card) {
+        throw new Error('Card not found');
       }
 
-      if (!customerRecord) {
-        customerRecord = await tx.customer.create({
-          data: {
-            ...customer,
-            tenantId,
-            tier: 'SILVER',
-            totalSpend: 0,
-          },
-        });
+      if (card.tenantId !== tenantId) {
+        throw new Error('Unauthorized');
       }
-    }
 
-    // Update card
-    const updatedCard = await tx.card.update({
-      where: { id: card.id },
-      data: {
-        customerId: customerRecord!.id,
-        storeId,
-        status: 'ACTIVE',
-        activatedAt: new Date(),
-      },
-      include: {
-        customer: true,
-        store: true,
-      },
+      if (card.status !== 'UNASSIGNED') {
+        throw new Error('Card is already activated');
+      }
+
+      // Verify store exists
+      const store = await tx.store.findFirst({
+        where: { id: storeId, tenantId }
+      });
+
+      if (!store) {
+        throw new Error('Store not found');
+      }
+
+      let customerRecord;
+
+      if (customerId) {
+        // Use existing customer
+        customerRecord = await tx.customer.findFirst({
+          where: { id: customerId, tenantId }
+        });
+
+        if (!customerRecord) {
+          throw new Error('Customer not found');
+        }
+      } else if (customer) {
+        // Create new customer or find existing by email
+        if (customer.email) {
+          customerRecord = await tx.customer.findUnique({
+            where: { email: customer.email }
+          });
+        }
+
+        if (!customerRecord) {
+          customerRecord = await tx.customer.create({
+            data: {
+              ...customer,
+              tenantId,
+              tier: 'SILVER',
+              totalSpend: 0,
+            },
+          });
+        }
+      }
+
+      // Update card
+      const updatedCard = await tx.card.update({
+        where: { id: card.id },
+        data: {
+          customerId: customerRecord!.id,
+          storeId,
+          status: 'ACTIVE',
+          activatedAt: new Date(),
+        },
+        include: {
+          customer: true,
+          store: true,
+        },
+      });
+
+      return { card: updatedCard, customer: customerRecord };
     });
 
-    return { card: updatedCard, customer: customerRecord };
-  });
-
-  res.json({
-    message: 'Card activated successfully',
-    card: result.card,
-    trialStatus: {
-      activationsUsed: trialResult.activationsUsed,
-      activationsRemaining: trialResult.activationsRemaining,
-      trialExceeded: trialResult.trialExceeded
-    }
-  });
+    res.json({
+      message: 'Card activated successfully',
+      card: result.card,
+      trialStatus: {
+        activationsUsed: trialResult.activationsUsed,
+        activationsRemaining: trialResult.activationsRemaining,
+        trialExceeded: trialResult.trialExceeded
+      }
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    res.status(400).json({ error: message });
+  }
 }));
 
 // Block/unblock card

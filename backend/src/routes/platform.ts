@@ -222,44 +222,48 @@ router.put('/tenants/:id', auth, rbac(['platform_admin']), asyncHandler(async (r
   return;
 }));
 
-// Get plans
-router.get('/plans', auth, rbac(['platform_admin']), asyncHandler(async (req: Request, res: Response) => {
-  // Mock plans - in real app, these would be in database
+// Get plans (accessible to both platform admins and tenant admins)
+router.get('/plans', auth, rbac(['platform_admin', 'tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
+  // Plans for subscription
   const plans = [
     {
-      id: 'basic',
-      name: 'Basic',
-      description: 'Perfect for small businesses getting started',
-      priceMonthly: 2900, // $29.00
-      stripePriceId: process.env.STRIPE_PRICE_ID_BASIC || 'price_basic',
+      id: 'starter',
+      name: 'Starter Plan',
+      description: 'Perfect for small businesses - unlimited card activations after trial',
+      priceMonthly: 1999, // $19.99
+      stripePriceId: process.env.STRIPE_PRICE_ID_STARTER || 'price_starter',
       features: [
-        'Up to 2 store locations',
-        'Up to 5 staff members',
-        'Up to 1,000 loyalty cards',
+        'Unlimited card activations',
+        'Up to 3 store locations',
+        'Up to 10 staff members',
+        'Unlimited loyalty cards',
         'Basic cashback rules',
-        'Email support'
+        'Email support',
+        'Card ordering system'
       ],
       limits: {
-        stores: 2,
-        staff: 5,
-        cards: 1000,
-        transactions: 10000
-      }
+        stores: 3,
+        staff: 10,
+        cards: -1,
+        transactions: -1
+      },
+      popular: true
     },
     {
       id: 'pro',
       name: 'Professional',
       description: 'Advanced features for growing businesses',
-      priceMonthly: 7900, // $79.00
+      priceMonthly: 4999, // $49.99
       stripePriceId: process.env.STRIPE_PRICE_ID_PRO || 'price_pro',
       features: [
+        'Everything in Starter',
         'Unlimited store locations',
         'Unlimited staff members',
-        'Unlimited loyalty cards',
         'Advanced cashback rules',
         'Special offer campaigns',
         'Priority support',
-        'Custom branding'
+        'Custom branding',
+        'Advanced analytics'
       ],
       limits: {
         stores: -1,

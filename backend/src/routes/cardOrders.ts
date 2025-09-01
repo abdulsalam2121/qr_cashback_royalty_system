@@ -73,23 +73,29 @@ router.get('/', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
 }));
 
 // Get single order
-router.get('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+router.get('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res, next) => {
   const { tenantId } = req.user;
   const { id } = req.params;
+
+  if (!id) {
+    res.status(400).json({ error: 'Order ID is required' });
+    return;
+  }
 
   const order = await prisma.cardOrder.findFirst({
     where: { id, tenantId }
   });
 
   if (!order) {
-    return res.status(404).json({ error: 'Order not found' });
+    res.status(404).json({ error: 'Order not found' });
+    return;
   }
 
   res.json({ order });
 }));
 
 // Create new order
-router.post('/', auth, rbac(['tenant_admin']), validate(createOrderSchema), asyncHandler(async (req, res) => {
+router.post('/', auth, rbac(['tenant_admin']), validate(createOrderSchema), asyncHandler(async (req, res, next) => {
   const { tenantId } = req.user;
   const { cardType, quantity, storeName, storePhone, storeAddress, customDesign, shippingAddress } = req.body;
 
@@ -99,18 +105,20 @@ router.post('/', auth, rbac(['tenant_admin']), validate(createOrderSchema), asyn
   });
 
   if (!tenant) {
-    return res.status(404).json({ error: 'Tenant not found' });
+    res.status(404).json({ error: 'Tenant not found' });
+    return;
   }
 
   // Check if tenant has exceeded free trial and needs subscription
   if (tenant.freeTrialActivations >= tenant.freeTrialLimit && 
       tenant.subscriptionStatus !== 'ACTIVE') {
-    return res.status(403).json({ 
+    res.status(403).json({ 
       error: 'Subscription required',
       message: 'Your free trial has ended. Please upgrade to a paid subscription to continue ordering cards.',
       trialActivations: tenant.freeTrialActivations,
       trialLimit: tenant.freeTrialLimit
     });
+    return;
   }
 
   const unitPrice = CARD_PRICES[cardType as keyof typeof CARD_PRICES];
@@ -136,9 +144,14 @@ router.post('/', auth, rbac(['tenant_admin']), validate(createOrderSchema), asyn
 }));
 
 // Update order (admin only - for platform management)
-router.put('/:id', auth, rbac(['platform_admin']), validate(updateOrderSchema), asyncHandler(async (req, res) => {
+router.put('/:id', auth, rbac(['platform_admin']), validate(updateOrderSchema), asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const updateData = req.body;
+
+  if (!id) {
+    res.status(400).json({ error: 'Order ID is required' });
+    return;
+  }
 
   // Add timestamp fields based on status
   if (updateData.status === 'SHIPPED') {
@@ -156,23 +169,30 @@ router.put('/:id', auth, rbac(['platform_admin']), validate(updateOrderSchema), 
 }));
 
 // Cancel order
-router.delete('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+router.delete('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res, next) => {
   const { tenantId } = req.user;
   const { id } = req.params;
+
+  if (!id) {
+    res.status(400).json({ error: 'Order ID is required' });
+    return;
+  }
 
   const order = await prisma.cardOrder.findFirst({
     where: { id, tenantId }
   });
 
   if (!order) {
-    return res.status(404).json({ error: 'Order not found' });
+    res.status(404).json({ error: 'Order not found' });
+    return;
   }
 
   if (order.status !== 'PENDING') {
-    return res.status(400).json({ 
+    res.status(400).json({ 
       error: 'Cannot cancel order',
       message: 'Only pending orders can be cancelled'
     });
+    return;
   }
 
   const updatedOrder = await prisma.cardOrder.update({

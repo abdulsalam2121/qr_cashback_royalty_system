@@ -37,15 +37,14 @@ const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({
         };
       
       case 'TRIALING':
-        const daysLeft = trialEndsAt ? Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
         return {
           icon: Clock,
-          title: `${daysLeft} Days Left in Trial`,
-          message: 'Subscribe now to continue using all features after your trial ends.',
-          bgColor: 'bg-orange-50 border-orange-200',
-          textColor: 'text-orange-800',
-          iconColor: 'text-orange-600',
-          actionText: 'Subscribe Now',
+          title: 'Free Trial Active',
+          message: 'You are currently on a free trial with card activation limits. Upgrade when ready to unlock unlimited activations.',
+          bgColor: 'bg-blue-50 border-blue-200',
+          textColor: 'text-blue-800',
+          iconColor: 'text-blue-600',
+          actionText: 'View Trial Status',
           action: onSubscribe,
         };
       

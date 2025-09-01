@@ -98,9 +98,10 @@ const Transactions: React.FC = () => {
   };
 
   const filteredTransactions = transactions.filter(transaction =>
-    transaction.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    transaction.cardUid.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    transaction.storeName.toLowerCase().includes(searchTerm.toLowerCase())
+    (transaction.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (transaction.cardUid || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (transaction.storeName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (transaction.note || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading && transactions.length === 0) {

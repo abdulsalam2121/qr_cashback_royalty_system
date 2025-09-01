@@ -38,17 +38,23 @@ const Signup: React.FC = () => {
     }
 
     try {
-      const { user } = await api.signup({
+      const { user, tenant } = await api.signup({
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
         password: formData.password,
       });
       
-      login(user);
+      login(user, tenant);
       
-      // Redirect to customer dashboard
-      navigate('/customer');
+      // Redirect based on role
+      if (user.role === 'tenant_admin') {
+        navigate('/dashboard');
+      } else if (user.role === 'customer') {
+        navigate('/customer');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed');
     } finally {
@@ -71,14 +77,29 @@ const Signup: React.FC = () => {
             <CreditCard className="w-8 h-8 text-white" />
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
-            Join LoyaltyPro
+            Start Your Store's Loyalty Program
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Create your account to get started
+            Create your account to launch your customer loyalty program with 40 free card activations
           </p>
         </div>
 
         <div className="bg-white py-8 px-6 shadow-xl rounded-2xl border border-gray-100">
+          {/* Free Trial Banner */}
+          <div className="mb-6 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <CreditCard className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Free Trial Included</h3>
+                <p className="text-xs text-gray-600">
+                  🎉 <strong>40 free card activations</strong> • Then $19.99/month • Cancel anytime
+                </p>
+              </div>
+            </div>
+          </div>
+
           <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">

@@ -5,7 +5,6 @@ import StatCard from '../components/StatCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TrialStatusBanner from '../components/TrialStatusBanner';
 import { api } from '../utils/api';
-import { mockApi } from '../utils/mockApi';
 import { formatCurrency } from '../utils/format';
 import { DashboardStats, Transaction } from '../types';
 
@@ -20,7 +19,7 @@ const Dashboard: React.FC = () => {
       if (!tenantSlug) return;
       
       try {
-        // Try real API first
+        setLoading(true);
         const [statsData, transactionsData] = await Promise.all([
           api.tenant.getDashboardStats(tenantSlug),
           api.tenant.getTransactions(tenantSlug)
@@ -29,17 +28,8 @@ const Dashboard: React.FC = () => {
         setStats(statsData);
         setRecentTransactions(transactionsData.transactions.slice(0, 5));
       } catch (error) {
-        console.warn('API failed, using mock data:', error);
-        // Fall back to mock data for demo purposes
-        try {
-          const statsData = mockApi.getDashboardStats(tenantSlug);
-          const transactionsData = mockApi.getTransactions(tenantSlug);
-          
-          setStats(statsData);
-          setRecentTransactions(transactionsData.slice(0, 5));
-        } catch (mockError) {
-          console.error('Failed to load mock data:', mockError);
-        }
+        console.error('Failed to load dashboard data:', error);
+        // Set error state or show error message
       } finally {
         setLoading(false);
       }

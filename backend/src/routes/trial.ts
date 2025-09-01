@@ -55,6 +55,11 @@ router.post('/reset/:tenantId',
   asyncHandler(async (req, res) => {
     const { tenantId } = req.params;
     
+    if (!tenantId) {
+      res.status(400).json({ error: 'Tenant ID is required' });
+      return;
+    }
+    
     await resetTrial(tenantId);
     
     res.json({

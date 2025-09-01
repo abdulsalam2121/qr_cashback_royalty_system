@@ -3,7 +3,6 @@ import { useParams } from 'react-router-dom';
 import { Users, Search, Plus, Eye, Edit, Mail, Phone, X } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { api } from '../utils/api';
-import { mockApi } from '../utils/mockApi';
 import { formatCurrency, formatDate, getTierColor } from '../utils/format';
 import { Customer } from '../types';
 
@@ -13,23 +12,26 @@ const Customers: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addingCustomer, setAddingCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: ''
+  });
 
   useEffect(() => {
     const fetchCustomers = async () => {
       if (!tenantSlug) return;
       
       try {
+        setLoading(true);
         const data = await api.tenant.getCustomers(tenantSlug);
         setCustomers(data.customers || []);
       } catch (error) {
-        console.warn('API failed, using mock data:', error);
-        // Fall back to mock data for demo purposes
-        try {
-          const mockCustomers = mockApi.getCustomers();
-          setCustomers(mockCustomers);
-        } catch (mockError) {
-          console.error('Failed to load mock data:', mockError);
-        }
+        console.error('Failed to load customers:', error);
+        // Set error state or show error message
       } finally {
         setLoading(false);
       }
@@ -37,6 +39,24 @@ const Customers: React.FC = () => {
 
     fetchCustomers();
   }, [tenantSlug]);
+
+  const handleAddCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tenantSlug) return;
+
+    try {
+      setAddingCustomer(true);
+      const data = await api.tenant.createCustomer(tenantSlug, newCustomer);
+      setCustomers(prev => [data.customer, ...prev]);
+      setShowAddModal(false);
+      setNewCustomer({ firstName: '', lastName: '', email: '', phone: '' });
+    } catch (error) {
+      console.error('Failed to create customer:', error);
+      alert('Failed to create customer. Please try again.');
+    } finally {
+      setAddingCustomer(false);
+    }
+  };
 
   const filteredCustomers = customers.filter(customer =>
     `${customer.firstName} ${customer.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -63,7 +83,10 @@ const Customers: React.FC = () => {
             <p className="text-gray-600">Manage customer accounts and loyalty status</p>
           </div>
         </div>
-        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+        <button 
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
           <Plus className="w-4 h-4 mr-2" />
           Add Customer
         </button>
@@ -292,6 +315,97 @@ const Customers: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Customer Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Add New Customer</h3>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddCustomer} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newCustomer.firstName}
+                    onChange={(e) => setNewCustomer(prev => ({ ...prev, firstName: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="John"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newCustomer.lastName}
+                    onChange={(e) => setNewCustomer(prev => ({ ...prev, lastName: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Doe"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={newCustomer.email}
+                  onChange={(e) => setNewCustomer(prev => ({ ...prev, email: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="john.doe@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone
+                </label>
+                <input
+                  type="tel"
+                  value={newCustomer.phone}
+                  onChange={(e) => setNewCustomer(prev => ({ ...prev, phone: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="(555) 123-4567"
+                />
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addingCustomer}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {addingCustomer ? 'Adding...' : 'Add Customer'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

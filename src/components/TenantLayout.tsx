@@ -197,7 +197,7 @@ const TenantLayout: React.FC = () => {
                   tenant.subscriptionStatus === 'PAST_DUE' ? 'bg-orange-100 text-orange-800' :
                   'bg-gray-100 text-gray-800'
                 }`}>
-                  {tenant.subscriptionStatus === 'TRIALING' ? 'Trial' :
+                  {tenant.subscriptionStatus === 'TRIALING' ? 'Trial Account' :
                    tenant.subscriptionStatus === 'ACTIVE' ? 'Active' :
                    tenant.subscriptionStatus === 'PAST_DUE' ? 'Past Due' :
                    'Inactive'}
