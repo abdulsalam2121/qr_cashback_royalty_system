@@ -154,7 +154,6 @@ async function handleCardOrderPaymentIntent(paymentIntent: Stripe.PaymentIntent)
     console.error(`Failed to update card order ${orderId}:`, error);
   }
 }
-}));
 
 async function updateTenantSubscription(subscription: Stripe.Subscription) {
   const status = mapStripeStatus(subscription.status);
