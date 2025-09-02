@@ -19,23 +19,18 @@ COPY prisma ./prisma/
 FROM base AS deps
 RUN npm ci --only=production && npm cache clean --force
 
-# Build stage
-FROM base AS build
-COPY package*.json ./
-COPY prisma ./prisma/
-RUN npm ci
-COPY . .
-RUN npx prisma generate
-RUN npm run build
-
 # Production stage
 FROM base AS production
 
-# Copy built application and dependencies
+# Copy application files and dependencies
 COPY --from=deps --chown=backend:nodejs /app/node_modules ./node_modules
-COPY --from=build --chown=backend:nodejs /app/dist ./dist
-COPY --from=build --chown=backend:nodejs /app/prisma ./prisma
 COPY --chown=backend:nodejs package*.json ./
+COPY --chown=backend:nodejs server.js ./
+COPY --chown=backend:nodejs src ./src
+COPY --chown=backend:nodejs prisma ./prisma
+
+# Generate Prisma client
+RUN npx prisma generate
 
 # Create logs directory
 RUN mkdir -p logs uploads && chown -R backend:nodejs logs uploads
@@ -44,16 +39,17 @@ RUN mkdir -p logs uploads && chown -R backend:nodejs logs uploads
 USER backend
 
 # Expose the port the app runs on
-EXPOSE 3001
+EXPOSE 3002
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3001/healthz', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
+  CMD node -e "require('http').get('http://localhost:3002/healthz', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Command to run the application
-CMD ["node", "dist/index.js"]
+# Set environment to production
+ENV NODE_ENV=production
 
-CMD ["npm", "start"]
+# Command to run the application using server.js
+CMD ["node", "server.js"]

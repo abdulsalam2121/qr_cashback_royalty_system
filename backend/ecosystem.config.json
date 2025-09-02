@@ -1,0 +1,34 @@
+{
+  "apps": [
+    {
+      "name": "qr-cashback-backend",
+      "script": "server.js",
+      "cwd": "./",
+      "instances": 1,
+      "exec_mode": "cluster",
+      "watch": false,
+      "max_memory_restart": "500M",
+      "env": {
+        "NODE_ENV": "production",
+        "PORT": 3002,
+        "HOST": "0.0.0.0"
+      },
+      "env_development": {
+        "NODE_ENV": "development",
+        "PORT": 3002,
+        "HOST": "localhost"
+      },
+      "log_date_format": "YYYY-MM-DD HH:mm:ss Z",
+      "error_file": "./logs/err.log",
+      "out_file": "./logs/out.log",
+      "log_file": "./logs/combined.log",
+      "time": true,
+      "autorestart": true,
+      "max_restarts": 10,
+      "min_uptime": "10s",
+      "kill_timeout": 5000,
+      "wait_ready": true,
+      "listen_timeout": 3000
+    }
+  ]
+}
