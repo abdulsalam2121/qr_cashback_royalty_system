@@ -198,9 +198,9 @@ async function main() {
 
   // Create default tier rules
   const tierRules = [
-    { tier: 'SILVER', minSpend: new Prisma.Decimal(0), maxSpend: new Prisma.Decimal(500) },
-    { tier: 'GOLD', minSpend: new Prisma.Decimal(500), maxSpend: new Prisma.Decimal(2000) },
-    { tier: 'PLATINUM', minSpend: new Prisma.Decimal(2000), maxSpend: null },
+    { tier: 'SILVER', name: 'Silver Tier', minTotalSpendCents: 0, baseRateBps: 200 },
+    { tier: 'GOLD', name: 'Gold Tier', minTotalSpendCents: 50000, baseRateBps: 300 },
+    { tier: 'PLATINUM', name: 'Platinum Tier', minTotalSpendCents: 200000, baseRateBps: 500 },
   ];
 
   for (const ruleData of tierRules) {
@@ -216,8 +216,9 @@ async function main() {
         data: {
           tenantId: demoTenant.id,
           tier: ruleData.tier as any,
-          minSpend: ruleData.minSpend,
-          maxSpend: ruleData.maxSpend,
+          name: ruleData.name,
+          minTotalSpendCents: ruleData.minTotalSpendCents,
+          baseRateBps: ruleData.baseRateBps,
         }
       });
       console.log(`✅ Created tier rule: ${ruleData.tier}`);
@@ -226,23 +227,16 @@ async function main() {
 
   // Create default cashback rules
   const cashbackRules = [
-    { category: 'PURCHASE', tier: 'SILVER', cashbackPercentage: new Prisma.Decimal(2.0) },
-    { category: 'PURCHASE', tier: 'GOLD', cashbackPercentage: new Prisma.Decimal(3.0) },
-    { category: 'PURCHASE', tier: 'PLATINUM', cashbackPercentage: new Prisma.Decimal(5.0) },
-    { category: 'REPAIR', tier: 'SILVER', cashbackPercentage: new Prisma.Decimal(1.5) },
-    { category: 'REPAIR', tier: 'GOLD', cashbackPercentage: new Prisma.Decimal(2.5) },
-    { category: 'REPAIR', tier: 'PLATINUM', cashbackPercentage: new Prisma.Decimal(4.0) },
-    { category: 'OTHER', tier: 'SILVER', cashbackPercentage: new Prisma.Decimal(1.0) },
-    { category: 'OTHER', tier: 'GOLD', cashbackPercentage: new Prisma.Decimal(1.5) },
-    { category: 'OTHER', tier: 'PLATINUM', cashbackPercentage: new Prisma.Decimal(2.5) },
+    { category: 'PURCHASE', baseRateBps: 250 }, // 2.5%
+    { category: 'REPAIR', baseRateBps: 200 },   // 2.0%
+    { category: 'OTHER', baseRateBps: 150 },    // 1.5%
   ];
 
   for (const ruleData of cashbackRules) {
     const existingRule = await prisma.cashbackRule.findFirst({
       where: { 
         tenantId: demoTenant.id,
-        category: ruleData.category as any,
-        tier: ruleData.tier as any 
+        category: ruleData.category as any
       }
     });
 
@@ -251,12 +245,11 @@ async function main() {
         data: {
           tenantId: demoTenant.id,
           category: ruleData.category as any,
-          tier: ruleData.tier as any,
-          cashbackPercentage: ruleData.cashbackPercentage,
+          baseRateBps: ruleData.baseRateBps,
           isActive: true,
         }
       });
-      console.log(`✅ Created cashback rule: ${ruleData.category} - ${ruleData.tier}`);
+      console.log(`✅ Created cashback rule: ${ruleData.category}`);
     }
   }
 
@@ -270,7 +263,7 @@ async function main() {
   const jwt = await import('jsonwebtoken');
   
   const cardUid = nanoid(12);
-  const qrToken = jwt.sign(
+  const qrToken = jwt.default.sign(
     { cardUid, tenantId: demoTenant.id },
     process.env.JWT_SECRET || 'your-secret-key',
     { expiresIn: '365d' }
@@ -290,7 +283,6 @@ async function main() {
       storeId: demoStore.id,
       balanceCents: 2500, // $25.00 demo balance
       activatedAt: new Date(),
-      activatedBy: demoCashier.id,
     },
   });
   console.log(`✅ Demo card created: ${cardUid}`);
@@ -364,25 +356,16 @@ async function main() {
   console.log(`Demo Customer Card: ${cardUid}`);
   console.log(`Demo Store Slug: demo-store`);
   console.log('\n🚀 System is ready for deployment!');
-}
 
-main()
-  .catch((e) => {
-    console.error('❌ Seeding failed:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
-
+  // Continue with more seed data
   const card1 = await prisma.card.upsert({
     where: { cardUid: 'CARD-ALPHA-001' },
     update: {},
     create: {
-      tenantId: tenant1.id,
+      tenantId: demoTenant.id,
       cardUid: 'CARD-ALPHA-001',
-      customerId: customer1.id,
-      storeId: store1.id,
+      customerId: demoCustomer.id,
+      storeId: demoStore.id,
       status: 'ACTIVE',
       balanceCents: 1500, // $15.00
     },
@@ -390,11 +373,11 @@ main()
 
   await prisma.transaction.create({
     data: {
-      tenantId: tenant1.id,
-      storeId: store1.id,
+      tenantId: demoTenant.id,
+      storeId: demoStore.id,
       cardId: card1.id,
-      customerId: customer1.id,
-      cashierId: cashier1.id,
+      customerId: demoCustomer.id,
+      cashierId: demoCashier.id,
       type: 'EARN',
       category: 'PURCHASE',
       amountCents: 10000, // $100
