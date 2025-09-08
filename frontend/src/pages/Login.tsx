@@ -166,12 +166,12 @@ const Login: React.FC = () => {
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between items-center">
                     <div>
-                      <p><strong>Platform Admin:</strong> platform@example.com / AdminPass123!</p>
-                      <p className="text-gray-500">→ Go to: localhost:5173/platform/login</p>
+                      <p><strong>Platform Admin:</strong> admin@platform.com / AdminSecure123!</p>
+                      <p className="text-gray-500">→ Access all platform features</p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setFormData({ email: 'platform@example.com', password: 'AdminPass123!' })}
+                      onClick={() => setFormData({ email: 'admin@platform.com', password: 'AdminSecure123!' })}
                       className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
                     >
                       Fill
@@ -180,13 +180,13 @@ const Login: React.FC = () => {
                   <div className="mt-2">
                     <div className="flex justify-between items-center">
                       <div>
-                        <p><strong>Alpha Phone Shop (Tenant 1):</strong></p>
-                        <p className="ml-2">Admin: owner@alpha.com / TenantAdmin123!</p>
-                        <p className="text-gray-500 ml-2">→ Go to: localhost:5173/t/alpha-shop/login</p>
+                        <p><strong>Demo Retail Store (Tenant):</strong></p>
+                        <p className="ml-2">Admin: admin@demo.com / DemoAdmin123!</p>
+                        <p className="text-gray-500 ml-2">→ Store owner dashboard</p>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setFormData({ email: 'owner@alpha.com', password: 'TenantAdmin123!' })}
+                        onClick={() => setFormData({ email: 'admin@demo.com', password: 'DemoAdmin123!' })}
                         className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
                       >
                         Fill
@@ -194,32 +194,23 @@ const Login: React.FC = () => {
                     </div>
                     <div className="flex justify-between items-center mt-1">
                       <div>
-                        <p className="ml-2">Cashier: cashier@alpha.com / Cashier123!</p>
+                        <p className="ml-2">Cashier: cashier@demo.com / DemoCashier123!</p>
+                        <p className="text-gray-500 ml-2">→ POS terminal access</p>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setFormData({ email: 'cashier@alpha.com', password: 'Cashier123!' })}
+                        onClick={() => setFormData({ email: 'cashier@demo.com', password: 'DemoCashier123!' })}
                         className="px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200"
                       >
                         Fill
                       </button>
                     </div>
                   </div>
-                  <div className="mt-2">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p><strong>Beta Mobile Repairs (Tenant 2 - trial):</strong></p>
-                        <p className="ml-2">Admin: owner@beta.com / TenantAdmin123!</p>
-                        <p className="text-gray-500 ml-2">→ Go to: localhost:5173/t/beta-repairs/login</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ email: 'owner@beta.com', password: 'TenantAdmin123!' })}
-                        className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
-                      >
-                        Fill
-                      </button>
-                    </div>
+                  <div className="mt-3 p-2 bg-blue-50 rounded text-xs">
+                    <p><strong>Test Cards Created:</strong></p>
+                    <p>• John Smith (Silver): DEMOS5F3UGTE</p>
+                    <p>• Sarah Johnson (Gold): DEMOOUIUUZBU</p>
+                    <p>• Mike Wilson (Platinum): DEMOL3OVG4UY</p>
                   </div>
                 </div>
               </div>
