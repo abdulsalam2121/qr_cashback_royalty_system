@@ -3,7 +3,7 @@ import { User, Customer, Card, Transaction, Store, DashboardStats, CashbackRule,
 // Get API base URL from environment variables
 const API_BASE_URL = import.meta.env.VITE_API_URL || (
   import.meta.env.DEV 
-    ? 'http://localhost:3001/api' 
+    ? 'http://localhost:3002/api' 
     : `${window.location.protocol}//${window.location.host}/api`
 );
 
@@ -233,6 +233,11 @@ export const api = {
       });
     },
 
+    getAvailableCustomers: async (tenantSlug: string, search?: string): Promise<{ customers: Customer[] }> => {
+      const query = search ? `?search=${encodeURIComponent(search)}` : '';
+      return request(`/t/${tenantSlug}/customers/available${query}`);
+    },
+
     // Cards
     getCards: async (tenantSlug: string, params?: string): Promise<{ cards: Card[]; total: number; page: number; pages: number }> => {
       const query = params ? `?${params}` : '';
@@ -283,6 +288,69 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify({ storeId }),
       });
+    },
+
+    // QR Code Downloads
+    downloadQRCode: async (tenantSlug: string, cardUid: string, format: string = 'png', size: string = '300'): Promise<Blob> => {
+      const response = await fetch(`${API_BASE_URL}/t/${tenantSlug}/cards/${cardUid}/qr/download?format=${format}&size=${size}`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new ApiError(`Failed to download QR code: ${response.statusText}`, response.status);
+      }
+
+      return response.blob();
+    },
+
+    downloadBulkQRCodes: async (tenantSlug: string, cardUids: string[], options: {
+      format?: string;
+      size?: string;
+      includeLabels?: boolean;
+    } = {}): Promise<Blob> => {
+      const response = await fetch(`${API_BASE_URL}/t/${tenantSlug}/cards/qr/bulk-download`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          cardUids,
+          format: options.format || 'png',
+          size: options.size || '300',
+          includeLabels: options.includeLabels !== false,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new ApiError(`Failed to download bulk QR codes: ${response.statusText}`, response.status);
+      }
+
+      return response.blob();
+    },
+
+    downloadPrintReadyQRCodes: async (tenantSlug: string, cardUids: string[], options: {
+      printFormat?: string;
+      cardsPerPage?: number;
+    } = {}): Promise<Blob> => {
+      const response = await fetch(`${API_BASE_URL}/t/${tenantSlug}/cards/qr/print-ready`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          cardUids,
+          printFormat: options.printFormat || 'standard',
+          cardsPerPage: options.cardsPerPage || 8,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new ApiError(`Failed to download print-ready QR codes: ${response.statusText}`, response.status);
+      }
+
+      return response.blob();
     },
 
     // Transactions

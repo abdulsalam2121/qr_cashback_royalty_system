@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { CreditCard, Search, Plus, QrCode, User, Eye, Ban, CheckCircle, UserPlus, Store, Users } from 'lucide-react';
+import { CreditCard, Search, Plus, QrCode, User, Eye, Ban, CheckCircle, UserPlus, Store, Users, Download, FileArchive } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { api } from '../utils/api';
 import { formatCurrency, formatDate, getStatusColor } from '../utils/format';
@@ -14,6 +14,7 @@ const Cards: React.FC = () => {
   const { showToast } = useToast();
   const [cards, setCards] = useState<Card[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [availableCustomers, setAvailableCustomers] = useState<Customer[]>([]);
   const [stores, setStores] = useState<StoreType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,6 +40,9 @@ const Cards: React.FC = () => {
     }
   });
   const [createNewCustomer, setCreateNewCustomer] = useState(false);
+  const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
+  const [downloadingQR, setDownloadingQR] = useState(false);
+  const [showBulkDownload, setShowBulkDownload] = useState(false);
   
   const isSubscriptionActive = tenant?.subscriptionStatus === 'ACTIVE' || 
     tenant?.subscriptionStatus === 'TRIALING' ||
@@ -102,8 +106,16 @@ const Cards: React.FC = () => {
     if (!tenantSlug) return;
     
     try {
-      const data = await api.tenant.getCustomers(tenantSlug);
-      setCustomers(data.customers || []);
+      // Fetch all customers for general use
+      const allCustomersData = await api.tenant.getCustomers(tenantSlug);
+      console.log('All customers data:', allCustomersData);
+      setCustomers(allCustomersData.customers || []);
+      
+      // Fetch available customers for card assignment
+      console.log('Fetching available customers...');
+      const availableCustomersData = await api.tenant.getAvailableCustomers(tenantSlug);
+      console.log('Available customers data:', availableCustomersData);
+      setAvailableCustomers(availableCustomersData.customers || []);
     } catch (error) {
       console.error('Failed to fetch customers:', error);
     }
@@ -286,6 +298,99 @@ const Cards: React.FC = () => {
     }
   };
 
+  // Download utility function
+  const downloadFile = (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  };
+
+  // Download individual QR code
+  const downloadQRCode = async (cardUid: string, format: string = 'png') => {
+    if (!tenantSlug) return;
+    
+    try {
+      setDownloadingQR(true);
+      const blob = await api.tenant.downloadQRCode(tenantSlug, cardUid, format);
+      downloadFile(blob, `qr-code-${cardUid}.${format}`);
+      showToast('QR code downloaded successfully', 'success');
+    } catch (error) {
+      console.error('Failed to download QR code:', error);
+      showToast('Failed to download QR code', 'error');
+    } finally {
+      setDownloadingQR(false);
+    }
+  };
+
+  // Download bulk QR codes
+  const downloadBulkQRCodes = async (format: string = 'png', includeLabels: boolean = true) => {
+    if (!tenantSlug || selectedCards.size === 0) return;
+    
+    try {
+      setDownloadingQR(true);
+      const cardUids = Array.from(selectedCards);
+      const blob = await api.tenant.downloadBulkQRCodes(tenantSlug, cardUids, {
+        format,
+        includeLabels
+      });
+      downloadFile(blob, `qr-codes-bulk-${new Date().toISOString().split('T')[0]}.zip`);
+      showToast(`Downloaded ${cardUids.length} QR codes successfully`, 'success');
+      setSelectedCards(new Set()); // Clear selection
+      setShowBulkDownload(false);
+    } catch (error) {
+      console.error('Failed to download bulk QR codes:', error);
+      showToast('Failed to download QR codes', 'error');
+    } finally {
+      setDownloadingQR(false);
+    }
+  };
+
+  // Download print-ready QR codes
+  const downloadPrintReadyQRCodes = async (printFormat: string = 'standard') => {
+    if (!tenantSlug || selectedCards.size === 0) return;
+    
+    try {
+      setDownloadingQR(true);
+      const cardUids = Array.from(selectedCards);
+      const blob = await api.tenant.downloadPrintReadyQRCodes(tenantSlug, cardUids, {
+        printFormat
+      });
+      downloadFile(blob, `print-ready-qr-codes-${new Date().toISOString().split('T')[0]}.zip`);
+      showToast(`Downloaded ${cardUids.length} print-ready QR codes successfully`, 'success');
+      setSelectedCards(new Set()); // Clear selection
+      setShowBulkDownload(false);
+    } catch (error) {
+      console.error('Failed to download print-ready QR codes:', error);
+      showToast('Failed to download print-ready QR codes', 'error');
+    } finally {
+      setDownloadingQR(false);
+    }
+  };
+
+  // Handle card selection for bulk operations
+  const toggleCardSelection = (cardUid: string) => {
+    const newSelection = new Set(selectedCards);
+    if (newSelection.has(cardUid)) {
+      newSelection.delete(cardUid);
+    } else {
+      newSelection.add(cardUid);
+    }
+    setSelectedCards(newSelection);
+  };
+
+  const selectAllCards = () => {
+    if (selectedCards.size === filteredCards.length) {
+      setSelectedCards(new Set());
+    } else {
+      setSelectedCards(new Set(filteredCards.map(card => card.cardUid)));
+    }
+  };
+
   const filteredCards = cards.filter(card =>
     card.cardUid.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (card.customer && 
@@ -368,18 +473,30 @@ const Cards: React.FC = () => {
           </div>
         </div>
         <div className="flex flex-col items-end space-y-2">
-          <button
-            onClick={() => setShowCreateBatch(true)}
-            disabled={!canCreateCards}
-            className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
-              canCreateCards 
-                ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                : 'bg-gray-400 text-white cursor-not-allowed'
-            }`}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create Card Batch
-          </button>
+          <div className="flex items-center space-x-2">
+            {selectedCards.size > 0 && (
+              <button
+                onClick={() => setShowBulkDownload(true)}
+                disabled={downloadingQR}
+                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                <FileArchive className="w-4 h-4 mr-2" />
+                Download QR Codes ({selectedCards.size})
+              </button>
+            )}
+            <button
+              onClick={() => setShowCreateBatch(true)}
+              disabled={!canCreateCards}
+              className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+                canCreateCards 
+                  ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                  : 'bg-gray-400 text-white cursor-not-allowed'
+              }`}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Card Batch
+            </button>
+          </div>
           {isTrialLimitReached && (
             <p className="text-sm text-red-600 text-right max-w-xs">
               Trial limit reached ({currentCardCount}/{trialLimit} cards). 
@@ -397,7 +514,21 @@ const Cards: React.FC = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row gap-4 items-start">
+          {/* Select All Checkbox */}
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="select-all"
+              checked={selectedCards.size === filteredCards.length && filteredCards.length > 0}
+              onChange={selectAllCards}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <label htmlFor="select-all" className="text-sm text-gray-700">
+              Select All ({selectedCards.size}/{filteredCards.length})
+            </label>
+          </div>
+          
           <form onSubmit={handleSearch} className="flex-1">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -429,6 +560,12 @@ const Cards: React.FC = () => {
           <div key={card.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={selectedCards.has(card.cardUid)}
+                  onChange={() => toggleCardSelection(card.cardUid)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
                 <QrCode className="w-5 h-5 text-blue-600" />
                 <span className="font-mono text-sm font-medium">{card.cardUid}</span>
               </div>
@@ -438,8 +575,16 @@ const Cards: React.FC = () => {
             </div>
 
             {card.qrUrl && (
-              <div className="mb-4 flex justify-center">
+              <div className="mb-4 flex justify-center relative">
                 <img src={card.qrUrl} alt={`QR Code for ${card.cardUid}`} className="w-24 h-24" />
+                <button
+                  onClick={() => downloadQRCode(card.cardUid)}
+                  disabled={downloadingQR}
+                  className="absolute top-0 right-0 p-1 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  title="Download QR Code"
+                >
+                  <Download className="w-3 h-3" />
+                </button>
               </div>
             )}
 
@@ -646,12 +791,43 @@ const Cards: React.FC = () => {
               {/* QR Code */}
               {selectedCard.qrUrl && (
                 <div className="text-center">
-                  <h4 className="text-lg font-medium text-gray-900 mb-3">QR Code</h4>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-lg font-medium text-gray-900">QR Code</h4>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => downloadQRCode(selectedCard.cardUid, 'png')}
+                        disabled={downloadingQR}
+                        className="flex items-center px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                      >
+                        <Download className="w-4 h-4 mr-1" />
+                        PNG
+                      </button>
+                      <button
+                        onClick={() => downloadQRCode(selectedCard.cardUid, 'jpg')}
+                        disabled={downloadingQR}
+                        className="flex items-center px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 transition-colors"
+                      >
+                        <Download className="w-4 h-4 mr-1" />
+                        JPG
+                      </button>
+                      <button
+                        onClick={() => downloadQRCode(selectedCard.cardUid, 'svg')}
+                        disabled={downloadingQR}
+                        className="flex items-center px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                      >
+                        <Download className="w-4 h-4 mr-1" />
+                        SVG
+                      </button>
+                    </div>
+                  </div>
                   <img 
                     src={selectedCard.qrUrl} 
                     alt={`QR Code for ${selectedCard.cardUid}`} 
                     className="mx-auto w-48 h-48 border border-gray-200 rounded-lg"
                   />
+                  <p className="text-sm text-gray-600 mt-2">
+                    Click the buttons above to download in different formats
+                  </p>
                 </div>
               )}
 
@@ -856,6 +1032,18 @@ const Cards: React.FC = () => {
                 </div>
               </div>
 
+              {/* Information about customer availability */}
+              {!createNewCustomer && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm text-blue-800">
+                    <strong>Available customers:</strong> Only completely new customers (with no cards at all) will appear in the dropdown.
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Customers with any existing cards (active or blocked) are not shown to prevent conflicts.
+                  </p>
+                </div>
+              )}
+
               {/* Existing Customer Selection */}
               {!createNewCustomer && (
                 <div>
@@ -869,16 +1057,16 @@ const Cards: React.FC = () => {
                     required={!createNewCustomer}
                   >
                     <option value="">Select a customer...</option>
-                    {customers.map(customer => (
+                    {availableCustomers.map(customer => (
                       <option key={customer.id} value={customer.id}>
                         {customer.firstName} {customer.lastName} 
                         {customer.email && ` (${customer.email})`}
                       </option>
                     ))}
                   </select>
-                  {customers.length === 0 && (
+                  {availableCustomers.length === 0 && (
                     <p className="text-xs text-gray-500 mt-1">
-                      No customers available. Create a new customer instead.
+                      No new customers available. All existing customers already have cards assigned. Create a new customer instead.
                     </p>
                   )}
                 </div>
@@ -1047,6 +1235,100 @@ const Cards: React.FC = () => {
                   {assigningCard ? 'Updating...' : 'Update Store'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Download Modal */}
+      {showBulkDownload && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">Download QR Codes</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Download {selectedCards.size} selected QR codes
+              </p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Download Options</h3>
+                
+                {/* Standard Download */}
+                <div className="space-y-3">
+                  <button
+                    onClick={() => downloadBulkQRCodes('png', true)}
+                    disabled={downloadingQR}
+                    className="w-full flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  >
+                    <div className="text-left">
+                      <p className="font-medium text-gray-900">Standard QR Codes (PNG)</p>
+                      <p className="text-sm text-gray-600">
+                        Individual QR codes with labels and CSV info
+                      </p>
+                    </div>
+                    <Download className="w-5 h-5 text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => downloadBulkQRCodes('jpg', true)}
+                    disabled={downloadingQR}
+                    className="w-full flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  >
+                    <div className="text-left">
+                      <p className="font-medium text-gray-900">Standard QR Codes (JPG)</p>
+                      <p className="text-sm text-gray-600">
+                        Compressed format with labels and CSV info
+                      </p>
+                    </div>
+                    <Download className="w-5 h-5 text-gray-400" />
+                  </button>
+
+                  <button
+                    onClick={() => downloadPrintReadyQRCodes('standard')}
+                    disabled={downloadingQR}
+                    className="w-full flex items-center justify-between p-4 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100 disabled:opacity-50 transition-colors"
+                  >
+                    <div className="text-left">
+                      <p className="font-medium text-green-900">Print-Ready Format</p>
+                      <p className="text-sm text-green-700">
+                        Optimized for card printing machines
+                      </p>
+                    </div>
+                    <FileArchive className="w-5 h-5 text-green-600" />
+                  </button>
+
+                  <button
+                    onClick={() => downloadPrintReadyQRCodes('card-template')}
+                    disabled={downloadingQR}
+                    className="w-full flex items-center justify-between p-4 border border-blue-200 bg-blue-50 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                  >
+                    <div className="text-left">
+                      <p className="font-medium text-blue-900">Card Template Format</p>
+                      <p className="text-sm text-blue-700">
+                        Card-sized templates with positioned QR codes
+                      </p>
+                    </div>
+                    <FileArchive className="w-5 h-5 text-blue-600" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm text-yellow-800">
+                  <strong>For Card Printing:</strong> Use "Print-Ready Format" for standard printing machines or "Card Template Format" for precise positioning on physical cards.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200">
+              <button
+                onClick={() => setShowBulkDownload(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>

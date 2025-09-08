@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import QRCode from 'qrcode';
 import { nanoid } from 'nanoid';
+import JSZip from 'jszip';
+import sharp from 'sharp';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { validate } from '../middleware/validate.js';
 import { auth } from '../middleware/auth.js';
@@ -458,6 +460,284 @@ router.post('/:cardUid/block', auth, rbac(['tenant_admin']), validate(blockSchem
       storeName: updatedCard.store?.name || null
     }
   });
+}));
+
+// Download individual QR code as image
+router.get('/:cardUid/qr/download', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req: Request, res: Response) => {
+  const { cardUid } = req.params;
+  const { tenantId } = req.user;
+  const { format = 'png', size = '300' } = req.query;
+
+  if (!cardUid) {
+    res.status(400).json({ error: 'Card UID is required' });
+    return;
+  }
+
+  const card = await prisma.card.findFirst({
+    where: { cardUid, tenantId }
+  });
+
+  if (!card) {
+    res.status(404).json({ error: 'Card not found' });
+    return;
+  }
+
+  try {
+    const qrData = `${process.env.APP_BASE_URL}/c/${cardUid}`;
+    const qrSize = parseInt(size as string) || 300;
+    
+    // Generate QR code
+    const qrBuffer = await QRCode.toBuffer(qrData, {
+      width: qrSize,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      },
+      type: 'png'
+    });
+
+    let responseBuffer = qrBuffer;
+    let contentType = 'image/png';
+    let extension = 'png';
+
+    // Convert to different formats if requested
+    if (format === 'jpg' || format === 'jpeg') {
+      responseBuffer = await sharp(qrBuffer)
+        .jpeg({ quality: 95 })
+        .toBuffer();
+      contentType = 'image/jpeg';
+      extension = 'jpg';
+    } else if (format === 'svg') {
+      const svgString = await QRCode.toString(qrData, {
+        type: 'svg',
+        width: qrSize,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      });
+      responseBuffer = Buffer.from(svgString);
+      contentType = 'image/svg+xml';
+      extension = 'svg';
+    }
+
+    const filename = `qr-code-${cardUid}.${extension}`;
+    
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(responseBuffer);
+  } catch (error) {
+    console.error('QR code generation error:', error);
+    res.status(500).json({ error: 'Failed to generate QR code' });
+  }
+}));
+
+// Download bulk QR codes as ZIP
+router.post('/qr/bulk-download', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
+  const { tenantId } = req.user;
+  const { cardUids, format = 'png', size = '300', includeLabels = true } = req.body;
+
+  if (!cardUids || !Array.isArray(cardUids) || cardUids.length === 0) {
+    res.status(400).json({ error: 'Card UIDs array is required' });
+    return;
+  }
+
+  if (cardUids.length > 1000) {
+    res.status(400).json({ error: 'Maximum 1000 cards allowed per download' });
+    return;
+  }
+
+  try {
+    const cards = await prisma.card.findMany({
+      where: { 
+        cardUid: { in: cardUids },
+        tenantId 
+      },
+      include: {
+        customer: true,
+        store: true
+      }
+    });
+
+    if (cards.length === 0) {
+      res.status(404).json({ error: 'No cards found' });
+      return;
+    }
+
+    const zip = new JSZip();
+    const qrSize = parseInt(size as string) || 300;
+
+    for (const card of cards) {
+      const qrData = `${process.env.APP_BASE_URL}/c/${card.cardUid}`;
+      
+      // Generate QR code
+      const qrBuffer = await QRCode.toBuffer(qrData, {
+        width: qrSize,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        },
+        type: 'png'
+      });
+
+      let fileBuffer = qrBuffer;
+      let extension = 'png';
+
+      // Convert to different formats if requested
+      if (format === 'jpg' || format === 'jpeg') {
+        fileBuffer = await sharp(qrBuffer)
+          .jpeg({ quality: 95 })
+          .toBuffer();
+        extension = 'jpg';
+      } else if (format === 'svg') {
+        const svgString = await QRCode.toString(qrData, {
+          type: 'svg',
+          width: qrSize,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          }
+        });
+        fileBuffer = Buffer.from(svgString);
+        extension = 'svg';
+      }
+
+      // Create filename with card info
+      let filename = `${card.cardUid}.${extension}`;
+      if (includeLabels && card.customer) {
+        const customerName = `${card.customer.firstName}-${card.customer.lastName}`.replace(/[^a-zA-Z0-9-]/g, '');
+        filename = `${card.cardUid}-${customerName}.${extension}`;
+      }
+
+      zip.file(filename, fileBuffer);
+    }
+
+    // Add a CSV file with card information
+    if (includeLabels) {
+      const csvData = [
+        ['Card UID', 'Customer Name', 'Email', 'Phone', 'Store', 'Status', 'Balance'],
+        ...cards.map(card => [
+          card.cardUid,
+          card.customer ? `${card.customer.firstName} ${card.customer.lastName}` : 'Unassigned',
+          card.customer?.email || '',
+          card.customer?.phone || '',
+          card.store?.name || 'Not assigned',
+          card.status,
+          (card.balanceCents / 100).toFixed(2)
+        ])
+      ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+      
+      zip.file('card-info.csv', csvData);
+    }
+
+    const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `qr-codes-${timestamp}.zip`;
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(zipBuffer);
+  } catch (error) {
+    console.error('Bulk QR download error:', error);
+    res.status(500).json({ error: 'Failed to generate QR codes archive' });
+  }
+}));
+
+// Generate print-ready QR codes for card printing
+router.post('/qr/print-ready', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
+  const { tenantId } = req.user;
+  const { cardUids, printFormat = 'standard', cardsPerPage = 8 } = req.body;
+
+  if (!cardUids || !Array.isArray(cardUids) || cardUids.length === 0) {
+    res.status(400).json({ error: 'Card UIDs array is required' });
+    return;
+  }
+
+  const cards = await prisma.card.findMany({
+    where: { 
+      cardUid: { in: cardUids },
+      tenantId 
+    },
+    include: {
+      customer: true,
+      store: true
+    }
+  });
+
+  if (cards.length === 0) {
+    res.status(404).json({ error: 'No cards found' });
+    return;
+  }
+
+  try {
+    const zip = new JSZip();
+
+    // Standard card size: 85.6mm x 53.98mm (credit card size)
+    // Print resolution: 300 DPI
+    const cardWidthPx = Math.round(85.6 * 300 / 25.4); // 1012px
+    const cardHeightPx = Math.round(53.98 * 300 / 25.4); // 638px
+    const qrSize = 200; // QR code size in pixels
+
+    for (const card of cards) {
+      const qrData = `${process.env.APP_BASE_URL}/c/${card.cardUid}`;
+      
+      // Generate QR code
+      const qrBuffer = await QRCode.toBuffer(qrData, {
+        width: qrSize,
+        margin: 1,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        },
+        type: 'png'
+      });
+
+      if (printFormat === 'standard') {
+        // Single QR code per file (for individual card printing)
+        zip.file(`${card.cardUid}-qr.png`, qrBuffer);
+      } else if (printFormat === 'card-template') {
+        // Create a card-sized template with QR code positioned for printing
+        const cardCanvas = sharp({
+          create: {
+            width: cardWidthPx,
+            height: cardHeightPx,
+            channels: 3,
+            background: { r: 255, g: 255, b: 255 }
+          }
+        });
+
+        // Position QR code (you can adjust position based on your card design)
+        const qrPositionX = cardWidthPx - qrSize - 50; // Right side with margin
+        const qrPositionY = Math.round((cardHeightPx - qrSize) / 2); // Vertically centered
+
+        const cardWithQr = await cardCanvas
+          .composite([{
+            input: qrBuffer,
+            left: qrPositionX,
+            top: qrPositionY
+          }])
+          .png()
+          .toBuffer();
+
+        zip.file(`${card.cardUid}-card-template.png`, cardWithQr);
+      }
+    }
+
+    const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `print-ready-qr-codes-${timestamp}.zip`;
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(zipBuffer);
+  } catch (error) {
+    console.error('Print-ready QR generation error:', error);
+    res.status(500).json({ error: 'Failed to generate print-ready QR codes' });
+  }
 }));
 
 export default router;

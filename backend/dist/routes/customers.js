@@ -58,6 +58,60 @@ router.get('/', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
         pages: Math.ceil(total / Number(limit)),
     });
 }));
+// Get available customers (those without active cards or with blocked cards only)
+router.get('/available', auth, asyncHandler(async (req, res) => {
+    const { tenantId } = req.user;
+    const { search } = req.query;
+    const where = { tenantId };
+    if (search) {
+        where.OR = [
+            { firstName: { contains: search, mode: 'insensitive' } },
+            { lastName: { contains: search, mode: 'insensitive' } },
+            { email: { contains: search, mode: 'insensitive' } },
+            { phone: { contains: search } },
+        ];
+    }
+    // Get all customers with their cards
+    const customers = await prisma.customer.findMany({
+        where,
+        include: {
+            cards: {
+                select: { id: true, cardUid: true, status: true }
+            }
+        },
+        orderBy: [
+            { firstName: 'asc' },
+            { lastName: 'asc' }
+        ]
+    });
+    // Filter customers who have NO cards at all (completely new customers only)
+    const availableCustomers = customers.filter(customer => {
+        console.log(`Customer: ${customer.firstName} ${customer.lastName}`);
+        console.log(`  Total cards: ${customer.cards.length}`);
+        // Only available if customer has absolutely no cards
+        if (customer.cards.length === 0) {
+            console.log(`  NO CARDS - AVAILABLE`);
+            return true;
+        }
+        else {
+            console.log(`  HAS CARDS - NOT AVAILABLE`);
+            return false;
+        }
+    });
+    console.log(`Total customers: ${customers.length}, Available customers: ${availableCustomers.length}`);
+    res.json({
+        customers: availableCustomers.map(customer => ({
+            id: customer.id,
+            firstName: customer.firstName,
+            lastName: customer.lastName,
+            email: customer.email,
+            phone: customer.phone,
+            cardCount: customer.cards.length,
+            hasActiveCard: customer.cards.some(card => card.status === 'ACTIVE'),
+            hasBlockedCards: customer.cards.some(card => card.status === 'BLOCKED')
+        }))
+    });
+}));
 // Get customer by ID
 router.get('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { id } = req.params;
