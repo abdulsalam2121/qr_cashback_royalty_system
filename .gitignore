@@ -69,3 +69,6 @@ uploads/
 /tmp/
 *.bak
 *.backup
+.env.docker.example
+.env.docker.example
+.env.example

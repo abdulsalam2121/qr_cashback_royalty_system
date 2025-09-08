@@ -238,7 +238,7 @@ async function main() {
     const { nanoid } = await import('nanoid');
     const jwt = await import('jsonwebtoken');
     const cardUid = nanoid(12);
-    const qrToken = jwt.sign({ cardUid, tenantId: demoTenant.id }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '365d' });
+    const qrToken = jwt.default.sign({ cardUid, tenantId: demoTenant.id }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '365d' });
     const qrUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/c/${cardUid}?t=${qrToken}`;
     const demoCard = await prisma.card.upsert({
         where: { cardUid },
