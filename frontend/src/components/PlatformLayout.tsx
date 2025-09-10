@@ -9,8 +9,8 @@ import {
   Menu,
   X,
   Crown,
-  Users,
-  DollarSign
+  DollarSign,
+  BarChart3
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
@@ -30,6 +30,7 @@ const PlatformLayout: React.FC = () => {
     { name: 'Tenants', href: '/platform/tenants', icon: Building2 },
     { name: 'Plans', href: '/platform/plans', icon: CreditCardIcon },
     { name: 'Analytics', href: '/platform/analytics', icon: DollarSign },
+    { name: 'Subscriptions', href: '/platform/subscriptions', icon: BarChart3 },
     { name: 'Settings', href: '/platform/settings', icon: Settings },
   ];
 

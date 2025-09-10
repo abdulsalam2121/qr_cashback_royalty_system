@@ -24,7 +24,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers,
+    ...(options.headers as Record<string, string> || {}),
   };
   
   const config: RequestInit = {
@@ -188,15 +188,57 @@ export const api = {
     },
 
     // Billing
-    subscribe: async (tenantSlug: string, planId: string): Promise<{ checkoutUrl: string }> => {
+    subscribe: async (tenantSlug: string, planId: string, paymentMethodId?: string): Promise<{ checkoutUrl?: string; redirectUrl?: string; message?: string; subscriptionId?: string }> => {
+      const body: any = { planId };
+      if (paymentMethodId) {
+        body.paymentMethodId = paymentMethodId;
+      }
+      
       return request(`/t/${tenantSlug}/billing/subscribe`, {
         method: 'POST',
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify(body),
       });
     },
 
     getBillingPortal: async (tenantSlug: string): Promise<{ portalUrl: string }> => {
       return request(`/t/${tenantSlug}/billing/portal`);
+    },
+
+    getPaymentMethods: async (tenantSlug: string): Promise<{ paymentMethods: any[] }> => {
+      return request(`/t/${tenantSlug}/billing/payment-methods`);
+    },
+
+    createSetupIntent: async (tenantSlug: string): Promise<{ clientSecret: string; setupIntentId: string; demo?: boolean; message?: string }> => {
+      return request(`/t/${tenantSlug}/billing/setup-intent`, {
+        method: 'POST',
+      });
+    },
+
+    deletePaymentMethod: async (tenantSlug: string, paymentMethodId: string): Promise<{ message: string }> => {
+      return request(`/t/${tenantSlug}/billing/payment-methods/${paymentMethodId}`, {
+        method: 'DELETE',
+      });
+    },
+
+    setDefaultPaymentMethod: async (tenantSlug: string, paymentMethodId: string): Promise<{ message: string }> => {
+      return request(`/t/${tenantSlug}/billing/payment-methods/${paymentMethodId}/set-default`, {
+        method: 'POST',
+      });
+    },
+
+    getInvoices: async (tenantSlug: string): Promise<{ invoices: any[] }> => {
+      return request(`/t/${tenantSlug}/billing/invoices`);
+    },
+
+    getUsageStats: async (tenantSlug: string): Promise<{ usage: any }> => {
+      return request(`/t/${tenantSlug}/billing/usage`);
+    },
+
+    addCustomerFunds: async (tenantSlug: string, customerId: string, amountCents: number): Promise<{ checkoutUrl: string }> => {
+      return request(`/t/${tenantSlug}/customers/${customerId}/add-funds`, {
+        method: 'POST',
+        body: JSON.stringify({ amountCents }),
+      });
     },
 
     getTenant: async (tenantSlug: string): Promise<{ tenant: Tenant }> => {

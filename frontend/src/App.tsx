@@ -23,6 +23,7 @@ import PlatformAnalytics from './pages/platform/Analytics';
 import PlatformPlans from './pages/platform/Plans';
 import PlatformSettings from './pages/platform/Settings';
 import TenantBilling from './pages/tenant/Billing';
+import SubscriptionAnalytics from './pages/admin/SubscriptionAnalytics';
 import { X } from 'lucide-react';
 
 // Protected Route Component
@@ -152,6 +153,14 @@ function App() {
                 element={
                   <ProtectedRoute roles={['platform_admin']}>
                     <PlatformPlans />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="subscriptions" 
+                element={
+                  <ProtectedRoute roles={['platform_admin']}>
+                    <SubscriptionAnalytics />
                   </ProtectedRoute>
                 } 
               />

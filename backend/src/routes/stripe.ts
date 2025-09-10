@@ -32,6 +32,10 @@ router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(
         if (session.metadata?.orderId) {
           await handleCardOrderPayment(session);
         }
+        // Handle customer fund additions
+        else if (session.metadata?.type === 'customer_funds') {
+          await handleCustomerFundsPayment(session);
+        }
         break;
       }
 
@@ -155,6 +159,64 @@ async function handleCardOrderPaymentIntent(paymentIntent: Stripe.PaymentIntent)
   }
 }
 
+// Handle customer funds payment completion
+async function handleCustomerFundsPayment(session: Stripe.Checkout.Session) {
+  const metadata = session.metadata;
+  
+  if (!metadata?.customerId || !metadata?.cardId || !metadata?.amountCents) {
+    console.error('Missing required metadata for customer funds payment');
+    return;
+  }
+
+  try {
+    const amountCents = parseInt(metadata.amountCents);
+    const cardId = metadata.cardId;
+    
+    // Add funds to customer's card balance
+    await prisma.$transaction(async (tx) => {
+      const card = await tx.card.findUnique({
+        where: { id: cardId },
+        include: { customer: true }
+      });
+
+      if (!card || !card.customerId) {
+        throw new Error(`Card ${cardId} not found or has no customer`);
+      }
+
+      const newBalance = card.balanceCents + amountCents;
+      
+      // Update card balance
+      await tx.card.update({
+        where: { id: card.id },
+        data: { balanceCents: newBalance }
+      });
+
+      // Create transaction record
+      await tx.transaction.create({
+        data: {
+          type: 'EARN',
+          category: 'OTHER',
+          amountCents: amountCents,
+          cashbackCents: 0, // No cashback for adding funds
+          beforeBalanceCents: card.balanceCents,
+          afterBalanceCents: newBalance,
+          customerId: card.customerId,
+          cardId: card.id,
+          tenantId: card.tenantId,
+          storeId: card.storeId || card.tenantId, // Use the card's store or fallback to tenant
+          cashierId: card.customerId, // Use customer as cashier for system transactions
+          sourceIp: '127.0.0.1', // System
+          note: `Funds added via Stripe payment - Session: ${session.id}`,
+        }
+      });
+    });
+
+    console.log(`Successfully added $${(amountCents / 100).toFixed(2)} to card ${cardId}`);
+  } catch (error) {
+    console.error(`Failed to process customer funds payment for session ${session.id}:`, error);
+  }
+}
+
 async function updateTenantSubscription(subscription: Stripe.Subscription) {
   const status = mapStripeStatus(subscription.status);
   
@@ -163,14 +225,49 @@ async function updateTenantSubscription(subscription: Stripe.Subscription) {
     trialEndsAt = new Date(subscription.trial_end * 1000);
   }
 
-  await prisma.tenant.updateMany({
-    where: { stripeSubscriptionId: subscription.id },
-    data: {
-      subscriptionStatus: status,
-      trialEndsAt,
-      graceEndsAt: status === 'ACTIVE' ? null : null, // Clear grace period when active
+  // Get plan ID from subscription metadata
+  const planId = subscription.metadata?.planId;
+  
+  // Prepare update data
+  const updateData: any = {
+    stripeSubscriptionId: subscription.id,
+    subscriptionStatus: status,
+    trialEndsAt,
+    graceEndsAt: status === 'ACTIVE' ? null : null, // Clear grace period when active
+  };
+
+  // If we have a plan ID from metadata, update the plan
+  if (planId) {
+    // Verify the plan exists and is active
+    const plan = await prisma.plan.findUnique({
+      where: { id: planId, isActive: true }
+    });
+    
+    if (plan) {
+      updateData.planId = planId;
+    }
+  }
+
+  // Update tenant using customer ID if subscription ID doesn't exist yet
+  const tenant = await prisma.tenant.findFirst({
+    where: {
+      OR: [
+        { stripeSubscriptionId: subscription.id },
+        { stripeCustomerId: subscription.customer as string }
+      ]
     }
   });
+
+  if (tenant) {
+    await prisma.tenant.update({
+      where: { id: tenant.id },
+      data: updateData
+    });
+    
+    console.log(`Updated tenant ${tenant.id} subscription status to ${status}${planId ? ` with plan ${planId}` : ''}`);
+  } else {
+    console.error(`No tenant found for subscription ${subscription.id} or customer ${subscription.customer}`);
+  }
 }
 
 function mapStripeStatus(stripeStatus: string): 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' {

@@ -19,7 +19,32 @@ const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({
   const { subscriptionStatus, trialEndsAt, graceEndsAt } = tenant;
 
   if (subscriptionStatus === 'ACTIVE') {
-    return null;
+    // Show subscription status even when active
+    return (
+      <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
+        <div className="flex items-start space-x-3">
+          <div className="p-2 rounded-lg bg-white">
+            <CreditCard className="w-5 h-5 text-green-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-green-800">Subscription Active</h3>
+            <p className="text-sm text-green-800 opacity-90 mt-1">
+              Your subscription is active and all features are available.
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            {onManageBilling && (
+              <button
+                onClick={onManageBilling}
+                className="px-4 py-2 text-sm font-medium rounded-lg transition-colors bg-green-600 text-white hover:bg-green-700"
+              >
+                Manage Billing
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const getBannerConfig = () => {

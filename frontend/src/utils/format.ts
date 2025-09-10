@@ -1,8 +1,10 @@
-export const formatCurrency = (cents: number): string => {
+export const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-  }).format(cents / 100);
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
 };
 
 export const formatDate = (dateString: string): string => {

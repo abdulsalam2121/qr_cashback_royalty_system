@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Search, Plus, Eye, Edit, Mail, Phone, X, Trash2 } from 'lucide-react';
+import { Users, Search, Plus, Eye, Edit, Mail, Phone, X, Trash2, DollarSign } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { api } from '../utils/api';
 import { formatCurrency, formatDate, getTierColor } from '../utils/format';
@@ -22,6 +22,10 @@ const Customers: React.FC = () => {
   const [addingCustomer, setAddingCustomer] = useState(false);
   const [updatingCustomer, setUpdatingCustomer] = useState(false);
   const [deletingCustomer, setDeletingCustomer] = useState(false);
+  const [showAddFundsModal, setShowAddFundsModal] = useState(false);
+  const [selectedCardForFunds, setSelectedCardForFunds] = useState<{ customerId: string; cardId: string; balance: number } | null>(null);
+  const [fundAmount, setFundAmount] = useState('');
+  const [addingFunds, setAddingFunds] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     firstName: '',
     lastName: '',
@@ -128,6 +132,28 @@ const Customers: React.FC = () => {
       showToast('Failed to delete customer. Please try again.', 'error');
     } finally {
       setDeletingCustomer(false);
+    }
+  };
+
+  const handleAddFunds = async () => {
+    if (!tenantSlug || !selectedCardForFunds || !fundAmount) return;
+
+    try {
+      setAddingFunds(true);
+      const amountCents = Math.round(parseFloat(fundAmount) * 100);
+      
+      if (amountCents < 100 || amountCents > 100000) {
+        showToast('Amount must be between $1.00 and $1,000.00', 'error');
+        return;
+      }
+
+      const { checkoutUrl } = await api.tenant.addCustomerFunds(tenantSlug, selectedCardForFunds.customerId, amountCents);
+      window.location.href = checkoutUrl;
+    } catch (error) {
+      console.error('Failed to add funds:', error);
+      showToast('Failed to create payment session. Please try again.', 'error');
+    } finally {
+      setAddingFunds(false);
     }
   };
 
@@ -389,11 +415,28 @@ const Customers: React.FC = () => {
                             Balance: {formatCurrency(card.balanceCents)}
                           </p>
                         </div>
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          card.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {card.status}
-                        </span>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              setSelectedCardForFunds({
+                                customerId: selectedCustomer.id,
+                                cardId: card.id,
+                                balance: card.balanceCents
+                              });
+                              setFundAmount('');
+                              setShowAddFundsModal(true);
+                            }}
+                            className="flex items-center px-3 py-1 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                          >
+                            <DollarSign className="w-4 h-4 mr-1" />
+                            Add Funds
+                          </button>
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            card.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {card.status}
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -666,6 +709,77 @@ const Customers: React.FC = () => {
                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
                 {deletingCustomer ? 'Deleting...' : 'Delete Customer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Funds Modal */}
+      {showAddFundsModal && selectedCardForFunds && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Add Funds to Card</h3>
+              <button
+                onClick={() => {
+                  setShowAddFundsModal(false);
+                  setSelectedCardForFunds(null);
+                  setFundAmount('');
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-2">
+                  Current Balance: <span className="font-semibold">{formatCurrency(selectedCardForFunds.balance)}</span>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Amount to Add (USD)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="1000"
+                    step="0.01"
+                    value={fundAmount}
+                    onChange={(e) => setFundAmount(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="0.00"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Minimum: $1.00, Maximum: $1,000.00
+                </p>
+              </div>
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowAddFundsModal(false);
+                  setSelectedCardForFunds(null);
+                  setFundAmount('');
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddFunds}
+                disabled={addingFunds || !fundAmount || parseFloat(fundAmount) < 1 || parseFloat(fundAmount) > 1000}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {addingFunds ? 'Processing...' : 'Add Funds'}
               </button>
             </div>
           </div>

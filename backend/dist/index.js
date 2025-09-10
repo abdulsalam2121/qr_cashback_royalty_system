@@ -20,6 +20,8 @@ import tenantRoutes from './routes/tenant.js';
 import stripeRoutes from './routes/stripe.js';
 import trialRoutes from './routes/trial.js';
 import cardOrderRoutes from './routes/cardOrders.js';
+import webhookRoutes from './routes/webhooks.js';
+import adminRoutes from './routes/admin.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 const app = express();
@@ -65,6 +67,8 @@ const transactionLimiter = rateLimit({
 app.use(limiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/transactions', transactionLimiter);
+// Webhooks need raw body access, so add before JSON parsing
+app.use('/api/webhooks', webhookRoutes);
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -97,6 +101,7 @@ app.get('/healthz', async (req, res) => {
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/platform', platformRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/card-orders', cardOrderRoutes); // Global card orders routes (pricing, etc.)
 app.use('/api/t', tenantRoutes);
 app.use('/api/stripe', stripeRoutes);

@@ -263,7 +263,7 @@ router.get('/plans', auth, rbac(['platform_admin', 'tenant_admin']), asyncHandle
 
 // Create plan (platform admin only)
 router.post('/plans', auth, rbac(['platform_admin']), asyncHandler(async (req: Request, res: Response) => {
-  const { name, description, priceMonthly, billingPeriod, stripePriceId, features, limits } = req.body;
+  const { name, description, priceMonthly, billingPeriod, stripePriceId, features, limits, cardAllowance = 0, allowCardOrdering = true } = req.body;
 
   // Convert frontend billingPeriod to database format
   const dbBillingPeriod = billingPeriod === '3months' ? 'THREE_MONTHS' :

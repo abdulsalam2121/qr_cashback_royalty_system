@@ -52,12 +52,27 @@ const Cards: React.FC = () => {
   // Use actual card count instead of cached activation count for real-time accuracy
   const currentCardCount = tenant?._count?.cards || 0;
   const trialLimit = tenant?.freeTrialLimit || 40;
-  const remainingCards = Math.max(0, trialLimit - currentCardCount);
-  const isTrialLimitReached = tenant?.freeTrialLimit !== undefined && 
-    currentCardCount >= tenant.freeTrialLimit &&
-    tenant.subscriptionStatus !== 'ACTIVE';
+  
+  // Calculate remaining cards based on subscription status
+  let remainingCards = 0;
+  let isLimitReached = false;
+  let limitType = 'trial';
 
-  const canCreateCards = isSubscriptionActive && !isTrialLimitReached;
+  if (tenant?.subscriptionStatus === 'ACTIVE' && (tenant as any)?.cardBalance) {
+    // For active subscriptions, use subscription card balance
+    const cardBalance = (tenant as any).cardBalance;
+    remainingCards = cardBalance.currentBalance || 0;
+    limitType = 'subscription';
+    isLimitReached = remainingCards <= 0;
+  } else {
+    // For trial users, use trial limits
+    remainingCards = Math.max(0, trialLimit - currentCardCount);
+    isLimitReached = tenant?.freeTrialLimit !== undefined && 
+      currentCardCount >= tenant.freeTrialLimit &&
+      tenant.subscriptionStatus !== 'ACTIVE';
+  }
+
+  const canCreateCards = isSubscriptionActive && !isLimitReached;
 
   useEffect(() => {
     fetchCards();
@@ -217,6 +232,22 @@ const Cards: React.FC = () => {
     setShowAssignModal(true);
   };
 
+  const closeAssignModal = () => {
+    setShowAssignModal(false);
+    setCardToAssign(null);
+    setAssignmentData({
+      customerId: '',
+      storeId: stores.length > 0 ? stores[0].id : '',
+      newCustomer: {
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: ''
+      }
+    });
+    setCreateNewCustomer(false);
+  };
+
   const handleCardAssignment = async () => {
     if (!tenantSlug || !cardToAssign) return;
 
@@ -224,6 +255,8 @@ const Cards: React.FC = () => {
       setAssigningCard(true);
       
       let response;
+      let assignedCustomerId = '';
+      
       if (createNewCustomer) {
         response = await api.tenant.activateCard(
           tenantSlug, 
@@ -231,6 +264,8 @@ const Cards: React.FC = () => {
           assignmentData.newCustomer,
           assignmentData.storeId
         );
+        // For new customers, refresh the entire customer list
+        await fetchCustomers();
       } else {
         response = await api.tenant.activateCard(
           tenantSlug, 
@@ -239,20 +274,34 @@ const Cards: React.FC = () => {
           assignmentData.storeId,
           assignmentData.customerId
         );
+        assignedCustomerId = assignmentData.customerId;
+        
+        // Update available customers by removing the assigned customer
+        setAvailableCustomers(prev => 
+          prev.filter(customer => customer.id !== assignedCustomerId)
+        );
       }
       
-      // Update local state
+      // Update local cards state
       setCards(prev => prev.map(c => 
         c.cardUid === cardToAssign.cardUid ? response.card : c
       ));
 
-      if (createNewCustomer) {
-        // Refresh customers list to include the new customer
-        fetchCustomers();
-      }
-
+      // Reset all modal states and data
       setShowAssignModal(false);
       setCardToAssign(null);
+      setAssignmentData({
+        customerId: '',
+        storeId: stores.length > 0 ? stores[0].id : '',
+        newCustomer: {
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: ''
+        }
+      });
+      setCreateNewCustomer(false);
+      
       showToast('Card assigned successfully', 'success');
     } catch (error: any) {
       console.error('Failed to assign card:', error);
@@ -411,7 +460,7 @@ const Cards: React.FC = () => {
       {tenant?.freeTrialLimit !== undefined && 
        tenant.subscriptionStatus !== 'ACTIVE' && (
         <div className={`rounded-xl p-4 border ${
-          isTrialLimitReached 
+          isLimitReached 
             ? 'bg-red-50 border-red-200 text-red-800' 
             : currentCardCount >= tenant.freeTrialLimit * 0.8 
               ? 'bg-yellow-50 border-yellow-200 text-yellow-800'
@@ -421,7 +470,7 @@ const Cards: React.FC = () => {
             <div className="flex items-center space-x-3">
               <CreditCard className="w-5 h-5" />
               <div>
-                {isTrialLimitReached ? (
+                {isLimitReached ? (
                   <p className="font-medium">Trial Limit Reached</p>
                 ) : (
                   <p className="font-medium">
@@ -429,7 +478,7 @@ const Cards: React.FC = () => {
                   </p>
                 )}
                 <p className="text-sm">
-                  {isTrialLimitReached 
+                  {isLimitReached 
                     ? 'You\'ve reached your free trial limit. Upgrade to a paid plan to continue creating cards.'
                     : `${remainingCards} cards remaining in your free trial.`
                   }
@@ -450,7 +499,7 @@ const Cards: React.FC = () => {
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div 
                 className={`h-2 rounded-full transition-all duration-300 ${
-                  isTrialLimitReached 
+                  isLimitReached 
                     ? 'bg-red-500' 
                     : currentCardCount >= tenant.freeTrialLimit * 0.8 
                       ? 'bg-yellow-500'
@@ -497,16 +546,24 @@ const Cards: React.FC = () => {
               Create Card Batch
             </button>
           </div>
-          {isTrialLimitReached && (
+          {isLimitReached && (
             <p className="text-sm text-red-600 text-right max-w-xs">
-              Trial limit reached ({currentCardCount}/{trialLimit} cards). 
+              {tenant?.subscriptionStatus === 'ACTIVE' 
+                ? 'Subscription card limit reached. Contact support to increase your limit.'
+                : `Trial limit reached (${currentCardCount}/${trialLimit} cards).`
+              }
               <br />
               Upgrade to continue creating cards.
             </p>
           )}
-          {!isTrialLimitReached && tenant?.subscriptionStatus !== 'ACTIVE' && (
+          {!isLimitReached && tenant?.subscriptionStatus !== 'ACTIVE' && (
             <p className="text-sm text-blue-600 text-right max-w-xs">
               {remainingCards} cards remaining in trial
+            </p>
+          )}
+          {!isLimitReached && tenant?.subscriptionStatus === 'ACTIVE' && (
+            <p className="text-sm text-green-600 text-right max-w-xs">
+              {remainingCards} cards available from subscription
             </p>
           )}
         </div>
@@ -953,11 +1010,7 @@ const Cards: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium text-gray-900">Assign Card</h3>
               <button
-                onClick={() => {
-                  setShowAssignModal(false);
-                  setCardToAssign(null);
-                  setCreateNewCustomer(false);
-                }}
+                onClick={closeAssignModal}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <span className="sr-only">Close</span>
@@ -1144,11 +1197,7 @@ const Cards: React.FC = () => {
 
               <div className="flex space-x-3 pt-4">
                 <button
-                  onClick={() => {
-                    setShowAssignModal(false);
-                    setCardToAssign(null);
-                    setCreateNewCustomer(false);
-                  }}
+                  onClick={closeAssignModal}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Cancel

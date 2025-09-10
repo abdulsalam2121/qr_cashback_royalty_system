@@ -46,9 +46,15 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
   const { count, storeId } = req.body;
   const { tenantId } = req.user;
 
+  // Import CardLimitService
+  const { CardLimitService } = await import('../services/cardLimitService.js');
+
   // Check trial status and subscription
   const tenant = await prisma.tenant.findUnique({
-    where: { id: tenantId }
+    where: { id: tenantId },
+    include: {
+      plan: true
+    }
   });
 
   if (!tenant) {
@@ -56,21 +62,40 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
     return;
   }
 
-  // Check if tenant has exceeded free trial and needs subscription for creating more cards
+  // Check if tenant is on trial and has limits
   const currentCardCount = await prisma.card.count({
     where: { tenantId }
   });
 
-  if (currentCardCount + count > tenant.freeTrialLimit && 
-      tenant.subscriptionStatus !== 'ACTIVE') {
-    res.status(403).json({ 
-      error: 'Subscription required',
-      message: `Your free trial allows up to ${tenant.freeTrialLimit} cards. You currently have ${currentCardCount} cards and are trying to create ${count} more. Please upgrade to a paid subscription to continue creating cards.`,
-      cardsCreated: currentCardCount,
-      trialLimit: tenant.freeTrialLimit,
-      requestedCount: count
-    });
-    return;
+  // For trial users, check trial limits
+  if (tenant.subscriptionStatus !== 'ACTIVE') {
+    if (currentCardCount + count > tenant.freeTrialLimit) {
+      res.status(403).json({ 
+        error: 'Subscription required',
+        message: `Your free trial allows up to ${tenant.freeTrialLimit} cards. You currently have ${currentCardCount} cards and are trying to create ${count} more. Please upgrade to a paid subscription to continue creating cards.`,
+        cardsCreated: currentCardCount,
+        trialLimit: tenant.freeTrialLimit,
+        requestedCount: count
+      });
+      return;
+    }
+  } else {
+    // For subscription users, check subscription card limits
+    const cardBalance = await CardLimitService.getCardBalance(tenantId);
+    const canOrderResult = await CardLimitService.canOrderCards(tenantId, count);
+
+    if (!canOrderResult.canOrder) {
+      res.status(403).json({
+        error: 'Card limit exceeded',
+        message: canOrderResult.reason,
+        availableBalance: canOrderResult.availableBalance,
+        currentCards: currentCardCount,
+        requestedCount: count,
+        subscriptionLimit: cardBalance.subscriptionLimit,
+        subscriptionUsed: cardBalance.subscriptionUsed
+      });
+      return;
+    }
   }
 
   const cards: any[] = [];
@@ -109,6 +134,23 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
   const createdCards = await prisma.card.createMany({
     data: cards,
   });
+
+  // If tenant has an active subscription, deduct cards from balance
+  if (tenant.subscriptionStatus === 'ACTIVE') {
+    try {
+      await CardLimitService.updateCardBalance({
+        tenantId,
+        amount: -count, // Negative to deduct
+        type: 'USED',
+        source: 'CARD_ORDER',
+        description: `Cards created in batch - ${count} cards`,
+        createdBy: req.user.id
+      });
+    } catch (error) {
+      console.error('Failed to update card balance:', error);
+      // Continue execution but log the error
+    }
+  }
 
   const cardList = await prisma.card.findMany({
     where: {
