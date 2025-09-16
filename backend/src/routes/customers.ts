@@ -23,6 +23,117 @@ const updateCustomerSchema = z.object({
   phone: z.string().optional(),
 });
 
+// Get customer's own profile (for customer role)
+router.get('/me', auth, rbac(['customer']), asyncHandler(async (req: Request, res: Response) => {
+  const { userId, tenantId } = req.user;
+
+  // For customers, find their customer record by linking through user email
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  const customer = await prisma.customer.findFirst({
+    where: { 
+      tenantId,
+      email: user.email 
+    },
+    include: {
+      cards: {
+        include: {
+          store: true
+        }
+      }
+    }
+  });
+
+  if (!customer) {
+    res.status(404).json({ error: 'Customer profile not found' });
+    return;
+  }
+
+  res.json({ customer });
+  return;
+}));
+
+// Get customer's own cards (for customer role)
+router.get('/me/cards', auth, rbac(['customer']), asyncHandler(async (req: Request, res: Response) => {
+  const { userId, tenantId } = req.user;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  const customer = await prisma.customer.findFirst({
+    where: { 
+      tenantId,
+      email: user.email 
+    }
+  });
+
+  if (!customer) {
+    res.status(404).json({ error: 'Customer profile not found' });
+    return;
+  }
+
+  const cards = await prisma.card.findMany({
+    where: { customerId: customer.id },
+    include: {
+      store: true
+    }
+  });
+
+  res.json({ cards });
+  return;
+}));
+
+// Get customer's own transactions (for customer role)
+router.get('/me/transactions', auth, rbac(['customer']), asyncHandler(async (req: Request, res: Response) => {
+  const { userId, tenantId } = req.user;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  const customer = await prisma.customer.findFirst({
+    where: { 
+      tenantId,
+      email: user.email 
+    }
+  });
+
+  if (!customer) {
+    res.status(404).json({ error: 'Customer profile not found' });
+    return;
+  }
+
+  const transactions = await prisma.transaction.findMany({
+    where: { customerId: customer.id },
+    include: {
+      store: true,
+      card: true
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  res.json({ transactions });
+  return;
+}));
+
 // Get all customers
 router.get('/', auth, rbac(['tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { tenantId } = req.user;

@@ -19,13 +19,17 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx src/utils/seed.ts",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force",
+    "set-admin-claim": "tsx scripts/setAdminClaim.ts set",
+    "remove-admin-claim": "tsx scripts/setAdminClaim.ts remove",
+    "test-firebase": "tsx scripts/testFirebaseSetup.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "@types/nodemailer": "^7.0.1",
     "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
@@ -33,10 +37,12 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-rate-limit": "^7.4.0",
+    "firebase-admin": "^13.5.0",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "jszip": "^3.10.1",
     "nanoid": "^5.0.7",
+    "nodemailer": "^7.0.6",
     "pino": "^9.4.0",
     "postgres": "^3.4.7",
     "qrcode": "^1.5.3",

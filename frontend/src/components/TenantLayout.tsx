@@ -12,22 +12,29 @@ import {
   Menu,
   X,
   Smartphone,
-  AlertTriangle,
-  Crown
+  AlertTriangle
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { useAuth } from '../context/AuthContext';
 import SubscriptionBanner from './SubscriptionBanner';
 
 const TenantLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
-  const { user, tenant, logout } = useAuthStore();
+  const { user, tenant } = useAuthStore();
+  const { signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Fallback to just navigating to login
+      navigate('/login');
+    }
   };
 
   const handleSubscribe = () => {

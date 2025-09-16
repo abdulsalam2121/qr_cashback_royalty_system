@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User, Tenant } from '../types';
+import { api } from '../utils/api';
 
 interface AuthState {
   user: User | null;
   tenant: Tenant | null;
   isAuthenticated: boolean;
   login: (user: User, tenant?: Tenant) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateTenant: (tenant: Tenant) => void;
   initialize: () => void;
 }
@@ -21,7 +22,15 @@ export const useAuthStore = create<AuthState>()(
       login: (user: User, tenant?: Tenant) => {
         set({ user, tenant, isAuthenticated: true });
       },
-      logout: () => {
+      logout: async () => {
+        try {
+          // Call backend logout to clear HTTP-only cookies
+          await api.logout();
+        } catch (error) {
+          console.error('Error clearing backend session:', error);
+          // Continue with logout even if backend call fails
+        }
+        // Clear frontend state
         set({ user: null, tenant: null, isAuthenticated: false });
       },
       updateTenant: (tenant: Tenant) => {

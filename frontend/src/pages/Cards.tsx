@@ -57,19 +57,40 @@ const Cards: React.FC = () => {
   let remainingCards = 0;
   let isLimitReached = false;
   let limitType = 'trial';
+  let subscriptionInfo = (tenant as any)?.subscriptionInfo;
 
-  if (tenant?.subscriptionStatus === 'ACTIVE' && (tenant as any)?.cardBalance) {
+  // Always refetch subscription info if missing or stale for active subscriptions
+  useEffect(() => {
+    if (tenant?.subscriptionStatus === 'ACTIVE' && (!subscriptionInfo || !subscriptionInfo.planId)) {
+      console.log('Active subscription detected but missing subscription info, refetching...');
+      fetchTenantInfo();
+    }
+  }, [tenant?.subscriptionStatus, subscriptionInfo?.planId]);
+
+  if (tenant?.subscriptionStatus === 'ACTIVE' && subscriptionInfo) {
     // For active subscriptions, use subscription card balance
-    const cardBalance = (tenant as any).cardBalance;
-    remainingCards = cardBalance.currentBalance || 0;
+    remainingCards = subscriptionInfo.cardsRemaining || 0;
     limitType = 'subscription';
     isLimitReached = remainingCards <= 0;
+    
+    console.log('Subscription mode:', {
+      used: subscriptionInfo.cardsUsed,
+      limit: subscriptionInfo.cardLimit,
+      remaining: remainingCards,
+      planName: subscriptionInfo.planName
+    });
   } else {
     // For trial users, use trial limits
     remainingCards = Math.max(0, trialLimit - currentCardCount);
     isLimitReached = tenant?.freeTrialLimit !== undefined && 
       currentCardCount >= tenant.freeTrialLimit &&
       tenant.subscriptionStatus !== 'ACTIVE';
+      
+    console.log('Trial mode:', {
+      currentCards: currentCardCount,
+      trialLimit,
+      remaining: remainingCards
+    });
   }
 
   const canCreateCards = isSubscriptionActive && !isLimitReached;
@@ -79,6 +100,20 @@ const Cards: React.FC = () => {
     fetchTenantInfo();
     fetchCustomers();
     fetchStores();
+    
+    // Check if user just completed subscription checkout
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('subscription_success') === 'true') {
+      // User just completed subscription, force refresh tenant info after a short delay
+      setTimeout(async () => {
+        console.log('Subscription success detected, refreshing tenant info...');
+        await fetchTenantInfo();
+        // Remove the parameter from URL
+        urlParams.delete('subscription_success');
+        const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+        window.history.replaceState({}, '', newUrl);
+      }, 2000);
+    }
   }, [statusFilter]);
 
   useEffect(() => {
@@ -91,10 +126,22 @@ const Cards: React.FC = () => {
     
     try {
       const { tenant: latestTenant } = await api.tenant.getTenant(tenantSlug);
-      // Update the tenant data in the auth store to ensure we have latest trial info
+      console.log('Fetched latest tenant info:', {
+        subscriptionStatus: latestTenant.subscriptionStatus,
+        subscriptionInfo: latestTenant.subscriptionInfo,
+        cardCounts: {
+          total: latestTenant._count?.cards,
+          subscriptionUsed: latestTenant.subscriptionCardsUsed,
+          subscriptionLimit: latestTenant.subscriptionCardLimit
+        }
+      });
+      
+      // Update the tenant data in the auth store to ensure we have latest subscription info
       useAuthStore.getState().updateTenant(latestTenant);
+      return latestTenant;
     } catch (error) {
       console.error('Failed to fetch tenant info:', error);
+      return null;
     }
   };
 
@@ -155,13 +202,36 @@ const Cards: React.FC = () => {
   const createCardBatch = async () => {
     if (!tenantSlug) return;
     
-    // Validate batch count doesn't exceed remaining limit
-    if (tenant?.subscriptionStatus !== 'ACTIVE' && remainingCards < batchCount) {
+    // Enforce maximum 1000 cards per batch
+    const maxBatchSize = 1000;
+    if (batchCount > maxBatchSize) {
       showToast(
-        `You can only create ${remainingCards} more cards. You currently have ${currentCardCount}/${trialLimit} cards in your trial.`,
+        `Maximum ${maxBatchSize} cards can be created at once. Please reduce the quantity.`,
         'warning'
       );
       return;
+    }
+    
+    // Validate batch count doesn't exceed remaining limit
+    if (tenant?.subscriptionStatus === 'ACTIVE') {
+      // For active subscriptions, check subscription card balance
+      const subscriptionInfo = (tenant as any)?.subscriptionInfo;
+      if (subscriptionInfo && subscriptionInfo.cardsRemaining < batchCount) {
+        showToast(
+          `You can only create ${subscriptionInfo.cardsRemaining} more cards from your ${subscriptionInfo.planName} plan subscription. You currently have ${subscriptionInfo.cardsUsed}/${subscriptionInfo.cardLimit} cards used.`,
+          'warning'
+        );
+        return;
+      }
+    } else {
+      // For trial users, check trial limits
+      if (remainingCards < batchCount) {
+        showToast(
+          `You can only create ${remainingCards} more cards. You currently have ${currentCardCount}/${trialLimit} cards in your trial.`,
+          'warning'
+        );
+        return;
+      }
     }
     
     try {
@@ -171,16 +241,31 @@ const Cards: React.FC = () => {
       setShowCreateBatch(false);
       setBatchCount(10);
       
-      // Refresh tenant info to get updated card count
+      // Refresh tenant info to get updated card count and subscription info
       await fetchTenantInfo();
       
       showToast(`Successfully created ${result.cards.length} cards`, 'success');
     } catch (error: any) {
       console.error('Failed to create card batch:', error);
       
-      // Handle trial limit error specifically
-      if (error.response?.status === 403 && error.response?.data?.error === 'Subscription required') {
+      // Handle specific error cases
+      if (error.response?.status === 403) {
+        const errorData = error.response?.data;
+        if (errorData?.error === 'Subscription required') {
+          showToast(errorData.message, 'error');
+        } else if (errorData?.error === 'Card creation blocked') {
+          showToast(errorData.message, 'error');
+        } else if (errorData?.error === 'Insufficient subscription allowance') {
+          showToast(errorData.message, 'warning');
+          // Refresh tenant info to get accurate counts
+          await fetchTenantInfo();
+        } else {
+          showToast(errorData?.message || 'Cannot create cards at this time', 'error');
+        }
+      } else if (error.response?.status === 400 && error.response?.data?.error === 'Card limit exceeded') {
         showToast(error.response.data.message, 'error');
+      } else if (error.response?.status === 400 && error.response?.data?.error === 'Batch size too large') {
+        showToast(`Maximum ${maxBatchSize} cards can be created at once.`, 'error');
       } else {
         showToast('Failed to create card batch. Please try again.', 'error');
       }
@@ -739,9 +824,13 @@ const Cards: React.FC = () => {
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
             <div className="p-6 border-b border-gray-200">
               <h2 className="text-xl font-semibold text-gray-900">Create Card Batch</h2>
-              {tenant?.subscriptionStatus !== 'ACTIVE' && (
+              {limitType === 'subscription' ? (
                 <p className="text-sm text-gray-600 mt-1">
-                  Cards remaining in trial: {remainingCards}
+                  Subscription cards remaining: {remainingCards}
+                </p>
+              ) : (
+                <p className="text-sm text-gray-600 mt-1">
+                  Trial cards remaining: {remainingCards}
                 </p>
               )}
             </div>
@@ -754,36 +843,54 @@ const Cards: React.FC = () => {
                 <input
                   type="number"
                   min="1"
-                  max={tenant?.subscriptionStatus === 'ACTIVE' ? 1000 : remainingCards}
+                  max={Math.min(1000, remainingCards)}
                   value={batchCount}
                   onChange={(e) => {
                     const value = parseInt(e.target.value) || 1;
-                    const maxAllowed = tenant?.subscriptionStatus === 'ACTIVE' ? 1000 : remainingCards;
+                    const maxAllowed = Math.min(1000, remainingCards);
                     setBatchCount(Math.min(value, maxAllowed));
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
                 <div className="flex justify-between items-center mt-1">
                   <p className="text-xs text-gray-500">
-                    {tenant?.subscriptionStatus === 'ACTIVE' 
-                      ? 'Maximum 1000 cards per batch' 
-                      : `Maximum ${remainingCards} cards available in trial`
-                    }
+                    Maximum: {Math.min(1000, remainingCards)} cards 
+                    {remainingCards > 1000 ? ' (1000 per batch limit)' : ` (${limitType} limit)`}
                   </p>
-                  {tenant?.subscriptionStatus !== 'ACTIVE' && batchCount > remainingCards && (
+                  {batchCount > Math.min(1000, remainingCards) && (
                     <p className="text-xs text-red-500">
-                      Exceeds trial limit!
+                      Exceeds limit!
                     </p>
                   )}
                 </div>
               </div>
               
-              {/* Trial Warning */}
-              {tenant?.subscriptionStatus !== 'ACTIVE' && batchCount > remainingCards && (
+              {/* Limit Warning */}
+              {batchCount > remainingCards && (
                 <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-sm text-yellow-800">
-                    You can only create {remainingCards} more cards in your trial. 
-                    The batch count has been adjusted automatically.
+                    {limitType === 'subscription' 
+                      ? `You can only create ${remainingCards} more cards from your subscription plan.`
+                      : `You can only create ${remainingCards} more cards in your trial.`
+                    }
+                  </p>
+                </div>
+              )}
+
+              {/* 1000 Batch Limit Warning */}
+              {batchCount > 1000 && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-800">
+                    Maximum 1000 cards can be created at once. Please create multiple batches if you need more.
+                  </p>
+                </div>
+              )}
+
+              {/* Subscription Info */}
+              {limitType === 'subscription' && subscriptionInfo && (
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-800">
+                    <strong>{subscriptionInfo.planName} Plan:</strong> {subscriptionInfo.cardsUsed}/{subscriptionInfo.cardLimit} cards used
                   </p>
                 </div>
               )}
@@ -798,7 +905,7 @@ const Cards: React.FC = () => {
               </button>
               <button
                 onClick={createCardBatch}
-                disabled={creatingBatch || batchCount < 1 || batchCount > remainingCards && tenant?.subscriptionStatus !== 'ACTIVE'}
+                disabled={creatingBatch || batchCount < 1 || batchCount > Math.min(1000, remainingCards)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
               >
                 {creatingBatch && <LoadingSpinner size="sm" className="mr-2" />}

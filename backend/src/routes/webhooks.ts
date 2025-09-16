@@ -118,25 +118,105 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      // Update tenant with subscription details
-      const updatedTenant = await tx.tenant.update({
+      // Get current tenant and plan details
+      const currentTenant = await tx.tenant.findUnique({
+        where: { id: tenantId },
+        include: { plan: true }
+      });
+
+      const newPlan = await tx.plan.findUnique({
+        where: { id: planId }
+      });
+
+      if (!currentTenant || !newPlan) {
+        throw new Error('Tenant or plan not found');
+      }
+
+      // Get current card count for calculations
+      const currentCardCount = await tx.card.count({
+        where: { tenantId }
+      });
+
+      // Determine subscription scenario
+      const isNewSubscription = !currentTenant.planId || currentTenant.subscriptionStatus === 'NONE';
+      const isReactivation = currentTenant.subscriptionStatus === 'CANCELED';
+      const previousPlanId = currentTenant.planId;
+
+      console.log(`Subscription scenario for ${tenantId}: ${isNewSubscription ? 'NEW' : isReactivation ? 'REACTIVATION' : 'UPDATE'}`);
+      console.log(`Current cards: ${currentCardCount}, New plan limit: ${cardAllowance}`);
+
+      // Calculate new subscription values
+      let subscriptionCardsUsed = 0;
+      let subscriptionCardLimit = cardAllowance;
+      let transactionDescription = '';
+
+      if (isNewSubscription) {
+        // New subscription: reset usage, set limit
+        subscriptionCardsUsed = 0;
+        transactionDescription = `New subscription to ${newPlan.name} plan`;
+      } else if (isReactivation) {
+        // Reactivation: use last known usage or reset
+        subscriptionCardsUsed = currentTenant.subscriptionCardsUsed || 0;
+        transactionDescription = `Subscription reactivated to ${newPlan.name} plan`;
+      } else {
+        // Upgrade/downgrade: keep existing usage
+        subscriptionCardsUsed = currentTenant.subscriptionCardsUsed || 0;
+        transactionDescription = `Subscription updated to ${newPlan.name} plan`;
+      }
+
+      // Update tenant with comprehensive subscription data
+      await tx.tenant.update({
         where: { id: tenantId },
         data: {
           stripeSubscriptionId: subscription.id,
           subscriptionStatus: subscription.status === 'trialing' ? 'TRIALING' : 'ACTIVE',
           planId: planId,
+          previousPlanId: previousPlanId,
+          subscriptionCardLimit: subscriptionCardLimit,
+          subscriptionCardsUsed: subscriptionCardsUsed,
+          subscriptionStartDate: new Date(),
           trialEndsAt: subscription.trial_end ? new Date(subscription.trial_end * 1000) : null,
         }
       });
 
-      // Grant cards from subscription if applicable
+      // Create card limit transaction for audit trail
       if (cardAllowance > 0) {
-        const { CardLimitService } = await import('../services/cardLimitService.js');
-        await CardLimitService.grantSubscriptionCards(tenantId, planId, cardAllowance);
-        console.log(`Granted ${cardAllowance} cards to tenant ${tenantId}`);
+        await tx.cardLimitTransaction.create({
+          data: {
+            tenantId,
+            type: 'GRANTED',
+            source: 'SUBSCRIPTION_UPGRADE',
+            amount: cardAllowance,
+            previousBalance: currentTenant.currentCardBalance || 0,
+            newBalance: (currentTenant.currentCardBalance || 0) + cardAllowance,
+            description: transactionDescription,
+            relatedPlanId: planId,
+            createdBy: 'webhook-subscription-created'
+          }
+        });
       }
 
-      console.log(`Subscription created for tenant ${tenantId}, status: ${subscription.status}`);
+      // Record subscription event
+      await tx.subscriptionEvent.create({
+        data: {
+          tenantId,
+          planId,
+          previousPlanId,
+          eventType: isNewSubscription ? 'created' : isReactivation ? 'reactivated' : 'updated',
+          stripeSubscriptionId: subscription.id,
+          metadata: JSON.stringify({
+            planName: newPlan.name,
+            cardAllowance,
+            currentCardCount,
+            subscriptionCardsUsed,
+            subscriptionCardLimit,
+            transitionType: isNewSubscription ? 'new' : isReactivation ? 'reactivation' : 'update'
+          })
+        }
+      });
+
+      console.log(`Subscription created for tenant ${tenantId}: ${transactionDescription}`);
+      console.log(`Card limits: ${subscriptionCardsUsed}/${subscriptionCardLimit} used`);
     });
   } catch (error) {
     console.error('Error processing subscription creation:', error);
@@ -148,6 +228,8 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   console.log('Processing customer.subscription.updated:', subscription.id);
 
   const tenantId = subscription.metadata?.tenantId;
+  const planId = subscription.metadata?.planId;
+  const cardAllowance = parseInt(subscription.metadata?.cardAllowance || '0');
 
   if (!tenantId) {
     console.error('Missing tenant metadata in subscription');
@@ -155,39 +237,143 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   }
 
   try {
-    // Map Stripe subscription status to our enum
-    let subscriptionStatus: 'NONE' | 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED';
-    
-    switch (subscription.status) {
-      case 'trialing':
-        subscriptionStatus = 'TRIALING';
-        break;
-      case 'active':
-        subscriptionStatus = 'ACTIVE';
-        break;
-      case 'past_due':
-        subscriptionStatus = 'PAST_DUE';
-        break;
-      case 'canceled':
-      case 'unpaid':
-        subscriptionStatus = 'CANCELED';
-        break;
-      default:
-        subscriptionStatus = 'NONE';
-    }
+    await prisma.$transaction(async (tx) => {
+      // Get current tenant and plan details
+      const currentTenant = await tx.tenant.findUnique({
+        where: { id: tenantId },
+        include: { plan: true }
+      });
 
-    await prisma.tenant.update({
-      where: { id: tenantId },
-      data: {
+      if (!currentTenant) {
+        throw new Error('Tenant not found');
+      }
+
+      // Map Stripe subscription status to our enum
+      let subscriptionStatus: 'NONE' | 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED';
+      
+      switch (subscription.status) {
+        case 'trialing':
+          subscriptionStatus = 'TRIALING';
+          break;
+        case 'active':
+          subscriptionStatus = 'ACTIVE';
+          break;
+        case 'past_due':
+          subscriptionStatus = 'PAST_DUE';
+          break;
+        case 'canceled':
+        case 'unpaid':
+          subscriptionStatus = 'CANCELED';
+          break;
+        default:
+          subscriptionStatus = 'NONE';
+      }
+
+      // Get current card count for limit calculations
+      const currentCardCount = await tx.card.count({
+        where: { tenantId }
+      });
+
+      // Determine if this is a plan change
+      const isPlanChange = planId && planId !== currentTenant.planId;
+      const newPlan = planId ? await tx.plan.findUnique({ where: { id: planId } }) : null;
+
+      let updateData: any = {
         subscriptionStatus,
         trialEndsAt: subscription.trial_end ? new Date(subscription.trial_end * 1000) : null,
         graceEndsAt: subscription.status === 'past_due' && subscription.current_period_end 
           ? new Date((subscription.current_period_end + 7 * 24 * 60 * 60) * 1000) // 7 days grace period
           : null,
-      }
-    });
+      };
 
-    console.log(`Subscription updated for tenant ${tenantId}, status: ${subscriptionStatus}`);
+      let eventType = 'updated';
+      let transactionDescription = 'Subscription status updated';
+
+      if (isPlanChange && newPlan) {
+        // Handle plan changes (upgrade/downgrade)
+        const isUpgrade = currentTenant.plan && newPlan.cardAllowance > (currentTenant.plan as any).cardAllowance;
+        const isDowngrade = currentTenant.plan && newPlan.cardAllowance < (currentTenant.plan as any).cardAllowance;
+
+        console.log(`Plan change detected: ${currentTenant.plan?.name} -> ${newPlan.name}`);
+        console.log(`Card allowance change: ${(currentTenant.plan as any)?.cardAllowance || 0} -> ${cardAllowance}`);
+
+        if (isUpgrade) {
+          // Upgrade: Reset usage, apply new limit
+          updateData.planId = planId;
+          updateData.previousPlanId = currentTenant.planId;
+          updateData.subscriptionCardLimit = cardAllowance;
+          updateData.subscriptionCardsUsed = 0;
+          eventType = 'upgraded';
+          transactionDescription = `Upgraded to ${newPlan.name} plan - usage reset`;
+        } else if (isDowngrade) {
+          // Downgrade: Keep existing cards, adjust limits
+          updateData.planId = planId;
+          updateData.previousPlanId = currentTenant.planId;
+          updateData.subscriptionCardLimit = cardAllowance;
+          // Keep existing usage, don't reset
+          eventType = 'downgraded';
+          transactionDescription = `Downgraded to ${newPlan.name} plan - existing cards preserved`;
+        } else {
+          // Same tier or lateral move
+          updateData.planId = planId;
+          updateData.previousPlanId = currentTenant.planId;
+          updateData.subscriptionCardLimit = cardAllowance;
+          transactionDescription = `Plan changed to ${newPlan.name}`;
+        }
+
+        // Create transaction record for plan changes
+        if (cardAllowance !== (currentTenant.subscriptionCardLimit || 0)) {
+          await tx.cardLimitTransaction.create({
+            data: {
+              tenantId,
+              type: 'GRANTED',
+              source: 'SUBSCRIPTION_UPGRADE',
+              amount: cardAllowance - (currentTenant.subscriptionCardLimit || 0),
+              previousBalance: currentTenant.currentCardBalance || 0,
+              newBalance: (currentTenant.currentCardBalance || 0) + (cardAllowance - (currentTenant.subscriptionCardLimit || 0)),
+              description: transactionDescription,
+              relatedPlanId: planId,
+              createdBy: 'webhook-subscription-updated'
+            }
+          });
+        }
+      } else if (subscriptionStatus === 'CANCELED') {
+        // Handle cancellation
+        eventType = 'cancelled';
+        transactionDescription = 'Subscription cancelled';
+      } else if (subscriptionStatus === 'ACTIVE' && currentTenant.subscriptionStatus === 'CANCELED') {
+        // Handle reactivation
+        eventType = 'reactivated';
+        transactionDescription = 'Subscription reactivated';
+      }
+
+      // Update tenant
+      await tx.tenant.update({
+        where: { id: tenantId },
+        data: updateData
+      });
+
+      // Record subscription event
+      await tx.subscriptionEvent.create({
+        data: {
+          tenantId,
+          planId: planId || currentTenant.planId || '',
+          previousPlanId: isPlanChange ? currentTenant.planId : null,
+          eventType,
+          stripeSubscriptionId: subscription.id,
+          metadata: JSON.stringify({
+            subscriptionStatus,
+            planName: newPlan?.name || currentTenant.plan?.name,
+            previousPlanName: isPlanChange ? currentTenant.plan?.name : null,
+            cardAllowance,
+            currentCardCount,
+            transitionType: eventType
+          })
+        }
+      });
+
+      console.log(`Subscription updated for tenant ${tenantId}: ${transactionDescription}`);
+    });
   } catch (error) {
     console.error('Error processing subscription update:', error);
     throw error;

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Google Sign-In Test</title>
+    <script type="module">
+        import { auth, googleProvider } from './src/firebase/config.js';
+        import { signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
+
+        console.log('🧪 Testing Google Sign-In directly...');
+        console.log('Auth object:', auth);
+        console.log('Google provider:', googleProvider);
+
+        window.testPopupSignIn = async () => {
+            try {
+                console.log('🚀 Starting popup sign-in...');
+                const result = await signInWithPopup(auth, googleProvider);
+                console.log('✅ Popup sign-in successful:', result.user);
+                const token = await result.user.getIdToken();
+                console.log('✅ Got token:', token.substring(0, 50) + '...');
+                
+                // Test backend call
+                const response = await fetch('http://localhost:3002/api/auth/sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({})
+                });
+                
+                console.log('📡 Backend response status:', response.status);
+                const data = await response.json();
+                console.log('📡 Backend response data:', data);
+                
+            } catch (error) {
+                console.error('❌ Error:', error);
+            }
+        };
+
+        window.testRedirectSignIn = async () => {
+            try {
+                console.log('🚀 Starting redirect sign-in...');
+                await signInWithRedirect(auth, googleProvider);
+            } catch (error) {
+                console.error('❌ Error:', error);
+            }
+        };
+
+        window.checkRedirectResult = async () => {
+            try {
+                console.log('🔍 Checking redirect result...');
+                const result = await getRedirectResult(auth);
+                if (result) {
+                    console.log('✅ Redirect result found:', result.user);
+                    const token = await result.user.getIdToken();
+                    console.log('✅ Got token:', token.substring(0, 50) + '...');
+                } else {
+                    console.log('ℹ️ No redirect result found');
+                }
+            } catch (error) {
+                console.error('❌ Error checking redirect result:', error);
+            }
+        };
+
+        // Check for redirect result on page load
+        window.checkRedirectResult();
+    </script>
+</head>
+<body>
+    <h1>Google Sign-In Test</h1>
+    <button onclick="testPopupSignIn()">Test Popup Sign-In</button>
+    <button onclick="testRedirectSignIn()">Test Redirect Sign-In</button>
+    <button onclick="checkRedirectResult()">Check Redirect Result</button>
+    
+    <div id="console" style="margin-top: 20px; padding: 10px; background: #f0f0f0; font-family: monospace; white-space: pre-wrap;"></div>
+    
+    <script>
+        // Capture console logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const consoleDiv = document.getElementById('console');
+        
+        console.log = (...args) => {
+            originalLog(...args);
+            consoleDiv.textContent += args.join(' ') + '\n';
+        };
+        
+        console.error = (...args) => {
+            originalError(...args);
+            consoleDiv.textContent += 'ERROR: ' + args.join(' ') + '\n';
+        };
+    </script>
+</body>
+</html>

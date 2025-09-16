@@ -1,0 +1,7 @@
+
+Create src/pages/Landing.tsx
+Update src/App. tsx
+Update src/components/Layout.tsx
+Update tailwind.config.js
+
+

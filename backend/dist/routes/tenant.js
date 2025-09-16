@@ -39,21 +39,63 @@ router.get('/:tenantSlug/tenant', resolveTenant, auth, rbac(['tenant_admin', 'ca
         res.status(404).json({ error: 'Tenant not found' });
         return;
     }
-    // Include card balance information for active subscriptions
+    // Include card balance information for all tenants
     let cardBalance = null;
-    if (tenant.subscriptionStatus === 'ACTIVE') {
-        try {
-            const { CardLimitService } = await import('../services/cardLimitService.js');
-            cardBalance = await CardLimitService.getCardBalance(tenant.id);
-        }
-        catch (error) {
-            console.error('Failed to get card balance:', error);
-        }
+    let subscriptionInfo = null;
+    try {
+        const { CardLimitService } = await import('../services/cardLimitService.js');
+        cardBalance = await CardLimitService.getCardBalance(tenant.id);
+        // Get current card count
+        const currentCardCount = await prisma.card.count({
+            where: { tenantId: tenant.id }
+        });
+        subscriptionInfo = {
+            status: tenant.subscriptionStatus,
+            isActive: tenant.subscriptionStatus === 'ACTIVE',
+            isTrial: tenant.subscriptionStatus === 'TRIALING',
+            planId: tenant.planId,
+            planName: tenant.plan?.name || null,
+            // Card limits based on subscription status
+            cardLimit: tenant.subscriptionStatus === 'ACTIVE'
+                ? tenant.subscriptionCardLimit
+                : tenant.freeTrialLimit,
+            // Cards used calculation - use subscription counter for active subs
+            cardsUsed: tenant.subscriptionStatus === 'ACTIVE'
+                ? tenant.subscriptionCardsUsed
+                : currentCardCount,
+            // Cards remaining calculation
+            cardsRemaining: tenant.subscriptionStatus === 'ACTIVE'
+                ? Math.max(0, tenant.subscriptionCardLimit - tenant.subscriptionCardsUsed)
+                : Math.max(0, tenant.freeTrialLimit - currentCardCount),
+            // Over-limit scenarios (mainly for downgrades)
+            isOverLimit: tenant.subscriptionStatus === 'ACTIVE' && tenant.subscriptionCardsUsed > tenant.subscriptionCardLimit,
+            overageAmount: tenant.subscriptionStatus === 'ACTIVE'
+                ? Math.max(0, tenant.subscriptionCardsUsed - tenant.subscriptionCardLimit)
+                : 0,
+            // Additional metadata
+            subscriptionStartDate: tenant.subscriptionStartDate,
+            showUpgradePrompt: tenant.subscriptionStatus !== 'ACTIVE' && currentCardCount >= tenant.freeTrialLimit * 0.8,
+            // Previous plan tracking for transitions
+            previousPlanId: tenant.previousPlanId,
+            previousPlanName: tenant.previousPlanId ? 'Previous Plan' : null, // Could be enhanced with actual previous plan lookup
+            // Real-time card count for verification
+            totalCardsCreated: currentCardCount,
+            // Grace period info
+            graceEndsAt: tenant.graceEndsAt,
+            // Transition type
+            transitionType: tenant.subscriptionStartDate ?
+                (new Date().getTime() - new Date(tenant.subscriptionStartDate).getTime() < 24 * 60 * 60 * 1000 ? 'recent' : 'established')
+                : null
+        };
+    }
+    catch (error) {
+        console.error('Failed to get card balance:', error);
     }
     res.json({
         tenant: {
             ...tenant,
-            cardBalance
+            cardBalance,
+            subscriptionInfo
         }
     });
     return;
@@ -163,9 +205,65 @@ router.post('/:tenantSlug/billing/subscribe', resolveTenant, auth, rbac(['tenant
                 cardAllowance: plan.cardAllowance?.toString() || '0',
             }
         });
-        // Update tenant with subscription info
+        // Professional Subscription Management System
         await prisma.$transaction(async (tx) => {
-            // Update tenant subscription
+            // Get current tenant state with previous plan details
+            const currentTenant = await tx.tenant.findUnique({
+                where: { id: tenant.id },
+                include: { plan: true }
+            });
+            if (!currentTenant) {
+                throw new Error('Tenant not found during transaction');
+            }
+            // Get current card count for accurate calculations
+            const currentCardCount = await tx.card.count({
+                where: { tenantId: tenant.id }
+            });
+            // Determine subscription transition type
+            const isFirstSubscription = !currentTenant.planId || currentTenant.subscriptionStatus === 'NONE' || currentTenant.subscriptionStatus === 'TRIALING';
+            const isReactivation = currentTenant.subscriptionStatus === 'CANCELED';
+            const isUpgrade = currentTenant.planId && currentTenant.plan && currentTenant.plan.cardAllowance < plan.cardAllowance;
+            const isDowngrade = currentTenant.planId && currentTenant.plan && currentTenant.plan.cardAllowance > plan.cardAllowance;
+            const isRenewal = currentTenant.planId === plan.id;
+            const previousPlan = currentTenant.plan;
+            // Professional subscription transition logic
+            const planCardAllowance = plan.cardAllowance || plan.maxCards || 0;
+            let subscriptionCardLimit = planCardAllowance;
+            let subscriptionCardsUsed = 0;
+            let transitionDescription = '';
+            console.log(`Subscription transition: tenant=${tenant.id}, type=${isFirstSubscription ? 'NEW' : isReactivation ? 'REACTIVATION' : isUpgrade ? 'UPGRADE' : isDowngrade ? 'DOWNGRADE' : 'RENEWAL'}`);
+            console.log(`Plan allowance: ${planCardAllowance}, current cards: ${currentCardCount}`);
+            if (isFirstSubscription) {
+                // Scenario 1: New subscription (including trial to subscription)
+                subscriptionCardsUsed = 0; // Reset usage for new subscription
+                transitionDescription = `New subscription to ${plan.name} plan`;
+            }
+            else if (isReactivation) {
+                // Scenario 2: Reactivation - resume with last known usage
+                subscriptionCardsUsed = currentTenant.subscriptionCardsUsed || 0;
+                transitionDescription = `Subscription reactivated to ${plan.name} plan`;
+            }
+            else if (isUpgrade) {
+                // Scenario 3: Upgrade - reset usage, apply new higher limit
+                subscriptionCardsUsed = 0; // Reset usage on upgrade
+                transitionDescription = `Upgraded to ${plan.name} plan - usage reset`;
+            }
+            else if (isDowngrade) {
+                // Scenario 4: Downgrade - preserve existing cards, adjust limits
+                subscriptionCardsUsed = Math.min(currentTenant.subscriptionCardsUsed || 0, planCardAllowance);
+                transitionDescription = `Downgraded to ${plan.name} plan - existing cards preserved`;
+            }
+            else if (isRenewal) {
+                // Scenario 5: Same plan renewal - extend subscription, keep usage
+                subscriptionCardsUsed = currentTenant.subscriptionCardsUsed || 0;
+                transitionDescription = `${plan.name} plan renewed`;
+            }
+            else {
+                // Default case - lateral move or unknown transition
+                subscriptionCardsUsed = currentTenant.subscriptionCardsUsed || 0;
+                transitionDescription = `Plan changed to ${plan.name}`;
+            }
+            // Update tenant with comprehensive subscription data
             await tx.tenant.update({
                 where: { id: tenant.id },
                 data: {
@@ -173,9 +271,30 @@ router.post('/:tenantSlug/billing/subscribe', resolveTenant, auth, rbac(['tenant
                     subscriptionStatus: 'ACTIVE',
                     stripeCustomerId: customerId,
                     stripeSubscriptionId: subscription.id,
+                    subscriptionCardLimit: subscriptionCardLimit,
+                    subscriptionCardsUsed: subscriptionCardsUsed,
+                    subscriptionStartDate: new Date(),
+                    // Store previous plan for reference
+                    previousPlanId: previousPlan?.id || null
                 }
             });
-            // Record the payment
+            // Create card limit transaction for audit trail
+            if (subscriptionCardLimit > 0) {
+                await tx.cardLimitTransaction.create({
+                    data: {
+                        tenantId: tenant.id,
+                        type: 'GRANTED',
+                        source: 'SUBSCRIPTION_UPGRADE',
+                        amount: subscriptionCardLimit,
+                        previousBalance: 0,
+                        newBalance: subscriptionCardLimit,
+                        description: transitionDescription,
+                        relatedPlanId: plan.id,
+                        createdBy: 'subscription-creation'
+                    }
+                });
+            }
+            // Record the payment with transition context
             const invoiceId = typeof subscription.latest_invoice === 'object'
                 ? subscription.latest_invoice?.id
                 : subscription.latest_invoice;
@@ -188,38 +307,77 @@ router.post('/:tenantSlug/billing/subscribe', resolveTenant, auth, rbac(['tenant
                     amount: plan.priceMonthly,
                     currency: 'usd',
                     status: 'paid',
-                    description: `Subscription to ${plan.name}`,
+                    description: `Subscription: ${transitionDescription}`,
                     metadata: JSON.stringify({
                         subscriptionCreated: true,
                         planName: plan.name,
                         tenantSlug: tenant.slug,
-                        paymentMethodId
+                        paymentMethodId,
+                        transitionType: isFirstSubscription ? 'new' : isUpgrade ? 'upgrade' : isDowngrade ? 'downgrade' : isRenewal ? 'renewal' : 'reactivation',
+                        previousPlan: previousPlan?.name || null,
+                        currentCardCount,
+                        subscriptionCardLimit,
+                        subscriptionCardsUsed
                     })
                 }
             });
-            // Record subscription event
+            // Record comprehensive subscription event
             await tx.subscriptionEvent.create({
                 data: {
                     tenantId: tenant.id,
                     planId: plan.id,
-                    eventType: 'created',
+                    previousPlanId: previousPlan?.id || null,
+                    eventType: isFirstSubscription ? 'created' :
+                        isUpgrade ? 'upgraded' :
+                            isDowngrade ? 'downgraded' :
+                                isRenewal ? 'renewed' :
+                                    isReactivation ? 'reactivated' : 'modified',
                     stripeSubscriptionId: subscription.id,
                     metadata: JSON.stringify({
                         planName: plan.name,
+                        previousPlanName: previousPlan?.name || null,
                         amount: plan.priceMonthly,
                         currency: 'usd',
-                        paymentMethodId
+                        paymentMethodId,
+                        transitionDetails: {
+                            type: isFirstSubscription ? 'new' : isUpgrade ? 'upgrade' : isDowngrade ? 'downgrade' : isRenewal ? 'renewal' : 'reactivation',
+                            currentCardCount,
+                            newCardLimit: subscriptionCardLimit,
+                            newCardBalance: subscriptionCardLimit - subscriptionCardsUsed,
+                            previousCardLimit: previousPlan?.maxCards || 0,
+                            isOverLimit: currentCardCount > plan.maxCards,
+                            description: transitionDescription
+                        }
                     })
                 }
             });
-            // Grant subscription cards if plan has card allowance
-            if (plan.cardAllowance > 0) {
-                await tx.tenant.update({
-                    where: { id: tenant.id },
+            // Create detailed card limit transaction for audit trail
+            await tx.cardLimitTransaction.create({
+                data: {
+                    tenantId: tenant.id,
+                    type: 'GRANTED',
+                    source: 'SUBSCRIPTION_UPGRADE', // Use available enum value for all subscription changes
+                    amount: subscriptionCardLimit,
+                    previousBalance: currentTenant.currentCardBalance || 0,
+                    newBalance: subscriptionCardLimit,
+                    description: transitionDescription,
+                    relatedPlanId: plan.id,
+                    createdBy: null
+                }
+            });
+            // Create warning record for downgrades with overage
+            if (isDowngrade && currentCardCount > plan.maxCards) {
+                await tx.cardLimitTransaction.create({
                     data: {
-                        subscriptionCardLimit: plan.cardAllowance,
-                        totalCardAllowance: { increment: plan.cardAllowance },
-                        currentCardBalance: { increment: plan.cardAllowance }
+                        tenantId: tenant.id,
+                        type: 'USED', // Represents the overage
+                        source: 'MANUAL_ADJUSTMENT', // Use available enum value for downgrades
+                        amount: 0, // No balance change, just a warning record
+                        previousBalance: subscriptionCardLimit,
+                        newBalance: subscriptionCardLimit,
+                        description: `⚠️ DOWNGRADE OVERAGE WARNING: You have ${currentCardCount} cards but your new ${plan.name} plan only allows ${plan.maxCards}. Your existing cards will continue to work normally, but you cannot create new cards until you're under the ${plan.maxCards} card limit.`,
+                        relatedPlanId: plan.id,
+                        createdBy: null
                     }
                 });
             }

@@ -1,4 +1,5 @@
 import { User, Customer, Card, Transaction, Store, DashboardStats, CashbackRule, TierRule, Offer, Tenant, PlatformStats, Plan } from '../types';
+import { getCurrentUserToken } from '../firebase/auth';
 
 // Get API base URL from environment variables
 const API_BASE_URL = import.meta.env.VITE_API_URL || (
@@ -26,6 +27,22 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> || {}),
   };
+
+  // Add Firebase ID token for authenticated requests (if available)
+  try {
+    const idToken = await getCurrentUserToken();
+    if (idToken) {
+      headers['Authorization'] = `Bearer ${idToken}`;
+      if (import.meta.env.DEV) {
+        console.log('🔑 Added Firebase ID token to request');
+      }
+    }
+  } catch (error) {
+    // If no user is logged in or token expired, continue without token
+    if (import.meta.env.DEV) {
+      console.log('ℹ️ No Firebase token available for request');
+    }
+  }
   
   const config: RequestInit = {
     credentials: 'include',
@@ -89,6 +106,17 @@ export const api = {
     });
   },
 
+  // Google login using Firebase ID token
+  googleLogin: async (idToken: string): Promise<{ user: User; tenant?: Tenant }> => {
+    return request('/auth/sync', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({}),
+    });
+  },
+
   logout: async (): Promise<void> => {
     await request('/auth/logout', { method: 'POST' });
   },
@@ -120,6 +148,34 @@ export const api = {
     return request('/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData),
+    });
+  },
+
+  forgotPassword: async (email: string): Promise<{ message: string }> => {
+    return request('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  resetPassword: async (token: string, password: string): Promise<{ message: string }> => {
+    return request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    });
+  },
+
+  verifyEmail: async (token: string): Promise<{ message: string; user?: User; tenant?: Tenant }> => {
+    return request('/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  resendVerification: async (email: string): Promise<{ message: string }> => {
+    return request('/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
     });
   },
 
@@ -278,6 +334,19 @@ export const api = {
     getAvailableCustomers: async (tenantSlug: string, search?: string): Promise<{ customers: Customer[] }> => {
       const query = search ? `?search=${encodeURIComponent(search)}` : '';
       return request(`/t/${tenantSlug}/customers/available${query}`);
+    },
+
+    // Customer own profile endpoints (for customer role users)
+    getMyProfile: async (tenantSlug: string): Promise<{ customer: Customer }> => {
+      return request(`/t/${tenantSlug}/customers/me`);
+    },
+
+    getMyCards: async (tenantSlug: string): Promise<{ cards: Card[] }> => {
+      return request(`/t/${tenantSlug}/customers/me/cards`);
+    },
+
+    getMyTransactions: async (tenantSlug: string): Promise<{ transactions: Transaction[] }> => {
+      return request(`/t/${tenantSlug}/customers/me/transactions`);
     },
 
     // Cards

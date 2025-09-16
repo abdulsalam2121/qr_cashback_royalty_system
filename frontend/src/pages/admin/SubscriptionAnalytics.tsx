@@ -46,8 +46,15 @@ const SubscriptionAnalytics: React.FC = () => {
   }, [timeframe]);
 
   const fetchAnalytics = async () => {
+    // Get API base URL from environment variables
+    const API_BASE_URL = import.meta.env.VITE_API_URL || (
+      import.meta.env.DEV 
+        ? 'http://localhost:3002/api' 
+        : `${window.location.protocol}//${window.location.host}/api`
+    );
+    
     try {
-      const response = await fetch(`http://localhost:3002/api/admin/analytics/subscriptions?timeframe=${timeframe}`, {
+      const response = await fetch(`${API_BASE_URL}/admin/analytics/subscriptions?timeframe=${timeframe}`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -57,6 +64,16 @@ const SubscriptionAnalytics: React.FC = () => {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('API Error:', response.status, response.statusText, errorText);
+        
+        // Handle specific error cases
+        if (response.status === 404) {
+          throw new Error('Analytics endpoint not found. Please check if the admin routes are properly configured.');
+        } else if (response.status === 401) {
+          throw new Error('You need to be logged in as a platform admin to access analytics.');
+        } else if (response.status === 403) {
+          throw new Error('Access denied. Platform admin privileges required.');
+        }
+        
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       

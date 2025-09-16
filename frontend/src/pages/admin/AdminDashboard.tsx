@@ -46,8 +46,15 @@ const AdminDashboard: React.FC = () => {
   }, [timeframe]);
 
   const fetchAnalytics = async () => {
+    // Get API base URL from environment variables
+    const API_BASE_URL = import.meta.env.VITE_API_URL || (
+      import.meta.env.DEV 
+        ? 'http://localhost:3002/api' 
+        : `${window.location.protocol}//${window.location.host}/api`
+    );
+    
     try {
-      const response = await fetch(`http://localhost:3002/api/admin/analytics/subscriptions?timeframe=${timeframe}`, {
+      const response = await fetch(`${API_BASE_URL}/admin/analytics/subscriptions?timeframe=${timeframe}`, {
         credentials: 'include'
       });
       const data = await response.json();

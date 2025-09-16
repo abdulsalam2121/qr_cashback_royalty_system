@@ -6,46 +6,52 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06
 
 async function createRealStripeProductsAndPrices() {
   try {
-    console.log('🚀 Creating real Stripe products and prices...');
+    console.log('🚀 Creating real Stripe products and prices for 2-tier system...');
 
-    // Create a product for our plans
+    // Create a product for our Premium plan (Free trial doesn't need Stripe product)
     const product = await stripe.products.create({
-      name: 'QR Cashback Loyalty System',
-      description: 'QR code-based cashback and loyalty management system',
+      name: 'QR Cashback Loyalty System - Premium',
+      description: 'Unlimited card activations and full features for QR cashback loyalty system',
     });
 
     console.log(`✅ Created product: ${product.id}`);
 
-    // Get all plans from database
-    const plans = await prisma.plan.findMany({
-      where: { isActive: true }
+    // Get only Premium plan from database (Free trial doesn't need Stripe price)
+    const premiumPlan = await prisma.plan.findFirst({
+      where: { 
+        name: 'Premium',
+        isActive: true 
+      }
     });
 
-    for (const plan of plans) {
-      try {
-        // Create price for this plan
-        const price = await stripe.prices.create({
-          product: product.id,
-          unit_amount: Math.round(plan.priceMonthly * 100), // Convert to cents
-          currency: 'usd',
-          recurring: {
-            interval: 'month',
-          },
-          nickname: `${plan.name} Monthly`,
-        });
+    if (!premiumPlan) {
+      console.log('❌ Premium plan not found in database. Please run the seed script first.');
+      process.exit(1);
+    }
 
-        console.log(`✅ Created price for ${plan.name}: ${price.id} ($${plan.priceMonthly}/month)`);
+    // Create price for Premium plan only
+    try {
+      const price = await stripe.prices.create({
+        product: product.id,
+        unit_amount: Math.round(premiumPlan.priceMonthly * 100), // Convert to cents
+        currency: 'usd',
+        recurring: {
+          interval: 'month',
+        },
+        nickname: `${premiumPlan.name} Monthly`,
+      });
 
-        // Update the plan in database
-        await prisma.plan.update({
-          where: { id: plan.id },
-          data: { stripePriceId: price.id }
-        });
+      console.log(`✅ Created price for ${premiumPlan.name}: ${price.id} ($${premiumPlan.priceMonthly / 100}/month)`);
 
-        console.log(`✅ Updated plan ${plan.name} with price ID: ${price.id}`);
-      } catch (error: any) {
-        console.error(`❌ Failed to create price for ${plan.name}:`, error.message);
-      }
+      // Update the Premium plan in database
+      await prisma.plan.update({
+        where: { id: premiumPlan.id },
+        data: { stripePriceId: price.id }
+      });
+
+      console.log(`✅ Updated plan ${premiumPlan.name} with price ID: ${price.id}`);
+    } catch (error: any) {
+      console.error(`❌ Failed to create price for ${premiumPlan.name}:`, error.message);
     }
 
     console.log('\n🎉 All done! Updated plans:');
@@ -55,7 +61,11 @@ async function createRealStripeProductsAndPrices() {
     });
 
     updatedPlans.forEach(plan => {
-      console.log(`- ${plan.name}: $${plan.priceMonthly}/month -> ${plan.stripePriceId}`);
+      if (plan.name === 'Free Trial') {
+        console.log(`- ${plan.name}: Free (no Stripe price needed) -> ${plan.stripePriceId}`);
+      } else {
+        console.log(`- ${plan.name}: $${plan.priceMonthly / 100}/month -> ${plan.stripePriceId}`);
+      }
     });
 
   } catch (error) {

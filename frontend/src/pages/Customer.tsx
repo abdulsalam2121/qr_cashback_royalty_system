@@ -14,6 +14,7 @@ const Customer: React.FC = () => {
   const [cards, setCards] = useState<Card[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.id) {
@@ -26,27 +27,54 @@ const Customer: React.FC = () => {
     
     try {
       setLoading(true);
-      // In a real implementation, you'd have a customer ID from the user
-      // For now, we'll fetch the first customer as a demo
-      const [customersData, cardsData, transactionsData] = await Promise.all([
-        api.tenant.getCustomers(tenantSlug),
-        api.tenant.getCards(tenantSlug),
-        api.tenant.getTransactions(tenantSlug)
-      ]);
+      setError(null);
+      
+      console.log('👤 Fetching customer data for user:', {
+        id: user?.id,
+        email: user?.email,
+        role: user?.role,
+        tenantSlug
+      });
+      
+      // Check user role to determine which data to fetch
+      if (user?.role === 'customer') {
+        console.log('🔍 Fetching data for customer role...');
+        // Customer users: fetch their own profile data
+        const [customerData, cardsData, transactionsData] = await Promise.all([
+          api.tenant.getMyProfile(tenantSlug),
+          api.tenant.getMyCards(tenantSlug),
+          api.tenant.getMyTransactions(tenantSlug)
+        ]);
 
-      if (customersData.customers && customersData.customers.length > 0) {
-        const customerData = customersData.customers[0];
-        setCustomer(customerData);
-        
-        // Filter cards and transactions for this customer
-        const customerCards = cardsData.cards?.filter(card => card.customerId === customerData.id) || [];
-        const customerTransactions = transactionsData.transactions?.filter(tx => tx.customerId === customerData.id) || [];
-        
-        setCards(customerCards);
-        setTransactions(customerTransactions);
+        setCustomer(customerData.customer);
+        setCards(cardsData.cards);
+        setTransactions(transactionsData.transactions);
+      } else if (user?.role === 'tenant_admin') {
+        console.log('🔍 Fetching data for tenant_admin role...');
+        // Admin users: fetch all customers data (for demo, show first customer)
+        const [customersData, cardsData, transactionsData] = await Promise.all([
+          api.tenant.getCustomers(tenantSlug),
+          api.tenant.getCards(tenantSlug),
+          api.tenant.getTransactions(tenantSlug)
+        ]);
+
+        if (customersData.customers && customersData.customers.length > 0) {
+          const customerData = customersData.customers[0];
+          setCustomer(customerData);
+          
+          // Filter cards and transactions for this customer
+          const customerCards = cardsData.cards?.filter(card => card.customerId === customerData.id) || [];
+          const customerTransactions = transactionsData.transactions?.filter(tx => tx.customerId === customerData.id) || [];
+          
+          setCards(customerCards);
+          setTransactions(customerTransactions);
+        }
+      } else {
+        throw new Error(`Unsupported user role: ${user?.role}`);
       }
     } catch (error) {
       console.error('Failed to fetch customer data:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch customer data');
     } finally {
       setLoading(false);
     }
@@ -56,6 +84,22 @@ const Customer: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <User className="w-12 h-12 text-red-400 mx-auto mb-4" />
+        <p className="text-red-600 font-medium mb-2">Error loading customer data</p>
+        <p className="text-gray-500 text-sm">{error}</p>
+        <button 
+          onClick={fetchCustomerData}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
@@ -89,7 +133,10 @@ const Customer: React.FC = () => {
           </div>
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900">
-              Welcome back, {customer.firstName}!
+              {user?.role === 'customer' 
+                ? `Welcome back, ${customer.firstName}!`
+                : `Customer: ${customer.firstName} ${customer.lastName}`
+              }
             </h1>
             <div className="flex items-center space-x-4 mt-2">
               <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getTierColor(customer.tier)}`}>
@@ -97,6 +144,10 @@ const Customer: React.FC = () => {
               </span>
               <span className="text-sm text-gray-500">
                 Member since {formatDate(customer.createdAt)}
+              </span>
+              {/* Debug info - remove in production */}
+              <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                User Role: {user?.role}
               </span>
             </div>
           </div>

@@ -1,50 +1,22 @@
-// Temporary script to create Stripe prices for testing
+// Script to create Stripe prices for the 2-tier system
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' });
 
 async function createTestPrices() {
   try {
-    console.log('Creating Stripe test prices...');
+    console.log('Creating Stripe test prices for 2-tier system...');
 
-    // Create products first
-    const starterProduct = await stripe.products.create({
-      name: 'Starter Plan',
-      description: 'Perfect for small businesses',
+    // Create product for Premium plan (Free trial doesn't need Stripe product)
+    const premiumProduct = await stripe.products.create({
+      name: 'Premium Plan',
+      description: 'Unlimited card activations and features',
     });
 
-    const proProduct = await stripe.products.create({
-      name: 'Professional Plan', 
-      description: 'Advanced features for growing businesses',
-    });
-
-    const enterpriseProduct = await stripe.products.create({
-      name: 'Enterprise Plan',
-      description: 'Complete solution for large businesses',
-    });
-
-    // Create prices
-    const starterPrice = await stripe.prices.create({
-      product: starterProduct.id,
-      unit_amount: 1999, // $19.99
-      currency: 'usd',
-      recurring: {
-        interval: 'month',
-      },
-    });
-
-    const proPrice = await stripe.prices.create({
-      product: proProduct.id,
-      unit_amount: 4999, // $49.99
-      currency: 'usd',
-      recurring: {
-        interval: 'month',
-      },
-    });
-
-    const enterprisePrice = await stripe.prices.create({
-      product: enterpriseProduct.id,
-      unit_amount: 9999, // $99.99
+    // Create price for Premium plan ($20/month)
+    const premiumPrice = await stripe.prices.create({
+      product: premiumProduct.id,
+      unit_amount: 2000, // $20.00
       currency: 'usd',
       recurring: {
         interval: 'month',
@@ -52,14 +24,10 @@ async function createTestPrices() {
     });
 
     console.log('✅ Created Stripe prices:');
-    console.log(`Starter Price ID: ${starterPrice.id}`);
-    console.log(`Pro Price ID: ${proPrice.id}`);
-    console.log(`Enterprise Price ID: ${enterprisePrice.id}`);
+    console.log(`Premium Price ID: ${premiumPrice.id}`);
 
-    console.log('\n📋 Update your seed.ts file with these price IDs:');
-    console.log(`stripePriceId: '${starterPrice.id}', // Starter`);
-    console.log(`stripePriceId: '${proPrice.id}', // Pro`);
-    console.log(`stripePriceId: '${enterprisePrice.id}', // Enterprise`);
+    console.log('\n📋 Update your seed.ts file with this price ID:');
+    console.log(`stripePriceId: '${premiumPrice.id}', // Premium`);
 
   } catch (error) {
     console.error('Error creating Stripe prices:', error);

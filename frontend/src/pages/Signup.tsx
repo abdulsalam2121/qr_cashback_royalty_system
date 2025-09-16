@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { CreditCard, Eye, EyeOff, Loader2, User, Mail, Lock } from 'lucide-react';
-import { useAuthStore } from '../store/authStore';
+import { CreditCard, Eye, EyeOff, Loader2, User, Mail, Lock, CheckCircle } from 'lucide-react';
 import { api } from '../utils/api';
 
 const Signup: React.FC = () => {
   const navigate = useNavigate();
-  const { login } = useAuthStore();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -18,6 +16,8 @@ const Signup: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,23 +38,17 @@ const Signup: React.FC = () => {
     }
 
     try {
-      const { user, tenant } = await api.signup({
+      await api.signup({
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
         password: formData.password,
       });
       
-      login(user, tenant);
+      // New signup flow - email verification required
+      setUserEmail(formData.email);
+      setSuccess(true);
       
-      // Redirect based on role
-      if (user.role === 'tenant_admin') {
-        navigate('/dashboard');
-      } else if (user.role === 'customer') {
-        navigate('/customer');
-      } else {
-        navigate('/dashboard');
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed');
     } finally {
@@ -72,6 +66,71 @@ const Signup: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
+        {success ? (
+          // Success state - email verification sent
+          <>
+            <div className="text-center">
+              <div className="mx-auto w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <CheckCircle className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="mt-6 text-3xl font-bold text-gray-900">
+                Check Your Email
+              </h2>
+              <p className="mt-2 text-sm text-gray-600">
+                We've sent a verification link to activate your account
+              </p>
+            </div>
+
+            <div className="bg-white py-8 px-6 shadow-xl rounded-2xl border border-gray-100">
+              <div className="text-center space-y-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-sm text-green-700">
+                    <strong>Verification email sent to:</strong><br />
+                    {userEmail}
+                  </p>
+                </div>
+                
+                <div className="text-sm text-gray-600 space-y-2">
+                  <p>• Check your inbox and spam folder</p>
+                  <p>• Click the verification link to activate your account</p>
+                  <p>• The link expires in 24 hours</p>
+                  <p>• Once verified, you can sign in to start your free trial</p>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-blue-700 mb-2">
+                    🎉 What's waiting for you:
+                  </h3>
+                  <div className="text-xs text-blue-600 space-y-1">
+                    <p>• 40 free customer card activations</p>
+                    <p>• Complete loyalty program setup</p>
+                    <p>• Cashback rewards management</p>
+                    <p>• QR code generation</p>
+                    <p>• Real-time analytics dashboard</p>
+                  </div>
+                </div>
+
+                <div className="pt-4 space-y-3">
+                  <Link
+                    to="/resend-verification"
+                    className="w-full py-3 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                  >
+                    Didn't receive the email? Send another
+                  </Link>
+                  
+                  <Link
+                    to="/login"
+                    className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
+                  >
+                    Continue to Sign In
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          // Regular signup form
+          <>
         <div className="text-center">
           <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
             <CreditCard className="w-8 h-8 text-white" />
@@ -261,6 +320,8 @@ const Signup: React.FC = () => {
             </div>
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

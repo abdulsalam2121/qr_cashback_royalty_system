@@ -14,16 +14,24 @@ import {
   Smartphone
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { useAuth } from '../context/AuthContext';
 
 const Layout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
+  const { signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Fallback to just navigating to login
+      navigate('/login');
+    }
   };
 
   const navigation = React.useMemo(() => {

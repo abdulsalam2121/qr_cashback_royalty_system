@@ -8,6 +8,10 @@ nginx/
 .env.test.local
 .env.production.local
 
+# Firebase service account keys (keep these secure!)
+backend/config/firebase-service-account.json
+config/firebase-service-account.json
+
 # Dependencies
 node_modules/
 

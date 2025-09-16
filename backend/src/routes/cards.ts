@@ -15,7 +15,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 const createBatchSchema = z.object({
-  count: z.number().int().min(1).max(1000),
+  count: z.number().int().min(1).max(1000), // Hard limit of 1000 cards per batch
   storeId: z.string().optional(),
 });
 
@@ -49,6 +49,17 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
   // Import CardLimitService
   const { CardLimitService } = await import('../services/cardLimitService.js');
 
+  // Enforce maximum batch size regardless of subscription
+  if (count > 1000) {
+    res.status(400).json({
+      error: 'Batch size too large',
+      message: 'Maximum 1000 cards can be created per batch',
+      maxAllowed: 1000,
+      requestedCount: count
+    });
+    return;
+  }
+
   // Check trial status and subscription
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
@@ -62,37 +73,65 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
     return;
   }
 
-  // Check if tenant is on trial and has limits
+  // Get current card count for accurate calculations
   const currentCardCount = await prisma.card.count({
     where: { tenantId }
   });
 
-  // For trial users, check trial limits
-  if (tenant.subscriptionStatus !== 'ACTIVE') {
+  console.log(`Card creation request: tenant=${tenantId}, count=${count}, currentCards=${currentCardCount}`);
+  console.log(`Tenant status: ${tenant.subscriptionStatus}, planId: ${tenant.planId}`);
+  console.log(`Subscription limits: ${tenant.subscriptionCardsUsed}/${tenant.subscriptionCardLimit}`);
+
+  // Handle card limit validation based on subscription status
+  if (tenant.subscriptionStatus === 'ACTIVE') {
+    // For active subscriptions, use subscription card limits
+    const cardsRemaining = Math.max(0, tenant.subscriptionCardLimit - tenant.subscriptionCardsUsed);
+    
+    console.log(`Active subscription: ${tenant.subscriptionCardsUsed}/${tenant.subscriptionCardLimit} used, ${cardsRemaining} remaining`);
+
+    // Check if tenant is over their subscription limit (downgrade scenario)
+    if (tenant.subscriptionCardsUsed > tenant.subscriptionCardLimit) {
+      res.status(403).json({
+        error: 'Card creation blocked',
+        message: `Your account has used ${tenant.subscriptionCardsUsed} cards but your ${tenant.plan?.name || 'current'} plan only allows ${tenant.subscriptionCardLimit}. You cannot create new cards until your usage is reduced. Consider upgrading your plan.`,
+        currentCards: currentCardCount,
+        subscriptionUsed: tenant.subscriptionCardsUsed,
+        subscriptionLimit: tenant.subscriptionCardLimit,
+        planName: tenant.plan?.name || 'Current Plan',
+        suggestedActions: [
+          'Upgrade to a higher plan',
+          'Contact support for assistance'
+        ]
+      });
+      return;
+    }
+
+    // Check if request exceeds remaining subscription allowance
+    if (count > cardsRemaining) {
+      res.status(403).json({
+        error: 'Insufficient subscription allowance',
+        message: `You can create ${cardsRemaining} more cards from your ${tenant.plan?.name || 'current'} subscription. You're trying to create ${count} cards.`,
+        subscriptionUsed: tenant.subscriptionCardsUsed,
+        subscriptionLimit: tenant.subscriptionCardLimit,
+        cardsRemaining,
+        currentCards: currentCardCount,
+        requestedCount: count,
+        planName: tenant.plan?.name || 'Current Plan'
+      });
+      return;
+    }
+  } else {
+    // For trial users or inactive subscriptions, check trial limits
+    console.log(`Trial/inactive subscription: ${currentCardCount}/${tenant.freeTrialLimit} cards used`);
+
     if (currentCardCount + count > tenant.freeTrialLimit) {
       res.status(403).json({ 
         error: 'Subscription required',
         message: `Your free trial allows up to ${tenant.freeTrialLimit} cards. You currently have ${currentCardCount} cards and are trying to create ${count} more. Please upgrade to a paid subscription to continue creating cards.`,
         cardsCreated: currentCardCount,
         trialLimit: tenant.freeTrialLimit,
-        requestedCount: count
-      });
-      return;
-    }
-  } else {
-    // For subscription users, check subscription card limits
-    const cardBalance = await CardLimitService.getCardBalance(tenantId);
-    const canOrderResult = await CardLimitService.canOrderCards(tenantId, count);
-
-    if (!canOrderResult.canOrder) {
-      res.status(403).json({
-        error: 'Card limit exceeded',
-        message: canOrderResult.reason,
-        availableBalance: canOrderResult.availableBalance,
-        currentCards: currentCardCount,
         requestedCount: count,
-        subscriptionLimit: cardBalance.subscriptionLimit,
-        subscriptionUsed: cardBalance.subscriptionUsed
+        remainingTrialCards: Math.max(0, tenant.freeTrialLimit - currentCardCount)
       });
       return;
     }
@@ -135,20 +174,49 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
     data: cards,
   });
 
-  // If tenant has an active subscription, deduct cards from balance
+  // Update subscription usage counter if subscription is active
   if (tenant.subscriptionStatus === 'ACTIVE') {
     try {
-      await CardLimitService.updateCardBalance({
-        tenantId,
-        amount: -count, // Negative to deduct
-        type: 'USED',
-        source: 'CARD_ORDER',
-        description: `Cards created in batch - ${count} cards`,
-        createdBy: req.user.id
+      await prisma.tenant.update({
+        where: { id: tenantId },
+        data: {
+          subscriptionCardsUsed: { increment: count }
+        }
       });
+
+      // Create audit trail for subscription card usage
+      await prisma.cardLimitTransaction.create({
+        data: {
+          tenantId,
+          type: 'USED',
+          source: 'SUBSCRIPTION_UPGRADE',
+          amount: -count,
+          previousBalance: tenant.subscriptionCardLimit - tenant.subscriptionCardsUsed,
+          newBalance: tenant.subscriptionCardLimit - (tenant.subscriptionCardsUsed + count),
+          description: `${count} cards created from subscription allowance`,
+          createdBy: req.user?.id || 'system'
+        }
+      });
+
+      console.log(`Updated subscription usage: ${tenant.subscriptionCardsUsed + count}/${tenant.subscriptionCardLimit}`);
     } catch (error) {
-      console.error('Failed to update card balance:', error);
-      // Continue execution but log the error
+      console.error('Failed to update subscription usage:', error);
+      // Don't fail the card creation for accounting errors
+    }
+  } else {
+    // For trial users, update trial usage
+    try {
+      await prisma.tenant.update({
+        where: { id: tenantId },
+        data: {
+          freeTrialCardsCreated: { increment: count }
+        }
+      });
+
+      console.log(`Updated trial usage: ${tenant.freeTrialCardsCreated + count}/${tenant.freeTrialLimit}`);
+    } catch (error) {
+      console.error('Failed to update trial usage:', error);
+      // Don't fail the card creation for accounting errors
     }
   }
 

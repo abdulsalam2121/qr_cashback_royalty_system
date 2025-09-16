@@ -14,10 +14,12 @@ model Tenant {
   updatedAt             DateTime               @updatedAt
   graceEndsAt           DateTime?
   planId                String?
+  previousPlanId        String?
   slug                  String                 @unique
   stripeCustomerId      String?
   stripeSubscriptionId  String?
   subscriptionStatus    SubscriptionStatus     @default(TRIALING)
+  subscriptionStartDate DateTime?
   trialEndsAt           DateTime?
   freeTrialActivations  Int                    @default(0)
   freeTrialCardsCreated Int                    @default(0)
@@ -65,12 +67,20 @@ model User {
   id                    String        @id @default(cuid())
   tenantId              String
   email                 String        @unique
-  passwordHash          String
+  passwordHash          String?       // Make optional for Google auth users
   role                  Role
   storeId               String?
   firstName             String?
   lastName              String?
+  authProvider          String?       // "password" | "google" | etc.
+  displayName           String?
+  photoURL              String?
   active                Boolean       @default(true)
+  emailVerified         Boolean       @default(false)
+  emailVerificationToken String?
+  emailVerificationTokenExpiry DateTime?
+  passwordResetToken    String?
+  passwordResetTokenExpiry DateTime?
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
   lastLogin             DateTime?

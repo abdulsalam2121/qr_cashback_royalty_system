@@ -6,78 +6,53 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting database seed...');
 
-  // Create default plans
+  // Create default plans - Only 2 tiers as requested
   console.log('📋 Creating subscription plans...');
   const plans = [
     {
-      name: 'Starter Plan',
-      description: 'Perfect for small businesses - unlimited card activations after trial',
-      priceMonthly: 1999, // $19.99
+      name: 'Free Trial',
+      description: 'Free trial with 40 card activations included',
+      priceMonthly: 0, // Free
       billingPeriod: 'MONTHLY' as const,
       billingPeriodMultiplier: 1,
-      stripePriceId: process.env.STRIPE_PRICE_ID_STARTER || 'price_1QDZEuDh4OkzWWyK8UiS2lOc', // Test price ID
+      stripePriceId: 'free_trial', // No Stripe price needed for free plan
       features: [
-        'Unlimited card activations',
-        'Up to 3 store locations',
-        'Up to 10 staff members',
-        'Unlimited loyalty cards',
+        '40 card activations included',
         'Basic cashback rules',
-        'Email support',
-        'Card ordering system'
+        'Up to 1 store location',
+        'Up to 2 staff members',
+        'Email support'
       ],
-      maxStores: 3,
-      maxStaff: 10,
-      maxCards: -1,
+      maxStores: 1,
+      maxStaff: 2,
+      maxCards: 40,
       maxTransactions: -1,
-      cardAllowance: 100, // 100 cards included with Starter plan
-      allowCardOrdering: true,
+      cardAllowance: 40,
+      allowCardOrdering: false,
     },
     {
-      name: 'Professional',
-      description: 'Advanced features for growing businesses',
-      priceMonthly: 4999, // $49.99
+      name: 'Premium',
+      description: 'Unlimited activations and full features for growing businesses',
+      priceMonthly: 2000, // $20.00
       billingPeriod: 'MONTHLY' as const,
       billingPeriodMultiplier: 1,
-      stripePriceId: process.env.STRIPE_PRICE_ID_PRO || 'price_1QDZFKDh4OkzWWyKfiXvgHnU', // Test price ID
+      stripePriceId: process.env.STRIPE_PRICE_ID_PREMIUM || 'price_1QDZEuDh4OkzWWyK8UiS2lOc', // Test price ID - update this
       features: [
-        'Everything in Starter',
+        'Unlimited card activations',
         'Unlimited store locations',
         'Unlimited staff members',
         'Advanced cashback rules',
         'Special offer campaigns',
         'Priority support',
         'Custom branding',
-        'Advanced analytics'
+        'Advanced analytics',
+        'Card ordering system'
       ],
       maxStores: -1,
       maxStaff: -1,
       maxCards: -1,
       maxTransactions: -1,
-      cardAllowance: 500, // 500 cards included with Professional plan
-      allowCardOrdering: true,
-    },
-    {
-      name: 'Enterprise',
-      description: 'Complete solution for large businesses',
-      priceMonthly: 9999, // $99.99
-      billingPeriod: 'MONTHLY' as const,
-      billingPeriodMultiplier: 1,
-      stripePriceId: process.env.STRIPE_PRICE_ID_ENTERPRISE || 'price_1QDZFpDh4OkzWWyKdRbOKcZs', // Test price ID
-      features: [
-        'Everything in Professional',
-        'API access',
-        'Custom integrations',
-        'Dedicated account manager',
-        'SLA guarantee',
-        'Custom reporting',
-        'Multi-language support',
-        'White-label options'
-      ],
-      maxStores: -1,
-      maxStaff: -1,
-      maxCards: -1,
-      maxTransactions: -1,
-      cardAllowance: 2000, // 2000 cards included with Enterprise plan
+      cardAllowance: -1, // Unlimited
       allowCardOrdering: true,
     }
   ];
@@ -106,16 +81,16 @@ async function main() {
 
   let demoTenant;
   if (!existingTenant) {
-    const starterPlan = await prisma.plan.findFirst({
-      where: { name: 'Starter Plan' }
+    const freeTrialPlan = await prisma.plan.findFirst({
+      where: { name: 'Free Trial' }
     });
 
     demoTenant = await prisma.tenant.create({
       data: {
         name: 'Demo Retail Store',
         slug: demoTenantSlug,
-        subscriptionStatus: 'ACTIVE',
-        planId: starterPlan!.id,
+        subscriptionStatus: 'TRIALING',
+        planId: freeTrialPlan!.id,
         trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
         freeTrialLimit: 40
       }

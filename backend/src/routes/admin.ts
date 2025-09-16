@@ -8,8 +8,19 @@ import { rbac } from '../middleware/rbac.js';
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// Add debugging middleware for admin routes
+router.use((req, res, next) => {
+  console.log(`Admin route accessed: ${req.method} ${req.path}`);
+  next();
+});
+
+// Test route
+router.get('/test', (req, res) => {
+  res.json({ message: 'Admin routes are working!', timestamp: new Date().toISOString() });
+});
+
 // Get subscription analytics
-router.get('/analytics/subscriptions', auth, rbac(['platform_admin']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/analytics/subscriptions', auth, rbac(['platform_admin', 'tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { timeframe = '30d' } = req.query;
   
   // Calculate date range
@@ -165,7 +176,7 @@ router.get('/analytics/subscriptions', auth, rbac(['platform_admin']), asyncHand
 }));
 
 // Get detailed payment records
-router.get('/payments', auth, rbac(['platform_admin']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/payments', auth, rbac(['platform_admin', 'tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { page = 1, limit = 50, status, tenantId, planId } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
   
@@ -204,7 +215,7 @@ router.get('/payments', auth, rbac(['platform_admin']), asyncHandler(async (req:
 }));
 
 // Get subscription events
-router.get('/subscription-events', auth, rbac(['platform_admin']), asyncHandler(async (req: Request, res: Response) => {
+router.get('/subscription-events', auth, rbac(['platform_admin', 'tenant_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { page = 1, limit = 50, eventType, tenantId } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
   

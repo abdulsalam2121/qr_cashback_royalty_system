@@ -33,6 +33,16 @@ export interface Tenant {
   freeTrialCardsCreated?: number;
   freeTrialLimit?: number;
   stores?: Store[];
+  subscriptionInfo?: {
+    status: string;
+    isActive: boolean;
+    isTrial: boolean;
+    planName: string | null;
+    cardLimit: number;
+    cardsUsed: number;
+    cardsRemaining: number;
+    showUpgradePrompt: boolean;
+  };
   _count?: {
     stores: number;
     users: number;

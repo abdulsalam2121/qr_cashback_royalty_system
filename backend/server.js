@@ -21,6 +21,7 @@ import tenantRoutes from './dist/routes/tenant.js';
 import stripeRoutes from './dist/routes/stripe.js';
 import trialRoutes from './dist/routes/trial.js';
 import cardOrderRoutes from './dist/routes/cardOrders.js';
+import adminRoutes from './dist/routes/admin.js';
 import { errorHandler } from './dist/middleware/errorHandler.js';
 import { requestLogger } from './dist/middleware/requestLogger.js';
 
@@ -107,6 +108,7 @@ app.get('/healthz', async (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/platform', platformRoutes);
 app.use('/api/card-orders', cardOrderRoutes); // Global card orders routes (pricing, etc.)
 app.use('/api/t', tenantRoutes);
