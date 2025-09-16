@@ -6,6 +6,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './hooks/useToast';
 import TenantLayout from './components/TenantLayout';
 import PlatformLayout from './components/PlatformLayout';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
@@ -49,19 +50,22 @@ function AppContent() {
     <Router>
       <div className="min-h-screen bg-gray-50">
         <Routes>
-          {/* Root redirect */}
+          {/* Landing page as default */}
+          <Route path="/" element={<Landing />} />
+          
+          {/* Dashboard redirect route for authenticated users */}
           <Route 
-            path="/" 
+            path="/dashboard" 
             element={
-              <Navigate to={
-                isAuthenticated && user ? (
+              isAuthenticated && user ? (
+                <Navigate to={
                   user.role === 'platform_admin' ? '/platform/dashboard' :
                   user.role === 'tenant_admin' && tenant ? `/t/${tenant.slug}/dashboard` :
                   user.role === 'cashier' && tenant ? `/t/${tenant.slug}/pos` :
                   user.role === 'customer' && tenant ? `/t/${tenant.slug}/customer` :
                   '/login'
-                ) : '/login'
-              } replace />
+                } replace />
+              ) : <Navigate to="/login" replace />
             } 
           />
           
