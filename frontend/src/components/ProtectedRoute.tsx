@@ -110,12 +110,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     }
   }
 
-  // Customer route protection
-  if (location.pathname.includes('/customer') && currentRole === 'platform_admin') {
+  // Customer route protection - check for exact /customer route, not /customers
+  if (location.pathname.endsWith('/customer') && currentRole === 'platform_admin') {
     return <Navigate to="/platform/dashboard" replace />;
   }
 
-  if (location.pathname.includes('/customer') && currentRole === 'tenant_admin' && currentTenant) {
+  if (location.pathname.endsWith('/customer') && currentRole === 'tenant_admin' && currentTenant) {
     return <Navigate to={`/t/${currentTenant.slug}/dashboard`} replace />;
   }
 
