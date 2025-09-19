@@ -111,11 +111,9 @@ const Rules: React.FC = () => {
     }
   };
 
-  const handleOfferSubmit = async (e: React.FormEvent) => {
+    const handleSubmitOffer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tenantSlug) return;
-    
-    console.log('Submitting offer form:', offerForm);
     
     // Convert date strings to ISO datetime strings
     const formData = {
@@ -124,28 +122,21 @@ const Rules: React.FC = () => {
       endAt: new Date(offerForm.endAt).toISOString(),
     };
     
-    console.log('Formatted form data:', formData);
-    
     try {
       setSaving(true);
       if (editingOffer) {
-        console.log('Updating existing offer:', editingOffer.id);
         const { offer } = await api.tenant.updateOffer(tenantSlug, editingOffer.id, formData);
         setOffers(prev => prev.map(o => o.id === offer.id ? offer : o));
         showToast('Offer updated successfully', 'success');
       } else {
-        console.log('Creating new offer');
         const { offer } = await api.tenant.createOffer(tenantSlug, formData);
         setOffers(prev => [offer, ...prev]);
         showToast('Offer created successfully', 'success');
       }
       resetOfferForm();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to save offer:', error);
-      showToast(
-        error.response?.data?.message || 'Failed to save offer. Please try again.',
-        'error'
-      );
+      showToast('Failed to save offer', 'error');
     } finally {
       setSaving(false);
     }

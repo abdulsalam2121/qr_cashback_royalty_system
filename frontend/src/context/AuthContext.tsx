@@ -56,16 +56,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const syncUserWithBackend = async (idToken: string) => {
     try {
-      console.log('🔄 Syncing user with backend...');
-      console.log('Using API URL:', import.meta.env.VITE_API_URL);
+      if (import.meta.env.DEV) {
+        console.log('🔄 Syncing user with backend...');
+        console.log('Using API URL:', import.meta.env.VITE_API_URL);
+      }
       
       const response = await fetchWithIdToken('/auth/sync', idToken, { 
         method: 'POST', 
         body: JSON.stringify({}) 
       });
       
-      console.log('📡 Backend sync response status:', response.status);
-      console.log('📡 Backend sync response headers:', Object.fromEntries(response.headers.entries()));
+      if (import.meta.env.DEV) {
+        console.log('📡 Backend sync response status:', response.status);
+      }
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -82,12 +85,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       
       const data = await response.json();
-      console.log('✅ Backend sync successful:', { 
-        userId: data.user?.id, 
-        email: data.user?.email, 
-        role: data.role,
-        tenant: data.tenant?.name 
-      });
+      if (import.meta.env.DEV) {
+        console.log('✅ Backend sync successful for user with role:', data.role);
+      }
       
       setUser(data.user);
       setTenant(data.tenant || null);
@@ -99,7 +99,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         zustandUpdateTenant(data.tenant);
       }
       
-      console.log('✅ User state updated successfully');
+      if (import.meta.env.DEV) {
+        console.log('✅ User state updated successfully');
+      }
       return data;
     } catch (error) {
       console.error('❌ Error syncing user with backend:', error);
@@ -110,13 +112,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const refreshUserData = async () => {
     if (!currentUser) {
-      console.log('❌ No current user for refresh');
+      if (import.meta.env.DEV) {
+        console.log('❌ No current user for refresh');
+      }
       setLoading(false);
       return;
     }
     
     try {
-      console.log('🔄 Getting fresh ID token for backend request...');
+      if (import.meta.env.DEV) {
+        console.log('🔄 Getting fresh ID token for backend request...');
+      }
       const idToken = await getCurrentUserToken();
       if (!idToken) {
         console.error('❌ No ID token available');
@@ -124,8 +130,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw new Error('No ID token available');
       }
 
-      console.log('📡 Making request to /auth/me endpoint...');
-      console.log('🔑 Token preview:', idToken.substring(0, 50) + '...');
+      if (import.meta.env.DEV) {
+        console.log('📡 Making request to /auth/me endpoint...');
+        console.log('🔑 Token available for request');
+      }
       
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => {

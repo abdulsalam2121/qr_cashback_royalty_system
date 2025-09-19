@@ -218,7 +218,9 @@ export class EmailService {
       };
 
       await this.transporter.sendMail(mailOptions);
-      console.log(`Email verification sent to ${email}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Email verification sent successfully`);
+      }
     } catch (error) {
       console.error('Error sending email verification:', error);
       throw new Error('Failed to send verification email');
@@ -242,7 +244,9 @@ export class EmailService {
       };
 
       await this.transporter.sendMail(mailOptions);
-      console.log(`Password reset email sent to ${email}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Password reset email sent successfully`);
+      }
     } catch (error) {
       console.error('Error sending password reset email:', error);
       throw new Error('Failed to send password reset email');
@@ -252,7 +256,9 @@ export class EmailService {
   async testConnection(): Promise<boolean> {
     try {
       await this.transporter.verify();
-      console.log('Email service connection verified');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Email service connection verified');
+      }
       return true;
     } catch (error) {
       console.error('Email service connection failed:', error);

@@ -39,27 +39,33 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const currentTenant = tenant || zustandTenant;
   const authenticated = isAuthenticated || zustandAuth;
 
-  // Debug logging
-  console.log('🔒 ProtectedRoute check:', {
-    loading,
-    authenticated,
-    currentUser: currentUser ? { id: currentUser.id, email: currentUser.email } : null,
-    currentRole,
-    currentTenant: currentTenant ? { id: currentTenant.id, slug: currentTenant.slug } : null,
-    requireTenant,
-    roles,
-    location: location.pathname
-  });
+  // Debug logging (only in development and without sensitive data)
+  if (import.meta.env.DEV) {
+    console.log('🔒 ProtectedRoute check:', {
+      loading,
+      authenticated,
+      hasUser: !!currentUser,
+      currentRole,
+      hasTenant: !!currentTenant,
+      requireTenant,
+      roles,
+      location: location.pathname
+    });
+  }
 
   // Show loading spinner while auth state is being determined
   if (loading) {
-    console.log('🔒 ProtectedRoute: Still loading...');
+    if (import.meta.env.DEV) {
+      console.log('🔒 ProtectedRoute: Still loading...');
+    }
     return <LoadingSpinner />;
   }
 
   // If not authenticated, redirect to login
   if (!authenticated || !currentUser) {
-    console.log('🔒 ProtectedRoute: Not authenticated, redirecting to login');
+    if (import.meta.env.DEV) {
+      console.log('🔒 ProtectedRoute: Not authenticated, redirecting to login');
+    }
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -67,10 +73,14 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (requireTenant && !currentTenant && currentRole !== 'platform_admin') {
     // If we have a user but no tenant yet, check if user has tenantSlug
     if (currentUser?.tenantSlug) {
-      console.log('🔒 ProtectedRoute: User has tenantSlug but no tenant object loaded yet, allowing access');
+      if (import.meta.env.DEV) {
+        console.log('🔒 ProtectedRoute: User has tenantSlug but no tenant object loaded yet, allowing access');
+      }
       // Allow access - tenant data may still be loading
     } else {
-      console.log('🔒 ProtectedRoute: No tenant and user has no tenantSlug, redirecting to login');
+      if (import.meta.env.DEV) {
+        console.log('🔒 ProtectedRoute: No tenant and user has no tenantSlug, redirecting to login');
+      }
       return <Navigate to="/login" replace />;
     }
   }

@@ -47,13 +47,17 @@ export async function sendNotification(
     });
 
     if (!customer || !customer.phone) {
-      console.log('Customer not found or no phone number available');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Customer not found or no phone number available');
+      }
       return;
     }
 
     const template = templates[templateName][preferredChannel];
     if (!template) {
-      console.log(`Template ${templateName} not found for channel ${preferredChannel}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Template ${templateName} not found for channel ${preferredChannel}`);
+      }
       return;
     }
 
@@ -103,7 +107,9 @@ export async function sendNotification(
           }
         });
 
-        console.log(`Notification sent successfully: ${twilioMessage.sid}`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`Notification sent successfully`);
+        }
       } catch (twilioError: any) {
         console.error('Twilio error:', twilioError);
         
@@ -118,7 +124,9 @@ export async function sendNotification(
       }
     } else {
       // Mock sending for development
-      console.log(`MOCK ${preferredChannel} to ${customer.phone}: ${message}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`MOCK ${preferredChannel} notification sent`);
+      }
       
       await prisma.notification.update({
         where: { id: notification.id },

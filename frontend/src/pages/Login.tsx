@@ -68,11 +68,8 @@ const Login: React.FC = () => {
     setError('');
 
     try {
-      console.log('🚀 Starting Google authentication using AuthContext...');
-      
       // Use the AuthContext's simple Google login function
       await signInWithGoogleSimple();
-      console.log('✅ Google authentication successful!');
       
       // After Google login, we need to get the current user from the store
       // and navigate them to the appropriate page
@@ -80,8 +77,6 @@ const Login: React.FC = () => {
       const currentTenant = useAuthStore.getState().tenant;
       
       if (currentUser) {
-        console.log('📍 Navigating based on user role:', currentUser.role);
-        
         // Redirect based on role (same as regular login)
         if (currentUser.role === 'platform_admin') {
           navigate('/platform/dashboard');
@@ -92,11 +87,8 @@ const Login: React.FC = () => {
         } else if (currentUser.role === 'customer' && currentTenant) {
           navigate(`/t/${currentTenant.slug}/customer`);
         } else {
-          console.warn('Unknown role or missing tenant, redirecting to login');
           navigate('/login');
         }
-      } else {
-        console.warn('No user found after Google login, staying on login page');
       }
       
     } catch (err) {
