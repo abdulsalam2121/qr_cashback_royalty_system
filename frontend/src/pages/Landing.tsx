@@ -159,8 +159,12 @@ const Landing: React.FC = () => {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
             <div className="flex items-center space-x-3 animate-fade-in">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 rounded-2xl flex items-center justify-center shadow-glow animate-gradient-xy">
-                <QrCode className="w-7 h-7 text-white" />
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-glow animate-pulse border border-gray-100">
+                <img 
+                  src="/logo.png" 
+                  alt="LoyaltyPro Logo" 
+                  className="w-10 h-10 object-contain"
+                />
               </div>
               <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent animate-gradient-x">
                 LoyaltyPro
@@ -613,8 +617,12 @@ const Landing: React.FC = () => {
         <div className="max-w-7xl mx-auto text-center relative z-10">
           <div className="animate-fade-in-up">
             <div className="flex items-center justify-center space-x-4 mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 via-purple-600 to-pink-600 rounded-3xl flex items-center justify-center shadow-glow animate-gradient-xy hover:scale-110 transition-transform duration-500">
-                <QrCode className="w-9 h-9 text-white" />
+              <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center shadow-glow hover:scale-110 transition-transform duration-500 border border-gray-200/20">
+                <img 
+                  src="/logo.png" 
+                  alt="LoyaltyPro Logo" 
+                  className="w-12 h-12 object-contain"
+                />
               </div>
               <span className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent animate-gradient-x">
                 LoyaltyPro

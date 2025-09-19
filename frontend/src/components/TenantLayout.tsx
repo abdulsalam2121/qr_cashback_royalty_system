@@ -25,6 +25,7 @@ const TenantLayout: React.FC = () => {
   const { user, tenant } = useAuthStore();
   const { signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
 
   const handleLogout = async () => {
     try {
@@ -75,7 +76,7 @@ const TenantLayout: React.FC = () => {
   const isGracePeriod = tenant.subscriptionStatus === 'PAST_DUE' && tenant.graceEndsAt && new Date(tenant.graceEndsAt) > new Date();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50 flex relative">{/* Added relative positioning */}
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div 
@@ -85,19 +86,40 @@ const TenantLayout: React.FC = () => {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 lg:flex lg:flex-col ${
+      <div className={`fixed inset-y-0 left-0 z-50 bg-white shadow-lg transform transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 lg:flex lg:flex-col ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-      }`}>
-        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 flex-shrink-0">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <CreditCard className="w-5 h-5 text-white" />
+      } ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'} w-64`}>
+        <div className={`flex items-center h-16 border-b border-gray-200 flex-shrink-0 ${
+          sidebarCollapsed ? 'lg:justify-center lg:px-2' : 'justify-between px-6'
+        }`}>
+          {/* Logo and company info */}
+          <div className={`flex items-center ${sidebarCollapsed ? 'lg:flex-col lg:space-x-0 lg:space-y-1' : 'space-x-3 flex-1 min-w-0'}`}>
+            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center flex-shrink-0 border border-gray-200">
+              <img 
+                src="/logo.png" 
+                alt="Logo" 
+                className="w-8 h-8 object-contain"
+              />
             </div>
-            <div className="flex-1 min-w-0">
-              <span className="text-lg font-bold text-gray-900 truncate block">{tenant.name}</span>
-              <span className="text-xs text-gray-500">LoyaltyPro</span>
+            <div className={`flex-1 min-w-0 transition-opacity duration-300 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
+              <div className="text-sm font-bold text-gray-900 truncate" title={tenant.name}>
+                {tenant.name}
+              </div>
+              <div className="text-xs text-gray-500">LoyaltyPro</div>
             </div>
           </div>
+          
+          {/* Desktop toggle button - only show when not collapsed */}
+          {!sidebarCollapsed && (
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="hidden lg:flex p-1.5 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-colors flex-shrink-0"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          )}
+          
+          {/* Mobile close button */}
           <button
             onClick={() => setSidebarOpen(false)}
             className="lg:hidden p-1 rounded-md text-gray-400 hover:text-gray-500"
@@ -105,6 +127,18 @@ const TenantLayout: React.FC = () => {
             <X className="w-6 h-6" />
           </button>
         </div>
+
+        {/* Collapsed state toggle button - positioned below logo */}
+        {sidebarCollapsed && (
+          <div className="hidden lg:flex justify-center py-2 border-b border-gray-200">
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-colors"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          </div>
+        )}
 
         <nav className="flex-1 mt-6 px-3 overflow-y-auto">
           <div className="space-y-1">
@@ -125,7 +159,7 @@ const TenantLayout: React.FC = () => {
                       : isDisabled
                       ? 'text-gray-400 cursor-not-allowed'
                       : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
+                  } ${sidebarCollapsed ? 'lg:justify-center' : ''}`}
                   onClick={(e) => {
                     if (isDisabled) {
                       e.preventDefault();
@@ -134,12 +168,14 @@ const TenantLayout: React.FC = () => {
                     setSidebarOpen(false);
                   }}
                 >
-                  <item.icon className={`mr-3 h-5 w-5 flex-shrink-0 ${
+                  <item.icon className={`h-5 w-5 flex-shrink-0 ${
                     isActive ? 'text-blue-700' : 
                     isDisabled ? 'text-gray-400' : 'text-gray-400 group-hover:text-gray-500'
-                  }`} />
-                  <span className="truncate">{item.name}</span>
-                  {isDisabled && (
+                  } ${sidebarCollapsed ? '' : 'mr-3'}`} />
+                  <span className={`truncate transition-opacity duration-300 ${
+                    sidebarCollapsed ? 'lg:hidden' : ''
+                  }`}>{item.name}</span>
+                  {isDisabled && !sidebarCollapsed && (
                     <AlertTriangle className="ml-auto w-4 h-4 text-orange-500" />
                   )}
                 </Link>
@@ -150,13 +186,13 @@ const TenantLayout: React.FC = () => {
 
         {/* User info and logout */}
         <div className="flex-shrink-0 p-4 border-t border-gray-200">
-          <div className="flex items-center space-x-3 mb-3">
+          <div className={`flex items-center space-x-3 mb-3 ${sidebarCollapsed ? 'lg:justify-center' : ''}`}>
             <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-sm font-medium text-gray-700">
                 {user.firstName?.[0] || user.email?.[0]?.toUpperCase() || 'U'}
               </span>
             </div>
-            <div className="flex-1 min-w-0">
+            <div className={`flex-1 min-w-0 transition-opacity duration-300 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
               <p className="text-sm font-medium text-gray-900 truncate">
                 {user.firstName ? `${user.firstName} ${user.lastName}` : user.email || 'User'}
               </p>
@@ -165,10 +201,13 @@ const TenantLayout: React.FC = () => {
           </div>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center px-3 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            className={`w-full flex items-center px-3 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-colors ${
+              sidebarCollapsed ? 'lg:justify-center' : ''
+            }`}
+            title={sidebarCollapsed ? 'Sign out' : ''}
           >
-            <LogOut className="mr-3 h-4 w-4 flex-shrink-0" />
-            <span>Sign out</span>
+            <LogOut className={`h-4 w-4 flex-shrink-0 ${sidebarCollapsed ? '' : 'mr-3'}`} />
+            <span className={`transition-opacity duration-300 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Sign out</span>
           </button>
         </div>
       </div>
@@ -178,6 +217,7 @@ const TenantLayout: React.FC = () => {
         {/* Top bar */}
         <div className="sticky top-0 z-10 bg-white shadow-sm border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center justify-between h-16 px-4 sm:px-6">
+            {/* Mobile hamburger menu */}
             <button
               onClick={() => setSidebarOpen(true)}
               className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"

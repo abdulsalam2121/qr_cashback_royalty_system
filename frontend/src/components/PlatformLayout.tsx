@@ -21,6 +21,7 @@ const PlatformLayout: React.FC = () => {
   const { user } = useAuthStore();
   const { signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
 
   const handleLogout = async () => {
     try {
@@ -54,7 +55,7 @@ const PlatformLayout: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50 flex relative">{/* Added relative positioning */}
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div 
@@ -64,16 +65,37 @@ const PlatformLayout: React.FC = () => {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 lg:flex lg:flex-col ${
+      <div className={`fixed inset-y-0 left-0 z-50 bg-white shadow-lg transform transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 lg:flex lg:flex-col ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-      }`}>
-        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 flex-shrink-0">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
-              <Crown className="w-5 h-5 text-white" />
+      } ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'} w-64`}>
+        <div className={`flex items-center h-16 border-b border-gray-200 flex-shrink-0 ${
+          sidebarCollapsed ? 'lg:justify-center lg:px-2' : 'justify-between px-6'
+        }`}>
+          {/* Logo and platform info */}
+          <div className={`flex items-center ${sidebarCollapsed ? 'lg:flex-col lg:space-x-0 lg:space-y-1' : 'space-x-3'}`}>
+            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center flex-shrink-0 border border-gray-200">
+              <img 
+                src="/logo.png" 
+                alt="Logo" 
+                className="w-8 h-8 object-contain"
+              />
             </div>
-            <span className="text-xl font-bold text-gray-900">Platform</span>
+            <span className={`text-xl font-bold text-gray-900 transition-opacity duration-300 ${
+              sidebarCollapsed ? 'lg:hidden' : ''
+            }`}>Platform</span>
           </div>
+          
+          {/* Desktop toggle button - only show when not collapsed */}
+          {!sidebarCollapsed && (
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="hidden lg:flex p-1.5 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-colors flex-shrink-0"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          )}
+          
+          {/* Mobile close button */}
           <button
             onClick={() => setSidebarOpen(false)}
             className="lg:hidden p-1 rounded-md text-gray-400 hover:text-gray-500"
@@ -81,6 +103,18 @@ const PlatformLayout: React.FC = () => {
             <X className="w-6 h-6" />
           </button>
         </div>
+
+        {/* Collapsed state toggle button - positioned below logo */}
+        {sidebarCollapsed && (
+          <div className="hidden lg:flex justify-center py-2 border-b border-gray-200">
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-colors"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          </div>
+        )}
 
         <nav className="flex-1 mt-6 px-3 overflow-y-auto">
           <div className="space-y-1">
@@ -96,13 +130,15 @@ const PlatformLayout: React.FC = () => {
                     isActive
                       ? 'bg-purple-50 text-purple-700 border-r-2 border-purple-700'
                       : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
+                  } ${sidebarCollapsed ? 'lg:justify-center' : ''}`}
                   onClick={() => setSidebarOpen(false)}
                 >
-                  <item.icon className={`mr-3 h-5 w-5 flex-shrink-0 ${
+                  <item.icon className={`h-5 w-5 flex-shrink-0 ${
                     isActive ? 'text-purple-700' : 'text-gray-400 group-hover:text-gray-500'
-                  }`} />
-                  <span className="truncate">{item.name}</span>
+                  } ${sidebarCollapsed ? '' : 'mr-3'}`} />
+                  <span className={`truncate transition-opacity duration-300 ${
+                    sidebarCollapsed ? 'lg:hidden' : ''
+                  }`}>{item.name}</span>
                 </Link>
               );
             })}

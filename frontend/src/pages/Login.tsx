@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { CreditCard, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
+import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -113,11 +115,17 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-            <CreditCard className="w-8 h-8 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <Navbar />
+      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 pt-32">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <div className="mx-auto w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg border border-gray-200">
+            <img 
+              src="/logo.png" 
+              alt="LoyaltyPro Logo" 
+              className="w-12 h-12 object-contain"
+            />
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
             Welcome to LoyaltyPro
@@ -271,7 +279,9 @@ const Login: React.FC = () => {
             </p>
           </div>
         </div>
+        </div>
       </div>
+      <Footer />
     </div>
   );
 };
