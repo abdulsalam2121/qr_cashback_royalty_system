@@ -58,7 +58,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       if (import.meta.env.DEV) {
         console.log('🔄 Syncing user with backend...');
-        console.log('Using API URL:', import.meta.env.VITE_API_URL);
+        console.log('Using API URL configured');
       }
       
       const response = await fetchWithIdToken('/auth/sync', idToken, { 

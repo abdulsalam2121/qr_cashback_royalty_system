@@ -28,7 +28,9 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req: Re
     return;
   }
 
-  console.log('Received Stripe webhook event:', event.type);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Received Stripe webhook event:', event.type);
+  }
 
   try {
     switch (event.type) {
@@ -57,7 +59,9 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req: Re
         break;
 
       default:
-        console.log(`Unhandled event type: ${event.type}`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`Unhandled event type: ${event.type}`);
+        }
     }
 
     res.json({ received: true });
@@ -68,7 +72,9 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req: Re
 });
 
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
-  console.log('Processing checkout.session.completed:', session.id);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Processing checkout.session.completed');
+  }
 
   const tenantId = session.metadata?.tenantId;
   const planId = session.metadata?.planId;
@@ -82,7 +88,9 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   // Check if this is a subscription or one-time payment
   if (session.mode === 'subscription' && session.subscription) {
     // Subscription will be handled by subscription.created webhook
-    console.log('Subscription checkout completed, waiting for subscription.created webhook');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Subscription checkout completed, waiting for subscription.created webhook');
+    }
   } else if (session.mode === 'payment') {
     // Handle one-time payments (like adding customer funds)
     const paymentType = session.metadata?.type;
@@ -98,14 +106,18 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
           data: { balanceCents: { increment: amountCents } }
         });
 
-        console.log(`Added ${amountCents} cents to card ${cardId} for customer ${customerId}`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`Added ${amountCents} cents to card for customer`);
+        }
       }
     }
   }
 }
 
 async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
-  console.log('Processing customer.subscription.created:', subscription.id);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Processing customer.subscription.created');
+  }
 
   const tenantId = subscription.metadata?.tenantId;
   const planId = subscription.metadata?.planId;
@@ -142,8 +154,10 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
       const isReactivation = currentTenant.subscriptionStatus === 'CANCELED';
       const previousPlanId = currentTenant.planId;
 
-      console.log(`Subscription scenario for ${tenantId}: ${isNewSubscription ? 'NEW' : isReactivation ? 'REACTIVATION' : 'UPDATE'}`);
-      console.log(`Current cards: ${currentCardCount}, New plan limit: ${cardAllowance}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Subscription scenario: ${isNewSubscription ? 'NEW' : isReactivation ? 'REACTIVATION' : 'UPDATE'}`);
+        console.log(`Current cards: ${currentCardCount}, New plan limit: ${cardAllowance}`);
+      }
 
       // Calculate new subscription values
       let subscriptionCardsUsed = 0;
@@ -215,8 +229,10 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
         }
       });
 
-      console.log(`Subscription created for tenant ${tenantId}: ${transactionDescription}`);
-      console.log(`Card limits: ${subscriptionCardsUsed}/${subscriptionCardLimit} used`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Subscription created: ${transactionDescription}`);
+        console.log(`Card limits: ${subscriptionCardsUsed}/${subscriptionCardLimit} used`);
+      }
     });
   } catch (error) {
     console.error('Error processing subscription creation:', error);
@@ -225,7 +241,9 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
-  console.log('Processing customer.subscription.updated:', subscription.id);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Processing customer.subscription.updated');
+  }
 
   const tenantId = subscription.metadata?.tenantId;
   const planId = subscription.metadata?.planId;
@@ -294,8 +312,10 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
         const isUpgrade = currentTenant.plan && newPlan.cardAllowance > (currentTenant.plan as any).cardAllowance;
         const isDowngrade = currentTenant.plan && newPlan.cardAllowance < (currentTenant.plan as any).cardAllowance;
 
-        console.log(`Plan change detected: ${currentTenant.plan?.name} -> ${newPlan.name}`);
-        console.log(`Card allowance change: ${(currentTenant.plan as any)?.cardAllowance || 0} -> ${cardAllowance}`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`Plan change detected: ${currentTenant.plan?.name} -> ${newPlan.name}`);
+          console.log(`Card allowance change: ${(currentTenant.plan as any)?.cardAllowance || 0} -> ${cardAllowance}`);
+        }
 
         if (isUpgrade) {
           // Upgrade: Reset usage, apply new limit
@@ -372,7 +392,9 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
         }
       });
 
-      console.log(`Subscription updated for tenant ${tenantId}: ${transactionDescription}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Subscription updated: ${transactionDescription}`);
+      }
     });
   } catch (error) {
     console.error('Error processing subscription update:', error);
@@ -381,7 +403,9 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
-  console.log('Processing customer.subscription.deleted:', subscription.id);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Processing customer.subscription.deleted');
+  }
 
   const tenantId = subscription.metadata?.tenantId;
 
@@ -401,7 +425,9 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
       }
     });
 
-    console.log(`Subscription canceled for tenant ${tenantId}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Subscription canceled`);
+    }
   } catch (error) {
     console.error('Error processing subscription deletion:', error);
     throw error;
@@ -409,7 +435,9 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 }
 
 async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
-  console.log('Processing invoice.payment_succeeded:', invoice.id);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Processing invoice.payment_succeeded');
+  }
 
   if (invoice.subscription) {
     const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
@@ -425,13 +453,17 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
         }
       });
 
-      console.log(`Payment succeeded for tenant ${tenantId}, status set to ACTIVE`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Payment succeeded, status set to ACTIVE`);
+      }
     }
   }
 }
 
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
-  console.log('Processing invoice.payment_failed:', invoice.id);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Processing invoice.payment_failed');
+  }
 
   if (invoice.subscription) {
     const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
@@ -450,7 +482,9 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
         }
       });
 
-      console.log(`Payment failed for tenant ${tenantId}, grace period set until ${graceEndsAt}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Payment failed, grace period set until ${graceEndsAt}`);
+      }
     }
   }
 }

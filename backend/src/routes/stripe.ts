@@ -96,7 +96,9 @@ router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(
       }
 
       default:
-        console.log(`Unhandled event type: ${event.type}`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`Unhandled event type: ${event.type}`);
+        }
     }
 
     res.json({ received: true });
@@ -128,7 +130,9 @@ async function handleCardOrderPayment(session: Stripe.Checkout.Session) {
       }
     });
 
-    console.log(`Card order ${orderId} payment confirmed`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Card order payment confirmed`);
+    }
   } catch (error) {
     console.error(`Failed to update card order ${orderId}:`, error);
   }
@@ -153,7 +157,9 @@ async function handleCardOrderPaymentIntent(paymentIntent: Stripe.PaymentIntent)
       }
     });
 
-    console.log(`Card order ${orderId} payment intent succeeded`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Card order payment intent succeeded`);
+    }
   } catch (error) {
     console.error(`Failed to update card order ${orderId}:`, error);
   }
@@ -211,7 +217,9 @@ async function handleCustomerFundsPayment(session: Stripe.Checkout.Session) {
       });
     });
 
-    console.log(`Successfully added $${(amountCents / 100).toFixed(2)} to card ${cardId}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Successfully added $${(amountCents / 100).toFixed(2)} to card`);
+    }
   } catch (error) {
     console.error(`Failed to process customer funds payment for session ${session.id}:`, error);
   }
@@ -264,7 +272,9 @@ async function updateTenantSubscription(subscription: Stripe.Subscription) {
       data: updateData
     });
     
-    console.log(`Updated tenant ${tenant.id} subscription status to ${status}${planId ? ` with plan ${planId}` : ''}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Updated tenant subscription status to ${status}${planId ? ` with plan` : ''}`);
+    }
   } else {
     console.error(`No tenant found for subscription ${subscription.id} or customer ${subscription.customer}`);
   }
