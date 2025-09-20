@@ -7,7 +7,7 @@ console.log('✅ Firebase auth object:', auth);
 
 // Test 2: Check current user
 auth.onAuthStateChanged((user) => {
-  console.log('🔄 Current Firebase user:', user ? `${user.email} (${user.uid})` : 'No user');
+  console.log('🔄 Current Firebase user:', user ? 'User authenticated' : 'No user');
   
   if (user) {
     // Test 3: Get ID token
@@ -28,7 +28,7 @@ auth.onAuthStateChanged((user) => {
         return response.json();
       })
       .then(data => {
-        console.log('✅ Backend response data:', data);
+        console.log('✅ Backend response received');
       })
       .catch(error => {
         console.error('❌ Backend call failed:', error);

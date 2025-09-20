@@ -33,7 +33,9 @@ export const signInWithGoogle = async (useRedirect = false): Promise<{ user: Fir
       console.log('🪟 Using popup method...');
       // Try popup method first
       result = await signInWithPopup(auth, googleProvider);
-      console.log('✅ Popup sign-in successful:', result.user.email);
+      if (import.meta.env.DEV) {
+        console.log('✅ Popup sign-in successful');
+      }
     }
     
     console.log('🔑 Getting ID token...');

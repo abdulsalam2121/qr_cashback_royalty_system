@@ -246,12 +246,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('🪟 Using popup method for Google Sign-In...');
       const { user: firebaseUser, idToken } = await firebaseSignInWithGoogle(false);
       
-      console.log('✅ Firebase authentication successful:', firebaseUser.email);
+      if (import.meta.env.DEV) {
+        console.log('✅ Firebase authentication successful');
+      }
       console.log('🔑 Got ID token, syncing with backend...');
       
       // Sync with backend
       const syncData = await syncUserWithBackend(idToken);
-      console.log('✅ Backend sync complete!', syncData);
+      if (import.meta.env.DEV) {
+        console.log('✅ Backend sync complete!');
+      }
       
       // Navigate based on sync response
       if (syncData.role === 'tenant_admin' && (syncData.user?.tenantSlug || syncData.tenant?.slug)) {
@@ -291,12 +295,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { signInWithGoogle: firebaseSignInWithGoogle } = await import('../firebase/auth');
       const { user: firebaseUser, idToken } = await firebaseSignInWithGoogle(false);
       
-      console.log('✅ Firebase authentication successful:', firebaseUser.email);
+      if (import.meta.env.DEV) {
+        console.log('✅ Firebase authentication successful');
+      }
       console.log('🔑 Got ID token, calling backend API...');
       
       // Step 2: Call backend API (same as normal login)
       const data = await api.googleLogin(idToken);
-      console.log('✅ Backend login successful:', data);
+      if (import.meta.env.DEV) {
+        console.log('✅ Backend login successful');
+      }
       
       // Step 3: Set state (same as normal login)
       setUser(data.user);
@@ -361,7 +369,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // Set up auth state listener
     const unsubscribe = onAuthStateChange(async (firebaseUser: User | null) => {
-      console.log('🔄 Auth state changed:', firebaseUser ? `User: ${firebaseUser.email}` : 'No user');
+      if (import.meta.env.DEV) {
+        console.log('🔄 Auth state changed:', firebaseUser ? 'User authenticated' : 'No user');
+      }
       setCurrentUser(firebaseUser);
       
       if (firebaseUser) {

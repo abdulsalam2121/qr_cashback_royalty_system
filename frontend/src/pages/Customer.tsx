@@ -29,12 +29,13 @@ const Customer: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      console.log('👤 Fetching customer data for user:', {
-        id: user?.id,
-        email: user?.email,
-        role: user?.role,
-        tenantSlug
-      });
+      if (import.meta.env.DEV) {
+        console.log('👤 Fetching customer data for user:', {
+          id: user?.id,
+          role: user?.role,
+          tenantSlug
+        });
+      }
       
       // Check user role to determine which data to fetch
       if (user?.role === 'customer') {

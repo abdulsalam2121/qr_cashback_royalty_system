@@ -78,7 +78,9 @@ const SubscriptionAnalytics: React.FC = () => {
       }
       
       const data = await response.json();
-      console.log('Analytics data received:', data);
+      if (import.meta.env.DEV) {
+        console.log('Analytics data received');
+      }
       setAnalytics(data.analytics);
     } catch (error) {
       console.error('Failed to fetch analytics:', error);

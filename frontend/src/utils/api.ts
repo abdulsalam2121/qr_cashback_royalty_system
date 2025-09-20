@@ -78,7 +78,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     const data = await response.json();
     if (import.meta.env.DEV) {
-      console.log('API Response Data:', data);
+      console.log('API Response received');
     }
     return data;
   } catch (error) {

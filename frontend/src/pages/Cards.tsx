@@ -117,8 +117,9 @@ const Cards: React.FC = () => {
   }, [statusFilter]);
 
   useEffect(() => {
-    console.log('Stores data:', stores);
-    console.log('Stores length:', stores.length);
+    if (import.meta.env.DEV) {
+      console.log('Stores data length:', stores.length);
+    }
   }, [stores]);
 
   const fetchTenantInfo = async () => {
@@ -126,15 +127,14 @@ const Cards: React.FC = () => {
     
     try {
       const { tenant: latestTenant } = await api.tenant.getTenant(tenantSlug);
-      console.log('Fetched latest tenant info:', {
-        subscriptionStatus: latestTenant.subscriptionStatus,
-        subscriptionInfo: latestTenant.subscriptionInfo,
-        cardCounts: {
-          total: latestTenant._count?.cards,
-          subscriptionUsed: latestTenant.subscriptionCardsUsed,
-          subscriptionLimit: latestTenant.subscriptionCardLimit
-        }
-      });
+      if (import.meta.env.DEV) {
+        console.log('Fetched latest tenant info:', {
+          subscriptionStatus: latestTenant.subscriptionStatus,
+          cardCounts: {
+            total: latestTenant._count?.cards
+          }
+        });
+      }
       
       // Update the tenant data in the auth store to ensure we have latest subscription info
       useAuthStore.getState().updateTenant(latestTenant);
@@ -155,7 +155,9 @@ const Cards: React.FC = () => {
       if (searchTerm) params.append('search', searchTerm);
 
       const data = await api.tenant.getCards(tenantSlug, params.toString());
-      console.log('Cards data from API:', data.cards);
+      if (import.meta.env.DEV) {
+        console.log('Cards data received, count:', data.cards?.length || 0);
+      }
       setCards(data.cards || []);
     } catch (error) {
       console.error('Failed to fetch cards:', error);
@@ -170,13 +172,19 @@ const Cards: React.FC = () => {
     try {
       // Fetch all customers for general use
       const allCustomersData = await api.tenant.getCustomers(tenantSlug);
-      console.log('All customers data:', allCustomersData);
+      if (import.meta.env.DEV) {
+        console.log('All customers data received, count:', allCustomersData.customers?.length || 0);
+      }
       setCustomers(allCustomersData.customers || []);
       
       // Fetch available customers for card assignment
-      console.log('Fetching available customers...');
+      if (import.meta.env.DEV) {
+        console.log('Fetching available customers...');
+      }
       const availableCustomersData = await api.tenant.getAvailableCustomers(tenantSlug);
-      console.log('Available customers data:', availableCustomersData);
+      if (import.meta.env.DEV) {
+        console.log('Available customers data received, count:', availableCustomersData.customers?.length || 0);
+      }
       setAvailableCustomers(availableCustomersData.customers || []);
     } catch (error) {
       console.error('Failed to fetch customers:', error);

@@ -14,7 +14,9 @@ export default function DebugAuth() {
       // Test basic connection
       const healthResponse = await fetch('http://localhost:3002/healthz');
       const healthData = await healthResponse.json();
-      console.log('Health check:', healthData);
+      if (import.meta.env.DEV) {
+        console.log('Health check completed');
+      }
       
       if (currentUser) {
         // Test auth endpoint
@@ -31,9 +33,11 @@ export default function DebugAuth() {
         
         console.log('Auth response status:', authResponse.status);
         const authData = await authResponse.text();
-        console.log('Auth response:', authData);
+        if (import.meta.env.DEV) {
+          console.log('Auth response received');
+        }
         
-        setTestResult(`Health: ${JSON.stringify(healthData)}\nAuth Status: ${authResponse.status}\nAuth Response: ${authData}`);
+        setTestResult(`Health: OK\nAuth Status: ${authResponse.status}\nAuth Response: [Response received]`);
       } else {
         setTestResult(`Health: ${JSON.stringify(healthData)}\nNo Firebase user to test auth with`);
       }
