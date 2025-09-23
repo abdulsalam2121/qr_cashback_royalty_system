@@ -446,4 +446,175 @@ router.get('/card-orders', auth, rbac(['platform_admin']), asyncHandler(async (r
   });
 }));
 
+// Get platform card print orders (for printing management)
+router.get('/card-print-orders', auth, rbac(['platform_admin']), asyncHandler(async (req: Request, res: Response) => {
+  const { page = 1, limit = 20, status, search } = req.query;
+  const skip = (Number(page) - 1) * Number(limit);
+
+  const where: any = {};
+  if (status) {
+    where.status = status;
+  }
+  if (search) {
+    where.OR = [
+      { tenant: { name: { contains: search as string, mode: 'insensitive' } } },
+      { tenant: { slug: { contains: search as string, mode: 'insensitive' } } },
+      { tenantAdminName: { contains: search as string, mode: 'insensitive' } },
+      { storeName: { contains: search as string, mode: 'insensitive' } }
+    ];
+  }
+
+  const [orders, total] = await Promise.all([
+    prisma.cardPrintOrder.findMany({
+      where,
+      skip,
+      take: Number(limit),
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            slug: true
+          }
+        },
+        cards: {
+          select: {
+            id: true,
+            cardUid: true,
+            status: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    }),
+    prisma.cardPrintOrder.count({ where })
+  ]);
+
+  res.json({
+    orders,
+    pagination: {
+      total,
+      pages: Math.ceil(total / Number(limit)),
+      currentPage: Number(page),
+      limit: Number(limit)
+    }
+  });
+}));
+
+// Get single card print order (platform admin)
+router.get('/card-print-orders/:id', auth, rbac(['platform_admin']), asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const order = await prisma.cardPrintOrder.findUnique({
+    where: { id },
+    include: {
+      tenant: {
+        select: {
+          id: true,
+          name: true,
+          slug: true
+        }
+      },
+      cards: {
+        select: {
+          id: true,
+          cardUid: true,
+          status: true,
+          qrUrl: true
+        }
+      }
+    }
+  });
+
+  if (!order) {
+    return res.status(404).json({ error: 'Print order not found' });
+  }
+
+  res.json({ order });
+}));
+
+// Update card print order status (platform admin)
+const updatePrintOrderSchema = z.object({
+  status: z.enum([
+    'CREATED',
+    'PRINTING_ACCEPTED', 
+    'PRINTING_IN_PROGRESS',
+    'PRINTED',
+    'READY_FOR_DELIVERY',
+    'DELIVERED',
+    'READY_FOR_PICKUP',
+    'COLLECTED',
+    'CANCELLED'
+  ]).optional(),
+  notes: z.string().optional(),
+  trackingInfo: z.string().optional()
+});
+
+router.put('/card-print-orders/:id', auth, rbac(['platform_admin']), validate(updatePrintOrderSchema), asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status, notes, trackingInfo } = req.body;
+  const { id: adminId } = req.user;
+
+  const order = await prisma.cardPrintOrder.findUnique({
+    where: { id }
+  });
+
+  if (!order) {
+    return res.status(404).json({ error: 'Print order not found' });
+  }
+
+  const updateData: any = {
+    updatedAt: new Date()
+  };
+
+  if (status) {
+    updateData.status = status;
+    
+    // Set timestamps based on status
+    switch (status) {
+      case 'PRINTING_ACCEPTED':
+        updateData.acceptedAt = new Date();
+        updateData.acceptedBy = adminId;
+        break;
+      case 'PRINTED':
+        updateData.printedAt = new Date();
+        updateData.printedBy = adminId;
+        break;
+      case 'DELIVERED':
+        updateData.deliveredAt = new Date();
+        updateData.deliveredBy = adminId;
+        break;
+    }
+  }
+
+  if (notes !== undefined) updateData.notes = notes;
+  if (trackingInfo !== undefined) updateData.trackingInfo = trackingInfo;
+
+  const updatedOrder = await prisma.cardPrintOrder.update({
+    where: { id },
+    data: updateData,
+    include: {
+      tenant: {
+        select: {
+          id: true,
+          name: true,
+          slug: true
+        }
+      },
+      cards: {
+        select: {
+          id: true,
+          cardUid: true,
+          status: true
+        }
+      }
+    }
+  });
+
+  res.json({ 
+    order: updatedOrder,
+    message: 'Print order updated successfully'
+  });
+}));
+
 export default router;

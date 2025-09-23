@@ -234,6 +234,27 @@ export const api = {
         method: 'DELETE',
       });
     },
+
+    // Card Print Orders
+    getCardPrintOrders: async (params?: string): Promise<{ orders: any[]; pagination: any }> => {
+      const query = params ? `?${params}` : '';
+      return request(`/platform/card-print-orders${query}`);
+    },
+
+    getCardPrintOrder: async (id: string): Promise<{ order: any }> => {
+      return request(`/platform/card-print-orders/${id}`);
+    },
+
+    updateCardPrintOrder: async (id: string, data: {
+      status?: string;
+      notes?: string;
+      trackingInfo?: string;
+    }): Promise<{ order: any; message: string }> => {
+      return request(`/platform/card-print-orders/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
   },
 
   // Tenant APIs (scoped)
