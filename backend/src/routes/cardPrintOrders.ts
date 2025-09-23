@@ -206,3 +206,4 @@ router.post('/:id/collect', auth, rbac(['tenant_admin']), asyncHandler(async (re
 }));
 
 export default router;
+

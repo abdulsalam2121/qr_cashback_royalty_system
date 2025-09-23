@@ -1,30 +1,35 @@
-import express from 'express';
-import bcrypt from 'bcryptjs';
-import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import { validate } from '../middleware/validate.js';
-import { auth } from '../middleware/auth.js';
-import { rbac } from '../middleware/rbac.js';
-const router = express.Router();
-const prisma = new PrismaClient();
-const createUserSchema = z.object({
-    email: z.string().email(),
-    password: z.string().min(6),
-    firstName: z.string().min(1),
-    lastName: z.string().min(1),
-    role: z.enum(['tenant_admin', 'cashier', 'customer']),
-    storeId: z.string().optional(),
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const zod_1 = require("zod");
+const client_1 = require("@prisma/client");
+const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
+const validate_js_1 = require("../middleware/validate.js");
+const auth_js_1 = require("../middleware/auth.js");
+const rbac_js_1 = require("../middleware/rbac.js");
+const router = express_1.default.Router();
+const prisma = new client_1.PrismaClient();
+const createUserSchema = zod_1.z.object({
+    email: zod_1.z.string().email(),
+    password: zod_1.z.string().min(6),
+    firstName: zod_1.z.string().min(1),
+    lastName: zod_1.z.string().min(1),
+    role: zod_1.z.enum(['tenant_admin', 'cashier', 'customer']),
+    storeId: zod_1.z.string().optional(),
 });
-const updateUserSchema = z.object({
-    firstName: z.string().min(1).optional(),
-    lastName: z.string().min(1).optional(),
-    role: z.enum(['tenant_admin', 'cashier', 'customer']).optional(),
-    storeId: z.string().optional(),
-    active: z.boolean().optional(),
+const updateUserSchema = zod_1.z.object({
+    firstName: zod_1.z.string().min(1).optional(),
+    lastName: zod_1.z.string().min(1).optional(),
+    role: zod_1.z.enum(['tenant_admin', 'cashier', 'customer']).optional(),
+    storeId: zod_1.z.string().optional(),
+    active: zod_1.z.boolean().optional(),
 });
 // Get all users
-router.get('/', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+router.get('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { tenantId } = req.user;
     const users = await prisma.user.findMany({
         where: { tenantId },
@@ -47,7 +52,7 @@ router.get('/', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     return;
 }));
 // Get user by ID
-router.get('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+router.get('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { tenantId } = req.user;
     const { id } = req.params;
     const user = await prisma.user.findFirst({
@@ -74,7 +79,7 @@ router.get('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) =
     return;
 }));
 // Create user
-router.post('/', auth, rbac(['tenant_admin']), validate(createUserSchema), asyncHandler(async (req, res) => {
+router.post('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(createUserSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { tenantId } = req.user;
     const { email, firstName, lastName, password, role, storeId } = req.body;
     // Check if user already exists
@@ -86,7 +91,7 @@ router.post('/', auth, rbac(['tenant_admin']), validate(createUserSchema), async
         return;
     }
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await bcryptjs_1.default.hash(password, 12);
     // Create user
     const user = await prisma.user.create({
         data: {
@@ -115,7 +120,7 @@ router.post('/', auth, rbac(['tenant_admin']), validate(createUserSchema), async
     return;
 }));
 // Update user
-router.put('/:id', auth, rbac(['tenant_admin']), validate(updateUserSchema), asyncHandler(async (req, res) => {
+router.put('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(updateUserSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { id } = req.params;
     const { tenantId } = req.user;
     const updateData = req.body;
@@ -157,7 +162,7 @@ router.put('/:id', auth, rbac(['tenant_admin']), validate(updateUserSchema), asy
     return;
 }));
 // Change password
-router.put('/:id/password', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+router.put('/:id/password', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { id } = req.params;
     const { tenantId } = req.user;
     const { password } = req.body;
@@ -173,7 +178,7 @@ router.put('/:id/password', auth, rbac(['tenant_admin']), asyncHandler(async (re
         res.status(404).json({ error: 'User not found' });
         return;
     }
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = await bcryptjs_1.default.hash(password, 12);
     await prisma.user.update({
         where: { id },
         data: { passwordHash }
@@ -181,5 +186,5 @@ router.put('/:id/password', auth, rbac(['tenant_admin']), asyncHandler(async (re
     res.json({ message: 'Password updated successfully' });
     return;
 }));
-export default router;
+exports.default = router;
 //# sourceMappingURL=users.js.map

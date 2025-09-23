@@ -401,3 +401,4 @@ router.get('/:id', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (
 }));
 
 export default router;
+

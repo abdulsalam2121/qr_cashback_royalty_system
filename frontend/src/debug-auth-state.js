@@ -2,7 +2,7 @@
 console.log('=== AUTH STATE DEBUG ===');
 
 // Check Firebase auth state
-import('./firebase/auth.js').then(({ auth }) => {
+import('./firebase/auth').then(({ auth }) => {
   console.log('Firebase auth current user:', auth.currentUser ? 'User authenticated' : 'No user');
   console.log('Firebase auth state:', {
     isSignedIn: !!auth.currentUser

@@ -1,31 +1,36 @@
-import express from 'express';
-import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
-import { Decimal } from 'decimal.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import { validate } from '../middleware/validate.js';
-import { auth } from '../middleware/auth.js';
-import { rbac } from '../middleware/rbac.js';
-import { calculateCashback } from '../utils/cashback.js';
-import { sendNotification } from '../services/notification.js';
-import { updateCustomerTier } from '../utils/tiers.js';
-const router = express.Router();
-const prisma = new PrismaClient();
-const earnSchema = z.object({
-    cardUid: z.string(),
-    amountCents: z.number().int().positive(),
-    category: z.enum(['PURCHASE', 'REPAIR', 'OTHER']),
-    storeId: z.string(),
-    note: z.string().optional(),
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const zod_1 = require("zod");
+const client_1 = require("@prisma/client");
+const decimal_js_1 = require("decimal.js");
+const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
+const validate_js_1 = require("../middleware/validate.js");
+const auth_js_1 = require("../middleware/auth.js");
+const rbac_js_1 = require("../middleware/rbac.js");
+const cashback_js_1 = require("../utils/cashback.js");
+const notification_js_1 = require("../services/notification.js");
+const tiers_js_1 = require("../utils/tiers.js");
+const router = express_1.default.Router();
+const prisma = new client_1.PrismaClient();
+const earnSchema = zod_1.z.object({
+    cardUid: zod_1.z.string(),
+    amountCents: zod_1.z.number().int().positive(),
+    category: zod_1.z.enum(['PURCHASE', 'REPAIR', 'OTHER']),
+    storeId: zod_1.z.string(),
+    note: zod_1.z.string().optional(),
 });
-const redeemSchema = z.object({
-    cardUid: z.string(),
-    amountCents: z.number().int().positive(),
-    storeId: z.string(),
-    note: z.string().optional(),
+const redeemSchema = zod_1.z.object({
+    cardUid: zod_1.z.string(),
+    amountCents: zod_1.z.number().int().positive(),
+    storeId: zod_1.z.string(),
+    note: zod_1.z.string().optional(),
 });
 // Earn cashback
-router.post('/earn', auth, rbac(['tenant_admin', 'cashier']), validate(earnSchema), asyncHandler(async (req, res) => {
+router.post('/earn', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier']), (0, validate_js_1.validate)(earnSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { cardUid, amountCents, category, storeId, note } = req.body;
     const { tenantId, userId: cashierId } = req.user;
     const result = await prisma.$transaction(async (tx) => {
@@ -61,7 +66,7 @@ router.post('/earn', auth, rbac(['tenant_admin', 'cashier']), validate(earnSchem
             throw new Error('Store not found');
         }
         // Calculate cashback
-        const cashbackCents = await calculateCashback(amountCents, category, card.customer.tier, tenantId, tx);
+        const cashbackCents = await (0, cashback_js_1.calculateCashback)(amountCents, category, card.customer.tier, tenantId, tx);
         const beforeBalanceCents = card.balanceCents;
         const afterBalanceCents = beforeBalanceCents + cashbackCents;
         // Create transaction record
@@ -95,19 +100,19 @@ router.post('/earn', auth, rbac(['tenant_admin', 'cashier']), validate(earnSchem
             data: { balanceCents: afterBalanceCents }
         });
         // Update customer total spend
-        const newTotalSpend = new Decimal(card.customer.totalSpend).add(new Decimal(amountCents).div(100));
+        const newTotalSpend = new decimal_js_1.Decimal(card.customer.totalSpend).add(new decimal_js_1.Decimal(amountCents).div(100));
         await tx.customer.update({
             where: { id: card.customerId },
             data: { totalSpend: newTotalSpend }
         });
         // Check for tier upgrade
-        const updatedCustomer = await updateCustomerTier(card.customerId, tenantId, tx);
+        const updatedCustomer = await (0, tiers_js_1.updateCustomerTier)(card.customerId, tenantId, tx);
         return { transaction, customer: updatedCustomer, storeName: card.store?.name };
     });
     // Send notification (async, don't block response)
     setImmediate(async () => {
         try {
-            await sendNotification(result.transaction.customerId, 'CASHBACK_EARNED', {
+            await (0, notification_js_1.sendNotification)(result.transaction.customerId, 'CASHBACK_EARNED', {
                 customerName: `${result.customer.firstName} ${result.customer.lastName}`,
                 amount: (result.transaction.cashbackCents / 100).toFixed(2),
                 balance: (result.transaction.afterBalanceCents / 100).toFixed(2),
@@ -127,7 +132,7 @@ router.post('/earn', auth, rbac(['tenant_admin', 'cashier']), validate(earnSchem
     });
 }));
 // Redeem cashback
-router.post('/redeem', auth, rbac(['tenant_admin', 'cashier']), validate(redeemSchema), asyncHandler(async (req, res) => {
+router.post('/redeem', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier']), (0, validate_js_1.validate)(redeemSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { cardUid, amountCents, storeId, note } = req.body;
     const { tenantId, userId: cashierId } = req.user;
     const result = await prisma.$transaction(async (tx) => {
@@ -207,7 +212,7 @@ router.post('/redeem', auth, rbac(['tenant_admin', 'cashier']), validate(redeemS
     // Send notification (async, don't block response)
     setImmediate(async () => {
         try {
-            await sendNotification(result.customerId, 'CASHBACK_REDEEMED', {
+            await (0, notification_js_1.sendNotification)(result.customerId, 'CASHBACK_REDEEMED', {
                 customerName: `${result.customer.firstName} ${result.customer.lastName}`,
                 amount: (result.amountCents / 100).toFixed(2),
                 balance: (result.afterBalanceCents / 100).toFixed(2),
@@ -226,7 +231,7 @@ router.post('/redeem', auth, rbac(['tenant_admin', 'cashier']), validate(redeemS
     });
 }));
 // Get transactions
-router.get('/', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req, res) => {
+router.get('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { tenantId, storeId, role } = req.user;
     const { type, category, customerId, cardUid, storeFilter, from, to, page = 1, limit = 50 } = req.query;
     const where = { tenantId };
@@ -291,7 +296,7 @@ router.get('/', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req
     });
 }));
 // Get transaction by ID
-router.get('/:id', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req, res) => {
+router.get('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { id } = req.params;
     const { tenantId, storeId, role } = req.user;
     const where = { id, tenantId };
@@ -319,5 +324,5 @@ router.get('/:id', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (
     res.json(transaction);
     return;
 }));
-export default router;
+exports.default = router;
 //# sourceMappingURL=transactions.js.map

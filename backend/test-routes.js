@@ -11,7 +11,7 @@ console.log('Checking registered routes...');
 
 try {
   console.log('Testing cardPrintOrders import...');
-  const cardPrintOrderRoutes = await import('./src/routes/cardPrintOrders.js');
+  const cardPrintOrderRoutes = await import('./src/routes/cardPrintOrders');
   console.log('✅ cardPrintOrders.js imported successfully');
   console.log('Default export type:', typeof cardPrintOrderRoutes.default);
   

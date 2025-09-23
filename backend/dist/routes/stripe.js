@@ -1,12 +1,17 @@
-import express from 'express';
-import { PrismaClient } from '@prisma/client';
-import Stripe from 'stripe';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-const router = express.Router();
-const prisma = new PrismaClient();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const client_1 = require("@prisma/client");
+const stripe_1 = __importDefault(require("stripe"));
+const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
+const router = express_1.default.Router();
+const prisma = new client_1.PrismaClient();
+const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
 // Stripe webhook handler
-router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(async (req, res) => {
+router.post('/webhook', express_1.default.raw({ type: 'application/json' }), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const sig = req.headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     let event;
@@ -255,5 +260,5 @@ function mapStripeStatus(stripeStatus) {
             return 'CANCELED';
     }
 }
-export default router;
+exports.default = router;
 //# sourceMappingURL=stripe.js.map

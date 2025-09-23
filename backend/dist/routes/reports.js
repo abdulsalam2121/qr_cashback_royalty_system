@@ -1,12 +1,17 @@
-import express from 'express';
-import { PrismaClient } from '@prisma/client';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import { auth } from '../middleware/auth.js';
-import { rbac } from '../middleware/rbac.js';
-const router = express.Router();
-const prisma = new PrismaClient();
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const client_1 = require("@prisma/client");
+const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
+const auth_js_1 = require("../middleware/auth.js");
+const rbac_js_1 = require("../middleware/rbac.js");
+const router = express_1.default.Router();
+const prisma = new client_1.PrismaClient();
 // Get dashboard statistics
-router.get('/dashboard', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req, res) => {
+router.get('/dashboard', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { tenantId, storeId, role } = req.user;
     const where = { tenantId };
     // Cashiers only see their store's data
@@ -57,7 +62,7 @@ router.get('/dashboard', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(a
     });
 }));
 // Get transaction reports
-router.get('/transactions', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req, res) => {
+router.get('/transactions', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { tenantId, storeId, role } = req.user;
     const { from, to, storeFilter, category, type, page = 1, limit = 100 } = req.query;
     const where = { tenantId };
@@ -131,7 +136,7 @@ router.get('/transactions', auth, rbac(['tenant_admin', 'cashier']), asyncHandle
     });
 }));
 // Get top customers
-router.get('/top-customers', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+router.get('/top-customers', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { tenantId } = req.user;
     const { limit = 50 } = req.query;
     const customers = await prisma.customer.findMany({
@@ -155,7 +160,7 @@ router.get('/top-customers', auth, rbac(['tenant_admin']), asyncHandler(async (r
     res.json({ customers: customersWithBalance });
 }));
 // Export customers CSV
-router.get('/export/customers', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+router.get('/export/customers', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { tenantId } = req.user;
     const customers = await prisma.customer.findMany({
         where: { tenantId },
@@ -194,7 +199,7 @@ router.get('/export/customers', auth, rbac(['tenant_admin']), asyncHandler(async
     res.send(csv);
 }));
 // Export transactions CSV
-router.get('/export/transactions', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req, res) => {
+router.get('/export/transactions', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { tenantId, storeId, role } = req.user;
     const { from, to, storeFilter, category, type } = req.query;
     const where = { tenantId };
@@ -256,5 +261,5 @@ router.get('/export/transactions', auth, rbac(['tenant_admin', 'cashier']), asyn
     res.setHeader('Content-Disposition', 'attachment; filename=transactions.csv');
     res.send(csv);
 }));
-export default router;
+exports.default = router;
 //# sourceMappingURL=reports.js.map

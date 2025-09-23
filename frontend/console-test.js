@@ -4,7 +4,7 @@
 console.log('🧪 Starting Google Sign-In test...');
 
 // Step 1: Check if Firebase is loaded
-import('http://localhost:5173/src/firebase/config.js').then(({ auth, googleProvider }) => {
+import('http://localhost:5173/src/firebase/config').then(({ auth, googleProvider }) => {
   console.log('✅ Firebase loaded:', { auth, googleProvider });
   
   // Step 2: Check current auth state

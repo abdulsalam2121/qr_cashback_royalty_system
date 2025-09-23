@@ -70,3 +70,4 @@ router.post('/reset/:tenantId',
 );
 
 export default router;
+

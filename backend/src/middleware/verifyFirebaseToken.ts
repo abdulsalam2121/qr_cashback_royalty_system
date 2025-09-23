@@ -64,3 +64,4 @@ export const verifyFirebaseToken = async (
     return;
   }
 };
+

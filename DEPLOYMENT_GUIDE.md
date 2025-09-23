@@ -164,7 +164,7 @@ module.exports = {
   apps: [
     {
       name: 'qr-cashback-backend',
-      script: 'dist/index.js',
+      script: 'dist/index',
       cwd: './backend',
       instances: 2,
       exec_mode: 'cluster',

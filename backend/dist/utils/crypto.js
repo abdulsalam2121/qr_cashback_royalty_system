@@ -1,16 +1,25 @@
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
-export function signToken(payload, expiresIn = '5m') {
-    return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: expiresIn });
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.signToken = signToken;
+exports.verifyToken = verifyToken;
+exports.generateHMAC = generateHMAC;
+exports.verifyHMAC = verifyHMAC;
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const crypto_1 = __importDefault(require("crypto"));
+function signToken(payload, expiresIn = '5m') {
+    return jsonwebtoken_1.default.sign(payload, process.env.JWT_SECRET, { expiresIn: expiresIn });
 }
-export function verifyToken(token) {
-    return jwt.verify(token, process.env.JWT_SECRET);
+function verifyToken(token) {
+    return jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET);
 }
-export function generateHMAC(data, secret) {
-    return crypto.createHmac('sha256', secret).update(data).digest('hex');
+function generateHMAC(data, secret) {
+    return crypto_1.default.createHmac('sha256', secret).update(data).digest('hex');
 }
-export function verifyHMAC(data, signature, secret) {
+function verifyHMAC(data, signature, secret) {
     const expectedSignature = generateHMAC(data, secret);
-    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
+    return crypto_1.default.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
 }
 //# sourceMappingURL=crypto.js.map

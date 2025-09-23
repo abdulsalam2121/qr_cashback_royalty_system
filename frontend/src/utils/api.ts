@@ -710,6 +710,20 @@ export const api = {
       return request(`/t/${tenantSlug}/card-print-orders${query}`);
     },
 
+    createCardPrintOrder: async (tenantSlug: string, data: {
+      quantity: number;
+      storeName: string;
+      storeAddress?: string;
+      deliveryMethod?: 'PICKUP' | 'DELIVERY';
+      deliveryAddress?: string;
+      notes?: string;
+    }): Promise<{ order: any; message: string }> => {
+      return request(`/t/${tenantSlug}/card-print-orders`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
     getCardPrintOrder: async (tenantSlug: string, orderId: string): Promise<{ order: any }> => {
       return request(`/t/${tenantSlug}/card-print-orders/${orderId}`);
     },
@@ -727,6 +741,35 @@ export const api = {
     collectCardPrintOrder: async (tenantSlug: string, orderId: string): Promise<{ order: any; message: string }> => {
       return request(`/t/${tenantSlug}/card-print-orders/${orderId}/collect`, {
         method: 'POST',
+      });
+    },
+
+    // Admin methods for tenant-scoped card print order management
+    adminUpdateCardPrintOrderStatus: async (tenantSlug: string, id: string, data: {
+      status: string;
+      notes?: string;
+      trackingInfo?: string;
+      printedAt?: string;
+      deliveredAt?: string;
+    }): Promise<{ order: any; message: string }> => {
+      return request(`/t/${tenantSlug}/admin/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+
+    adminGetAllCardPrintOrders: async (tenantSlug: string, params?: string): Promise<{ orders: any[]; pagination: any }> => {
+      const query = params ? `?${params}` : '';
+      return request(`/t/${tenantSlug}/admin/all${query}`);
+    },
+
+    adminGetCardPrintOrder: async (tenantSlug: string, id: string): Promise<{ order: any }> => {
+      return request(`/t/${tenantSlug}/admin/${id}`);
+    },
+
+    adminCancelCardPrintOrder: async (tenantSlug: string, id: string): Promise<{ order: any; message: string }> => {
+      return request(`/t/${tenantSlug}/admin/${id}`, {
+        method: 'DELETE',
       });
     },
   },

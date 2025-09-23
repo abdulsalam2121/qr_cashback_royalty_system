@@ -1,18 +1,23 @@
-import express from 'express';
-import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import { validate } from '../middleware/validate.js';
-import { auth } from '../middleware/auth.js';
-import { rbac } from '../middleware/rbac.js';
-import { initializeDefaultRules } from '../utils/initializeDefaults.js';
-const router = express.Router();
-const prisma = new PrismaClient();
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const zod_1 = require("zod");
+const client_1 = require("@prisma/client");
+const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
+const validate_js_1 = require("../middleware/validate.js");
+const auth_js_1 = require("../middleware/auth.js");
+const rbac_js_1 = require("../middleware/rbac.js");
+const initializeDefaults_js_1 = require("../utils/initializeDefaults.js");
+const router = express_1.default.Router();
+const prisma = new client_1.PrismaClient();
 // Initialize default rules endpoint
-router.post('/initialize', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+router.post('/initialize', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { tenantId } = req.user;
     try {
-        await initializeDefaultRules(tenantId);
+        await (0, initializeDefaults_js_1.initializeDefaultRules)(tenantId);
         // Fetch the newly created rules
         const [cashbackRules, tierRules] = await Promise.all([
             prisma.cashbackRule.findMany({
@@ -35,40 +40,40 @@ router.post('/initialize', auth, rbac(['tenant_admin']), asyncHandler(async (req
         res.status(500).json({ error: 'Failed to initialize default rules' });
     }
 }));
-const updateCashbackRulesSchema = z.object({
-    rules: z.array(z.object({
-        category: z.enum(['PURCHASE', 'REPAIR', 'OTHER']),
-        baseRateBps: z.number().int().min(0).max(10000),
-        isActive: z.boolean().optional(),
+const updateCashbackRulesSchema = zod_1.z.object({
+    rules: zod_1.z.array(zod_1.z.object({
+        category: zod_1.z.enum(['PURCHASE', 'REPAIR', 'OTHER']),
+        baseRateBps: zod_1.z.number().int().min(0).max(10000),
+        isActive: zod_1.z.boolean().optional(),
     }))
 });
-const updateTierRulesSchema = z.object({
-    rules: z.array(z.object({
-        tier: z.enum(['SILVER', 'GOLD', 'PLATINUM']),
-        name: z.string(),
-        minTotalSpendCents: z.number().int().min(0),
-        baseRateBps: z.number().int().min(0).max(10000),
-        isActive: z.boolean().optional(),
+const updateTierRulesSchema = zod_1.z.object({
+    rules: zod_1.z.array(zod_1.z.object({
+        tier: zod_1.z.enum(['SILVER', 'GOLD', 'PLATINUM']),
+        name: zod_1.z.string(),
+        minTotalSpendCents: zod_1.z.number().int().min(0),
+        baseRateBps: zod_1.z.number().int().min(0).max(10000),
+        isActive: zod_1.z.boolean().optional(),
     }))
 });
-const createOfferSchema = z.object({
-    name: z.string().min(1),
-    description: z.string().optional(),
-    rateMultiplierBps: z.number().int().min(0).max(10000),
-    startAt: z.string().datetime(),
-    endAt: z.string().datetime(),
-    isActive: z.boolean().optional(),
+const createOfferSchema = zod_1.z.object({
+    name: zod_1.z.string().min(1),
+    description: zod_1.z.string().optional(),
+    rateMultiplierBps: zod_1.z.number().int().min(0).max(10000),
+    startAt: zod_1.z.string().datetime(),
+    endAt: zod_1.z.string().datetime(),
+    isActive: zod_1.z.boolean().optional(),
 });
-const updateOfferSchema = z.object({
-    name: z.string().min(1).optional(),
-    description: z.string().optional(),
-    rateMultiplierBps: z.number().int().min(0).max(10000).optional(),
-    startAt: z.string().datetime().optional(),
-    endAt: z.string().datetime().optional(),
-    isActive: z.boolean().optional(),
+const updateOfferSchema = zod_1.z.object({
+    name: zod_1.z.string().min(1).optional(),
+    description: zod_1.z.string().optional(),
+    rateMultiplierBps: zod_1.z.number().int().min(0).max(10000).optional(),
+    startAt: zod_1.z.string().datetime().optional(),
+    endAt: zod_1.z.string().datetime().optional(),
+    isActive: zod_1.z.boolean().optional(),
 });
 // Get cashback rules
-router.get('/cashback', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+router.get('/cashback', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { tenantId } = req.user;
     const rules = await prisma.cashbackRule.findMany({
         where: { tenantId },
@@ -78,7 +83,7 @@ router.get('/cashback', auth, rbac(['tenant_admin']), asyncHandler(async (req, r
     return;
 }));
 // Update cashback rules
-router.put('/cashback', auth, rbac(['tenant_admin']), validate(updateCashbackRulesSchema), asyncHandler(async (req, res) => {
+router.put('/cashback', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(updateCashbackRulesSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { rules } = req.body;
     const { tenantId } = req.user;
     const updatedRules = await Promise.all(rules.map(async (rule) => {
@@ -105,7 +110,7 @@ router.put('/cashback', auth, rbac(['tenant_admin']), validate(updateCashbackRul
     return;
 }));
 // Get tier rules
-router.get('/tiers', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+router.get('/tiers', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { tenantId } = req.user;
     const rules = await prisma.tierRule.findMany({
         where: { tenantId },
@@ -115,7 +120,7 @@ router.get('/tiers', auth, rbac(['tenant_admin']), asyncHandler(async (req, res)
     return;
 }));
 // Update tier rules
-router.put('/tiers', auth, rbac(['tenant_admin']), validate(updateTierRulesSchema), asyncHandler(async (req, res) => {
+router.put('/tiers', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(updateTierRulesSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { rules } = req.body;
     const { tenantId } = req.user;
     const updatedRules = await Promise.all(rules.map(async (rule) => {
@@ -146,7 +151,7 @@ router.put('/tiers', auth, rbac(['tenant_admin']), validate(updateTierRulesSchem
     return;
 }));
 // Get offers
-router.get('/offers', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+router.get('/offers', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { tenantId } = req.user;
     const offers = await prisma.offer.findMany({
         where: { tenantId },
@@ -156,7 +161,7 @@ router.get('/offers', auth, rbac(['tenant_admin']), asyncHandler(async (req, res
     return;
 }));
 // Create offer
-router.post('/offers', auth, rbac(['tenant_admin']), validate(createOfferSchema), asyncHandler(async (req, res) => {
+router.post('/offers', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(createOfferSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { name, description, rateMultiplierBps, startAt, endAt, isActive } = req.body;
     const { tenantId } = req.user;
     const offer = await prisma.offer.create({
@@ -174,7 +179,7 @@ router.post('/offers', auth, rbac(['tenant_admin']), validate(createOfferSchema)
     return;
 }));
 // Update offer
-router.put('/offers/:id', auth, rbac(['tenant_admin']), validate(updateOfferSchema), asyncHandler(async (req, res) => {
+router.put('/offers/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(updateOfferSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { id } = req.params;
     const { tenantId } = req.user;
     const updateData = req.body;
@@ -202,7 +207,7 @@ router.put('/offers/:id', auth, rbac(['tenant_admin']), validate(updateOfferSche
     return;
 }));
 // Delete offer
-router.delete('/offers/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+router.delete('/offers/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { id } = req.params;
     const { tenantId } = req.user;
     // Check if offer exists
@@ -219,5 +224,5 @@ router.delete('/offers/:id', auth, rbac(['tenant_admin']), asyncHandler(async (r
     res.json({ message: 'Offer deleted successfully' });
     return;
 }));
-export default router;
+exports.default = router;
 //# sourceMappingURL=rules.js.map

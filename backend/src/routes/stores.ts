@@ -153,3 +153,4 @@ router.delete('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req: Req
 }));
 
 export default router;
+

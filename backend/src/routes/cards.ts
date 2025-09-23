@@ -909,3 +909,4 @@ router.post('/qr/print-ready', auth, rbac(['tenant_admin']), asyncHandler(async 
 }));
 
 export default router;
+

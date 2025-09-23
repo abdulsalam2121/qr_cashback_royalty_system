@@ -297,3 +297,4 @@ function mapStripeStatus(stripeStatus: string): 'TRIALING' | 'ACTIVE' | 'PAST_DU
 }
 
 export default router;
+

@@ -2,7 +2,7 @@
 console.log('🧪 Testing auth flow step by step...');
 
 // Test 1: Check if Firebase is available
-import { auth } from './firebase/config.js';
+import { auth } from './firebase/config';
 console.log('✅ Firebase auth object:', auth);
 
 // Test 2: Check current user

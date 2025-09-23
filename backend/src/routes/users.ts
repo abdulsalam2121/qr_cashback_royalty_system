@@ -214,3 +214,4 @@ router.put('/:id/password', auth, rbac(['tenant_admin']), asyncHandler(async (re
 }));
 
 export default router;
+

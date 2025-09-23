@@ -1,23 +1,28 @@
-import express from 'express';
-import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import { validate } from '../middleware/validate.js';
-import { auth } from '../middleware/auth.js';
-import { rbac } from '../middleware/rbac.js';
-const router = express.Router();
-const prisma = new PrismaClient();
-const createStoreSchema = z.object({
-    name: z.string().min(1),
-    address: z.string().optional(),
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const zod_1 = require("zod");
+const client_1 = require("@prisma/client");
+const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
+const validate_js_1 = require("../middleware/validate.js");
+const auth_js_1 = require("../middleware/auth.js");
+const rbac_js_1 = require("../middleware/rbac.js");
+const router = express_1.default.Router();
+const prisma = new client_1.PrismaClient();
+const createStoreSchema = zod_1.z.object({
+    name: zod_1.z.string().min(1),
+    address: zod_1.z.string().optional(),
 });
-const updateStoreSchema = z.object({
-    name: z.string().min(1).optional(),
-    address: z.string().optional(),
-    active: z.boolean().optional(),
+const updateStoreSchema = zod_1.z.object({
+    name: zod_1.z.string().min(1).optional(),
+    address: zod_1.z.string().optional(),
+    active: zod_1.z.boolean().optional(),
 });
 // Get all stores
-router.get('/', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+router.get('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { tenantId } = req.user;
     const stores = await prisma.store.findMany({
         where: { tenantId },
@@ -36,7 +41,7 @@ router.get('/', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     return;
 }));
 // Get store by ID
-router.get('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+router.get('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { id } = req.params;
     const { tenantId } = req.user;
     const store = await prisma.store.findFirst({
@@ -61,7 +66,7 @@ router.get('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) =
     return;
 }));
 // Create store
-router.post('/', auth, rbac(['tenant_admin']), validate(createStoreSchema), asyncHandler(async (req, res) => {
+router.post('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(createStoreSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { name, address } = req.body;
     const { tenantId } = req.user;
     const store = await prisma.store.create({
@@ -76,7 +81,7 @@ router.post('/', auth, rbac(['tenant_admin']), validate(createStoreSchema), asyn
     return;
 }));
 // Update store
-router.put('/:id', auth, rbac(['tenant_admin']), validate(updateStoreSchema), asyncHandler(async (req, res) => {
+router.put('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(updateStoreSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { id } = req.params;
     const { tenantId } = req.user;
     const updateData = req.body;
@@ -96,7 +101,7 @@ router.put('/:id', auth, rbac(['tenant_admin']), validate(updateStoreSchema), as
     return;
 }));
 // Delete store (soft delete by setting active to false)
-router.delete('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+router.delete('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { id } = req.params;
     const { tenantId } = req.user;
     // Check if store exists
@@ -125,5 +130,5 @@ router.delete('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res
     res.json({ message: 'Store deactivated successfully', store });
     return;
 }));
-export default router;
+exports.default = router;
 //# sourceMappingURL=stores.js.map

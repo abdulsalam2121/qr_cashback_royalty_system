@@ -1,6 +1,44 @@
-import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
-import bcrypt from 'bcryptjs';
-const prisma = new PrismaClient();
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const client_1 = require("@prisma/client");
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const prisma = new client_1.PrismaClient();
 async function main() {
     console.log('🌱 Starting database seeding...');
     // ------------------------------------------------------------
@@ -76,7 +114,7 @@ async function main() {
         create: {
             slug: 'platform',
             name: 'Platform Administration',
-            subscriptionStatus: SubscriptionStatus.NONE,
+            subscriptionStatus: client_1.SubscriptionStatus.NONE,
             planId: null,
         },
     });
@@ -92,7 +130,7 @@ async function main() {
             email: 'admin@platform.com',
             firstName: 'Platform',
             lastName: 'Administrator',
-            passwordHash: await bcrypt.hash('AdminSecure123!', 12),
+            passwordHash: await bcryptjs_1.default.hash('AdminSecure123!', 12),
             role: 'platform_admin',
             tenantId: platformTenant.id,
         },
@@ -109,7 +147,7 @@ async function main() {
             name: 'Demo Electronics Store',
             slug: 'demo-store',
             planId: null,
-            subscriptionStatus: SubscriptionStatus.ACTIVE,
+            subscriptionStatus: client_1.SubscriptionStatus.ACTIVE,
             stripeCustomerId: null, // Will be created when needed
             stripeSubscriptionId: null,
             freeTrialActivations: 0,
@@ -139,7 +177,7 @@ async function main() {
             email: 'admin@demo.com',
             firstName: 'Demo',
             lastName: 'Administrator',
-            passwordHash: await bcrypt.hash('DemoAdmin123!', 12),
+            passwordHash: await bcryptjs_1.default.hash('DemoAdmin123!', 12),
             role: 'tenant_admin',
             tenantId: demoTenant.id,
         },
@@ -153,7 +191,7 @@ async function main() {
             email: 'cashier@demo.com',
             firstName: 'Demo',
             lastName: 'Cashier',
-            passwordHash: await bcrypt.hash('DemoCashier123!', 12),
+            passwordHash: await bcryptjs_1.default.hash('DemoCashier123!', 12),
             role: 'cashier',
             tenantId: demoTenant.id,
             storeId: demoStore.id,
@@ -171,7 +209,7 @@ async function main() {
             email: 'customer@demo.com',
             phone: '+1234567890',
             tier: 'SILVER',
-            totalSpend: new Prisma.Decimal(150.00),
+            totalSpend: new client_1.Prisma.Decimal(150.00),
         },
     });
     console.log('✅ Demo customer created');
@@ -235,8 +273,8 @@ async function main() {
     // ------------------------------------------------------------
     console.log('📊 Creating sample demo data...');
     // Create a sample card for the demo customer
-    const { nanoid } = await import('nanoid');
-    const jwt = await import('jsonwebtoken');
+    const { nanoid } = await Promise.resolve().then(() => __importStar(require('nanoid')));
+    const jwt = await Promise.resolve().then(() => __importStar(require('jsonwebtoken')));
     const cardUid = nanoid(12);
     const qrToken = jwt.default.sign({ cardUid, tenantId: demoTenant.id }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '365d' });
     const qrUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/c/${cardUid}?t=${qrToken}`;
@@ -357,7 +395,7 @@ async function main() {
             name: 'Beta Mobile Repairs',
             slug: 'beta-repairs',
             planId: null,
-            subscriptionStatus: SubscriptionStatus.TRIALING,
+            subscriptionStatus: client_1.SubscriptionStatus.TRIALING,
             trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
         },
     });
@@ -377,7 +415,7 @@ async function main() {
         update: {},
         create: {
             email: 'owner@beta.com',
-            passwordHash: await bcrypt.hash('TenantAdmin123!', 10),
+            passwordHash: await bcryptjs_1.default.hash('TenantAdmin123!', 10),
             role: 'tenant_admin',
             tenantId: tenant2.id,
         },
@@ -407,7 +445,7 @@ async function main() {
             name: 'Gamma Electronics',
             slug: 'gamma-electronics',
             planId: null,
-            subscriptionStatus: SubscriptionStatus.TRIALING,
+            subscriptionStatus: client_1.SubscriptionStatus.TRIALING,
             trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         },
     });
@@ -427,7 +465,7 @@ async function main() {
         update: {},
         create: {
             email: 'owner@gamma.com',
-            passwordHash: await bcrypt.hash('TenantAdmin123!', 10),
+            passwordHash: await bcryptjs_1.default.hash('TenantAdmin123!', 10),
             role: 'tenant_admin',
             tenantId: tenant3.id,
         },
