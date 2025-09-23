@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -18,6 +17,7 @@ import Dashboard from './pages/Dashboard';
 import POSTerminal from './pages/POSTerminal';
 import Customers from './pages/Customers';
 import Cards from './pages/Cards';
+import CardPrintOrders from './pages/CardPrintOrders';
 import Transactions from './pages/Transactions';
 import Stores from './pages/Stores';
 import Staff from './pages/Staff';
@@ -28,6 +28,7 @@ import PlatformDashboard from './pages/platform/Dashboard';
 import PlatformTenants from './pages/platform/Tenants';
 import PlatformAnalytics from './pages/platform/Analytics';
 import PlatformPlans from './pages/platform/Plans';
+import PlatformCardPrintOrders from './pages/platform/CardPrintOrders';
 import PlatformSettings from './pages/platform/Settings';
 import TenantBilling from './pages/tenant/Billing';
 import SubscriptionAnalytics from './pages/admin/SubscriptionAnalytics';
@@ -146,6 +147,14 @@ function AppContent() {
               } 
             />
             <Route 
+              path="card-print-orders" 
+              element={
+                <ProtectedRoute roles={['platform_admin']}>
+                  <PlatformCardPrintOrders />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="settings" 
               element={
                 <ProtectedRoute roles={['platform_admin']}>
@@ -194,6 +203,14 @@ function AppContent() {
               element={
                 <ProtectedRoute roles={['tenant_admin', 'cashier']}>
                   <CardView />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="card-print-orders" 
+              element={
+                <ProtectedRoute roles={['tenant_admin']}>
+                  <CardPrintOrders />
                 </ProtectedRoute>
               } 
             />

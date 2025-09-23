@@ -10,7 +10,8 @@ import {
   X,
   Crown,
   DollarSign,
-  BarChart3
+  BarChart3,
+  Package
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAuth } from '../context/AuthContext';
@@ -38,6 +39,7 @@ const PlatformLayout: React.FC = () => {
     { name: 'Dashboard', href: '/platform/dashboard', icon: LayoutDashboard },
     { name: 'Tenants', href: '/platform/tenants', icon: Building2 },
     { name: 'Plans', href: '/platform/plans', icon: CreditCardIcon },
+    { name: 'Card Print Orders', href: '/platform/card-print-orders', icon: Package },
     { name: 'Analytics', href: '/platform/analytics', icon: DollarSign },
     { name: 'Subscriptions', href: '/platform/subscriptions', icon: BarChart3 },
     { name: 'Settings', href: '/platform/settings', icon: Settings },

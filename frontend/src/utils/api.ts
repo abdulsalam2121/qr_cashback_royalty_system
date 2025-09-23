@@ -699,6 +699,32 @@ export const api = {
     getCardPricing: async (): Promise<{ prices: { SINGLE_SIDED: number; DOUBLE_SIDED_CUSTOM: number }; currency: string }> => {
       return request('/card-orders/pricing');
     },
+
+    // Card Print Orders
+    getCardPrintOrders: async (tenantSlug: string, params?: string): Promise<{ orders: any[]; pagination: any }> => {
+      const query = params ? `?${params}` : '';
+      return request(`/t/${tenantSlug}/card-print-orders${query}`);
+    },
+
+    getCardPrintOrder: async (tenantSlug: string, orderId: string): Promise<{ order: any }> => {
+      return request(`/t/${tenantSlug}/card-print-orders/${orderId}`);
+    },
+
+    updateCardPrintOrder: async (tenantSlug: string, orderId: string, data: {
+      deliveryMethod?: 'PICKUP' | 'DELIVERY';
+      deliveryAddress?: string;
+    }): Promise<{ order: any; message: string }> => {
+      return request(`/t/${tenantSlug}/card-print-orders/${orderId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+
+    collectCardPrintOrder: async (tenantSlug: string, orderId: string): Promise<{ order: any; message: string }> => {
+      return request(`/t/${tenantSlug}/card-print-orders/${orderId}/collect`, {
+        method: 'POST',
+      });
+    },
   },
 
   // Public card view (tenant-scoped)

@@ -12,7 +12,8 @@ import {
   Menu,
   X,
   Smartphone,
-  AlertTriangle
+  AlertTriangle,
+  Package
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAuth } from '../context/AuthContext';
@@ -52,6 +53,7 @@ const TenantLayout: React.FC = () => {
       { name: 'POS Terminal', href: `/t/${tenantSlug}/pos`, icon: Smartphone, roles: ['tenant_admin', 'cashier'] },
       { name: 'Customers', href: `/t/${tenantSlug}/customers`, icon: Users, roles: ['tenant_admin'] },
       { name: 'Cards', href: `/t/${tenantSlug}/cards`, icon: CreditCard, roles: ['tenant_admin', 'cashier'] },
+      { name: 'Card Print Orders', href: `/t/${tenantSlug}/card-print-orders`, icon: Package, roles: ['tenant_admin'] },
       { name: 'Transactions', href: `/t/${tenantSlug}/transactions`, icon: Receipt, roles: ['tenant_admin', 'cashier'] },
       { name: 'Stores', href: `/t/${tenantSlug}/stores`, icon: Store, roles: ['tenant_admin'] },
       { name: 'Staff', href: `/t/${tenantSlug}/staff`, icon: UserCheck, roles: ['tenant_admin'] },
