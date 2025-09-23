@@ -505,6 +505,11 @@ router.get('/card-print-orders', auth, rbac(['platform_admin']), asyncHandler(as
 router.get('/card-print-orders/:id', auth, rbac(['platform_admin']), asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
 
+  if (!id) {
+    res.status(400).json({ error: 'Order ID is required' });
+    return;
+  }
+
   const order = await prisma.cardPrintOrder.findUnique({
     where: { id },
     include: {
@@ -527,7 +532,8 @@ router.get('/card-print-orders/:id', auth, rbac(['platform_admin']), asyncHandle
   });
 
   if (!order) {
-    return res.status(404).json({ error: 'Print order not found' });
+    res.status(404).json({ error: 'Print order not found' });
+    return;
   }
 
   res.json({ order });
@@ -555,12 +561,18 @@ router.put('/card-print-orders/:id', auth, rbac(['platform_admin']), validate(up
   const { status, notes, trackingInfo } = req.body;
   const { id: adminId } = req.user;
 
+  if (!id) {
+    res.status(400).json({ error: 'Order ID is required' });
+    return;
+  }
+
   const order = await prisma.cardPrintOrder.findUnique({
     where: { id }
   });
 
   if (!order) {
-    return res.status(404).json({ error: 'Print order not found' });
+    res.status(404).json({ error: 'Print order not found' });
+    return;
   }
 
   const updateData: any = {

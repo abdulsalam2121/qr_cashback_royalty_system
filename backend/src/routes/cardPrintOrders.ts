@@ -81,6 +81,11 @@ router.get('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) =
   const { tenantId } = req.user;
   const { id } = req.params;
 
+  if (!id) {
+    res.status(400).json({ error: 'Order ID is required' });
+    return;
+  }
+
   const order = await prisma.cardPrintOrder.findFirst({
     where: { id, tenantId },
     include: {
@@ -102,7 +107,8 @@ router.get('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) =
   });
 
   if (!order) {
-    return res.status(404).json({ error: 'Print order not found' });
+    res.status(404).json({ error: 'Print order not found' });
+    return;
   }
 
   res.json({ order });
@@ -114,6 +120,11 @@ router.put('/:id', auth, rbac(['tenant_admin']), validate(updatePrintOrderSchema
   const { id } = req.params;
   const { deliveryMethod, deliveryAddress } = req.body;
 
+  if (!id) {
+    res.status(400).json({ error: 'Order ID is required' });
+    return;
+  }
+
   // Tenant admins can only update delivery preferences
   const allowedUpdates: any = {};
   if (deliveryMethod) allowedUpdates.deliveryMethod = deliveryMethod;
@@ -124,7 +135,8 @@ router.put('/:id', auth, rbac(['tenant_admin']), validate(updatePrintOrderSchema
   });
 
   if (!order) {
-    return res.status(404).json({ error: 'Print order not found' });
+    res.status(404).json({ error: 'Print order not found' });
+    return;
   }
 
   const updatedOrder = await prisma.cardPrintOrder.update({
@@ -155,19 +167,26 @@ router.post('/:id/collect', auth, rbac(['tenant_admin']), asyncHandler(async (re
   const { tenantId, id: userId } = req.user;
   const { id } = req.params;
 
+  if (!id) {
+    res.status(400).json({ error: 'Order ID is required' });
+    return;
+  }
+
   const order = await prisma.cardPrintOrder.findFirst({
     where: { id, tenantId }
   });
 
   if (!order) {
-    return res.status(404).json({ error: 'Print order not found' });
+    res.status(404).json({ error: 'Print order not found' });
+    return;
   }
 
   if (order.status !== 'READY_FOR_PICKUP') {
-    return res.status(400).json({ 
+    res.status(400).json({ 
       error: 'Order not ready for collection',
       message: 'Order must be in READY_FOR_PICKUP status to be collected'
     });
+    return;
   }
 
   const updatedOrder = await prisma.cardPrintOrder.update({

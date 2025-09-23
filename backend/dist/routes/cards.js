@@ -149,8 +149,61 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
             return;
         }
     }
-    const createdCards = await prisma.card.createMany({
-        data: cards,
+    const createdCards = await prisma.$transaction(async (tx) => {
+        // Create the cards
+        const result = await tx.card.createMany({
+            data: cards,
+        });
+        // Get the tenant information for the print order
+        const tenantWithStore = await tx.tenant.findUnique({
+            where: { id: tenantId },
+            include: {
+                stores: storeId ? {
+                    where: { id: storeId },
+                    take: 1
+                } : {
+                    take: 1
+                },
+                users: {
+                    where: { role: 'tenant_admin' },
+                    take: 1,
+                    select: {
+                        email: true,
+                        firstName: true,
+                        lastName: true
+                    }
+                }
+            }
+        });
+        // Create a print order for the Platform Admin
+        const tenantAdmin = tenantWithStore?.users?.[0];
+        const store = tenantWithStore?.stores?.[0];
+        const printOrder = await tx.cardPrintOrder.create({
+            data: {
+                tenantId,
+                quantity: count,
+                status: 'CREATED',
+                storeName: store?.name || 'Unknown Store',
+                storeAddress: store?.address || 'No address provided',
+                tenantAdminEmail: tenantAdmin?.email || 'No email available',
+                tenantAdminName: tenantAdmin?.firstName && tenantAdmin?.lastName
+                    ? `${tenantAdmin.firstName} ${tenantAdmin.lastName}`
+                    : 'Unknown Admin',
+                deliveryMethod: 'PICKUP', // Default to pickup
+                notes: `Automatic print order for ${count} cards created by ${tenantAdmin?.firstName || 'Tenant Admin'}`
+            }
+        });
+        // Update the cards to link them to the print order
+        await tx.card.updateMany({
+            where: {
+                tenantId,
+                cardUid: { in: cards.map(c => c.cardUid) }
+            },
+            data: {
+                printOrderId: printOrder.id
+            }
+        });
+        return result;
     });
     // Update subscription usage counter if subscription is active
     if (tenant.subscriptionStatus === 'ACTIVE') {

@@ -180,8 +180,10 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
     const tenantWithStore = await tx.tenant.findUnique({
       where: { id: tenantId },
       include: {
-        stores: {
-          where: storeId ? { id: storeId } : undefined,
+        stores: storeId ? {
+          where: { id: storeId },
+          take: 1
+        } : {
           take: 1
         },
         users: {
@@ -197,8 +199,8 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
     });
 
     // Create a print order for the Platform Admin
-    const tenantAdmin = tenantWithStore?.users[0];
-    const store = tenantWithStore?.stores[0];
+    const tenantAdmin = tenantWithStore?.users?.[0];
+    const store = tenantWithStore?.stores?.[0];
     
     const printOrder = await tx.cardPrintOrder.create({
       data: {

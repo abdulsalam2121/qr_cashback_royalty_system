@@ -231,8 +231,10 @@ router.post('/:tenantSlug/billing/subscribe', resolveTenant, auth, rbac(['tenant
             let subscriptionCardLimit = planCardAllowance;
             let subscriptionCardsUsed = 0;
             let transitionDescription = '';
-            console.log(`Subscription transition: tenant=${tenant.id}, type=${isFirstSubscription ? 'NEW' : isReactivation ? 'REACTIVATION' : isUpgrade ? 'UPGRADE' : isDowngrade ? 'DOWNGRADE' : 'RENEWAL'}`);
-            console.log(`Plan allowance: ${planCardAllowance}, current cards: ${currentCardCount}`);
+            if (process.env.NODE_ENV !== 'production') {
+                console.log(`Subscription transition: type=${isFirstSubscription ? 'NEW' : isReactivation ? 'REACTIVATION' : isUpgrade ? 'UPGRADE' : isDowngrade ? 'DOWNGRADE' : 'RENEWAL'}`);
+                console.log(`Plan allowance: ${planCardAllowance}, current cards: ${currentCardCount}`);
+            }
             if (isFirstSubscription) {
                 // Scenario 1: New subscription (including trial to subscription)
                 subscriptionCardsUsed = 0; // Reset usage for new subscription
@@ -488,7 +490,9 @@ router.post('/:tenantSlug/billing/setup-intent', resolveTenant, auth, rbac(['ten
     const hasStripeConfig = !!(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PUBLISHABLE_KEY);
     const isValidStripeKey = process.env.STRIPE_SECRET_KEY?.startsWith('sk_test_') || process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_');
     if (!hasStripeConfig || !isValidStripeKey) {
-        console.log('Demo mode: Stripe not properly configured, returning demo setup intent');
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('Demo mode: Stripe not properly configured, returning demo setup intent');
+        }
         // Return a demo setup intent for testing
         res.json({
             clientSecret: 'pi_demo_setup_intent_for_testing',
@@ -502,7 +506,9 @@ router.post('/:tenantSlug/billing/setup-intent', resolveTenant, auth, rbac(['ten
         let customerId = tenant.stripeCustomerId;
         // Check if this is a demo customer ID that doesn't exist in Stripe
         if (customerId && customerId.startsWith('demo_customer_')) {
-            console.log('Demo customer ID detected, clearing it to create a real Stripe customer');
+            if (process.env.NODE_ENV !== 'production') {
+                console.log('Demo customer ID detected, clearing it to create a real Stripe customer');
+            }
             customerId = null;
             // Clear the demo customer ID from the database
             await prisma.tenant.update({

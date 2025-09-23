@@ -20,6 +20,7 @@ import tenantRoutes from './routes/tenant.js';
 import stripeRoutes from './routes/stripe.js';
 import trialRoutes from './routes/trial.js';
 import cardOrderRoutes from './routes/cardOrders.js';
+import cardPrintOrderRoutes from './routes/cardPrintOrders.js';
 import webhookRoutes from './routes/webhooks.js';
 import adminRoutes from './routes/admin.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -120,6 +121,7 @@ app.use('/api/t/:tenantSlug/stores', storeRoutes);
 app.use('/api/t/:tenantSlug/users', userRoutes);
 app.use('/api/t/:tenantSlug/trial', trialRoutes);
 app.use('/api/t/:tenantSlug/card-orders', cardOrderRoutes);
+app.use('/api/t/:tenantSlug/card-print-orders', cardPrintOrderRoutes);
 // Error handling
 app.use(errorHandler);
 // 404 handler
