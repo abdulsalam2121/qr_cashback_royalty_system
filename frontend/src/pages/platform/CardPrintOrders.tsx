@@ -16,6 +16,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { api } from '../../utils/api';
+import { refreshEvents } from '../../utils/events';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
 interface CardPrintOrder {
@@ -100,6 +101,8 @@ export default function CardPrintOrders() {
 
   useEffect(() => {
     fetchOrders();
+    // Refresh badge count when page loads
+    refreshEvents.printOrderCount();
   }, [searchTerm, statusFilter]);
 
   const fetchOrders = async () => {
@@ -141,6 +144,7 @@ export default function CardPrintOrders() {
       await api.platform.updateCardPrintOrder(selectedOrder.id, updateData);
       setShowModal(false);
       fetchOrders(); // Refresh the list
+      refreshEvents.printOrderCount(); // Refresh the badge count
     } catch (error) {
       console.error('Failed to update order:', error);
       alert('Failed to update order. Please try again.');

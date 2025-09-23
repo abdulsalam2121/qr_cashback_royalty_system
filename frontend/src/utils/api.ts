@@ -245,6 +245,10 @@ export const api = {
       return request(`/platform/card-print-orders/${id}`);
     },
 
+    getCardPrintOrdersCount: async (): Promise<{ count: number }> => {
+      return request(`/platform/card-print-orders/count`);
+    },
+
     updateCardPrintOrder: async (id: string, data: {
       status?: string;
       notes?: string;

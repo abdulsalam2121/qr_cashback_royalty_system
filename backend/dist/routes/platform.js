@@ -40,6 +40,17 @@ router.get('/stats', auth, rbac(['platform_admin']), asyncHandler(async (req, re
     });
     return;
 }));
+// Get pending print orders count for badge
+router.get('/card-print-orders/count', auth, rbac(['platform_admin']), asyncHandler(async (req, res) => {
+    const pendingCount = await prisma.cardPrintOrder.count({
+        where: {
+            status: {
+                in: ['CREATED', 'PRINTING_ACCEPTED', 'PRINTING_IN_PROGRESS']
+            }
+        }
+    });
+    res.json({ count: pendingCount });
+}));
 // Get all tenants
 router.get('/tenants', auth, rbac(['platform_admin']), asyncHandler(async (req, res) => {
     const { status, search, page = 1, limit = 50 } = req.query;

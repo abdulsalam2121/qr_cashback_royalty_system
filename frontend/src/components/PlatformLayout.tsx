@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../utils/api';
 
 const PlatformLayout: React.FC = () => {
   const location = useLocation();
@@ -23,6 +24,35 @@ const PlatformLayout: React.FC = () => {
   const { signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
+  const [printOrderCount, setPrintOrderCount] = React.useState(0);
+
+  // Fetch print order count for badge
+  const fetchPrintOrderCount = React.useCallback(async () => {
+    try {
+      const { count } = await api.platform.getCardPrintOrdersCount();
+      setPrintOrderCount(count);
+    } catch (error) {
+      console.error('Failed to fetch print order count:', error);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (user?.role === 'platform_admin') {
+      fetchPrintOrderCount();
+      
+      // Refresh count every 30 seconds
+      const interval = setInterval(fetchPrintOrderCount, 30000);
+      
+      // Listen for custom refresh events
+      const handleRefreshCount = () => fetchPrintOrderCount();
+      window.addEventListener('refreshPrintOrderCount', handleRefreshCount);
+      
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('refreshPrintOrderCount', handleRefreshCount);
+      };
+    }
+  }, [user, fetchPrintOrderCount]);
 
   const handleLogout = async () => {
     try {
@@ -39,7 +69,7 @@ const PlatformLayout: React.FC = () => {
     { name: 'Dashboard', href: '/platform/dashboard', icon: LayoutDashboard },
     { name: 'Tenants', href: '/platform/tenants', icon: Building2 },
     { name: 'Plans', href: '/platform/plans', icon: CreditCardIcon },
-    { name: 'Card Print Orders', href: '/platform/card-print-orders', icon: Package },
+    { name: 'Card Print Orders', href: '/platform/card-print-orders', icon: Package, badge: printOrderCount },
     { name: 'Analytics', href: '/platform/analytics', icon: DollarSign },
     { name: 'Subscriptions', href: '/platform/subscriptions', icon: BarChart3 },
     { name: 'Settings', href: '/platform/settings', icon: Settings },
@@ -141,6 +171,14 @@ const PlatformLayout: React.FC = () => {
                   <span className={`truncate transition-opacity duration-300 ${
                     sidebarCollapsed ? 'lg:hidden' : ''
                   }`}>{item.name}</span>
+                  {/* Badge for notifications */}
+                  {item.badge && item.badge > 0 && (
+                    <span className={`ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full ${
+                      sidebarCollapsed ? 'lg:hidden' : ''
+                    }`}>
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </span>
+                  )}
                 </Link>
               );
             })}
