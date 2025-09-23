@@ -59,13 +59,31 @@ const POSTerminal: React.FC = () => {
     scannerRef.current = scanner;
   };
 
-  const handleScan = async (cardUid: string) => {
+  const handleScan = async (scannedData: string) => {
     if (!tenantSlug) return;
     
     setLoading(true);
     setMessage(null);
 
     try {
+      // Extract card UID from QR code data
+      // QR codes contain URLs like: https://www.loyalty-qr.com/c/A1WPKN0NBR5Y
+      // We need to extract just the card UID (A1WPKN0NBR5Y)
+      let cardUid = scannedData;
+      
+      // Check if scannedData is a URL
+      if (scannedData.includes('/c/')) {
+        const match = scannedData.match(/\/c\/([A-Z0-9]+)$/);
+        if (match && match[1]) {
+          cardUid = match[1];
+        }
+      }
+      
+      if (import.meta.env.DEV) {
+        console.log('Scanned data:', scannedData);
+        console.log('Extracted card UID:', cardUid);
+      }
+      
       const card = await api.tenant.getCard(tenantSlug, cardUid);
       setScannedCard(card);
       setActiveTab('earn');
