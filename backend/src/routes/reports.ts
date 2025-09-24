@@ -18,6 +18,13 @@ router.get('/dashboard', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(a
     where.storeId = storeId;
   }
 
+  // Calculate date ranges for current and previous month
+  const now = new Date();
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+  // Current month data
   const [
     totalCustomers,
     totalCards,
@@ -48,7 +55,81 @@ router.get('/dashboard', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(a
     })
   ]);
 
-  // Get cashback issued vs redeemed
+  // Previous month data for trends
+  const previousMonthWhere = { 
+    ...where, 
+    createdAt: { 
+      gte: previousMonthStart, 
+      lte: previousMonthEnd 
+    } 
+  };
+
+  const currentMonthWhere = { 
+    ...where, 
+    createdAt: { 
+      gte: currentMonthStart 
+    } 
+  };
+
+  const [
+    previousMonthCustomers,
+    previousMonthCards,
+    previousMonthTransactions,
+    previousMonthEarnTransactions,
+    previousMonthRedeemTransactions,
+    currentMonthCustomers,
+    currentMonthCards,
+    currentMonthTransactions,
+    currentMonthEarnTransactions,
+    currentMonthRedeemTransactions
+  ] = await Promise.all([
+    // Previous month counts
+    prisma.customer.count({ 
+      where: { 
+        tenantId, 
+        createdAt: { gte: previousMonthStart, lte: previousMonthEnd } 
+      } 
+    }),
+    prisma.card.count({ 
+      where: { 
+        tenantId, 
+        createdAt: { gte: previousMonthStart, lte: previousMonthEnd } 
+      } 
+    }),
+    prisma.transaction.count({ where: previousMonthWhere }),
+    prisma.transaction.aggregate({
+      where: { ...previousMonthWhere, type: 'EARN' },
+      _sum: { cashbackCents: true }
+    }),
+    prisma.transaction.aggregate({
+      where: { ...previousMonthWhere, type: 'REDEEM' },
+      _sum: { amountCents: true }
+    }),
+    // Current month counts
+    prisma.customer.count({ 
+      where: { 
+        tenantId, 
+        createdAt: { gte: currentMonthStart } 
+      } 
+    }),
+    prisma.card.count({ 
+      where: { 
+        tenantId, 
+        createdAt: { gte: currentMonthStart } 
+      } 
+    }),
+    prisma.transaction.count({ where: currentMonthWhere }),
+    prisma.transaction.aggregate({
+      where: { ...currentMonthWhere, type: 'EARN' },
+      _sum: { cashbackCents: true }
+    }),
+    prisma.transaction.aggregate({
+      where: { ...currentMonthWhere, type: 'REDEEM' },
+      _sum: { amountCents: true }
+    })
+  ]);
+
+  // Get cashback issued vs redeemed (all time)
   const [earnTransactions, redeemTransactions] = await Promise.all([
     prisma.transaction.aggregate({
       where: { ...where, type: 'EARN' },
@@ -60,6 +141,30 @@ router.get('/dashboard', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(a
     })
   ]);
 
+  // Calculate trends (percentage change from previous month to current month)
+  const calculateTrend = (current: number, previous: number): { value: number; isPositive: boolean } => {
+    if (previous === 0) {
+      return { value: current > 0 ? 100 : 0, isPositive: current > 0 };
+    }
+    const change = ((current - previous) / previous) * 100;
+    return { 
+      value: Math.abs(Math.round(change)), 
+      isPositive: change >= 0 
+    };
+  };
+
+  const customersTrend = calculateTrend(currentMonthCustomers, previousMonthCustomers);
+  const cardsTrend = calculateTrend(currentMonthCards, previousMonthCards);
+  const transactionsTrend = calculateTrend(currentMonthTransactions, previousMonthTransactions);
+  const cashbackIssuedTrend = calculateTrend(
+    currentMonthEarnTransactions._sum.cashbackCents || 0,
+    previousMonthEarnTransactions._sum.cashbackCents || 0
+  );
+  const cashbackRedeemedTrend = calculateTrend(
+    currentMonthRedeemTransactions._sum.amountCents || 0,
+    previousMonthRedeemTransactions._sum.amountCents || 0
+  );
+
   res.json({
     totalCustomers,
     totalCards,
@@ -67,6 +172,13 @@ router.get('/dashboard', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(a
     totalCashbackIssued: earnTransactions._sum.cashbackCents || 0,
     totalCashbackRedeemed: redeemTransactions._sum.amountCents || 0,
     activeOffers,
+    trends: {
+      customers: customersTrend,
+      cards: cardsTrend,
+      transactions: transactionsTrend,
+      cashbackIssued: cashbackIssuedTrend,
+      cashbackRedeemed: cashbackRedeemedTrend
+    }
   });
 }));
 

@@ -194,6 +194,13 @@ export interface DashboardStats {
   totalCashbackIssued: number;
   totalCashbackRedeemed: number;
   activeOffers: number;
+  trends: {
+    customers: { value: number; isPositive: boolean };
+    cards: { value: number; isPositive: boolean };
+    transactions: { value: number; isPositive: boolean };
+    cashbackIssued: { value: number; isPositive: boolean };
+    cashbackRedeemed: { value: number; isPositive: boolean };
+  };
 }
 
 export interface PlatformStats {
