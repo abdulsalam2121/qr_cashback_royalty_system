@@ -363,6 +363,13 @@ router.get('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier'])
 // Get card by UID
 router.get('/:cardUid', (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { cardUid } = req.params;
+    console.log('🔍 GET /cards/:cardUid called');
+    console.log('Card UID:', cardUid);
+    console.log('User:', req.user ? {
+        id: req.user.userId,
+        role: req.user.role,
+        tenantId: req.user.tenantId
+    } : 'No user (unauthenticated)');
     let card = await prisma.card.findUnique({
         where: { cardUid },
         include: {
@@ -383,6 +390,13 @@ router.get('/:cardUid', (0, asyncHandler_js_1.asyncHandler)(async (req, res) => 
             },
         },
     });
+    console.log('Card found:', card ? {
+        cardUid: card.cardUid,
+        status: card.status,
+        customerId: card.customerId,
+        hasCustomer: !!card.customer,
+        customerName: card.customer ? `${card.customer.firstName} ${card.customer.lastName}` : null
+    } : 'No card found');
     if (!card) {
         res.status(404).json({ error: 'Card not found' });
         return;
@@ -394,8 +408,14 @@ router.get('/:cardUid', (0, asyncHandler_js_1.asyncHandler)(async (req, res) => 
             req.user.role === 'tenant_admin' ||
             req.user.role === 'cashier' ||
             (req.user.role === 'customer' && card.customerId === req.user.customerId));
+    console.log('Auth check:', {
+        isAuthenticated,
+        isAuthorized,
+        userRole: req.user?.role
+    });
     // Return limited info for unauthenticated requests
     if (!isAuthenticated) {
+        console.log('❌ Returning limited info (unauthenticated)');
         res.json({
             cardUid: card.cardUid,
             status: card.status,
@@ -406,6 +426,7 @@ router.get('/:cardUid', (0, asyncHandler_js_1.asyncHandler)(async (req, res) => 
     }
     // Return full info for authorized requests
     if (isAuthorized) {
+        console.log('✅ Returning full info (authorized)');
         res.json({
             ...card,
             storeName: card.store?.name || null
@@ -413,6 +434,7 @@ router.get('/:cardUid', (0, asyncHandler_js_1.asyncHandler)(async (req, res) => 
         return;
     }
     else {
+        console.log('❌ Unauthorized access attempt');
         res.status(403).json({ error: 'Unauthorized' });
         return;
     }
