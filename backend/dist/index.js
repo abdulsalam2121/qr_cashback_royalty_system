@@ -126,6 +126,8 @@ app.use('/api/platform', platform_js_1.default);
 app.use('/api/admin', admin_js_1.default);
 app.use('/api/card-orders', cardOrders_js_1.default); // Global card orders routes (pricing, etc.)
 app.use('/api/stripe', stripe_js_1.default);
+// Public routes (accessible without tenant context)
+app.use('/api/purchase-transactions', purchaseTransactions_js_1.default);
 // Tenant-scoped routes (must come before /api/t to avoid conflicts)
 console.log('🔧 Registering tenant-scoped routes...');
 app.use('/api/t/:tenantSlug/cards', cards_js_1.default);
