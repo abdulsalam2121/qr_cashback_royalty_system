@@ -361,7 +361,7 @@ router.get('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier'])
     });
 }));
 // Get card by UID
-router.get('/:cardUid', (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/:cardUid', auth_js_1.auth, (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { cardUid } = req.params;
     console.log('🔍 GET /cards/:cardUid called');
     console.log('Card UID:', cardUid);
@@ -404,7 +404,7 @@ router.get('/:cardUid', (0, asyncHandler_js_1.asyncHandler)(async (req, res) => 
     // Check if user is authenticated and authorized
     const isAuthenticated = req.user;
     const isAuthorized = isAuthenticated &&
-        card.tenantId === req.user.tenantId && // Add tenant check
+        card.tenantId === req.user?.tenantId && // Add tenant check with optional chaining
         (req.user.role === 'platform_admin' ||
             req.user.role === 'tenant_admin' ||
             req.user.role === 'cashier' ||
