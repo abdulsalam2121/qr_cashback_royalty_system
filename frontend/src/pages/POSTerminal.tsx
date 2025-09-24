@@ -103,7 +103,7 @@ const POSTerminal: React.FC = () => {
         type: 'success',
         text: `Card loaded successfully! ${card.customer ? 
           `Customer: ${card.customer.firstName} ${card.customer.lastName}` : 
-          'Card is not activated - customer will be prompted to register when they pay'
+          'Card is not linked to a customer - transaction will proceed without cashback rewards'
         }`
       });
     } catch (error) {
