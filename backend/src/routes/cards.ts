@@ -393,7 +393,8 @@ router.get('/:cardUid', asyncHandler(async (req: Request, res: Response) => {
   // Check if user is authenticated and authorized
   const isAuthenticated = req.user;
   const isAuthorized = isAuthenticated && 
-    (req.user.role === 'admin' || 
+    (req.user.role === 'platform_admin' || 
+     req.user.role === 'tenant_admin' ||
      req.user.role === 'cashier' ||
      (req.user.role === 'customer' && card.customerId === req.user.customerId));
 
