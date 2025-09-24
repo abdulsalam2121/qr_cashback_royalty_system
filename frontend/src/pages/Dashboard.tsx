@@ -66,35 +66,35 @@ const Dashboard: React.FC = () => {
           value={stats.totalCustomers}
           icon={Users}
           color="blue"
-          trend={{ value: 12, isPositive: true }}
+          trend={stats.trends?.customers || { value: 0, isPositive: true }}
         />
         <StatCard
           title="Active Cards"
           value={stats.totalCards}
           icon={CreditCard}
           color="green"
-          trend={{ value: 8, isPositive: true }}
+          trend={stats.trends?.cards || { value: 0, isPositive: true }}
         />
         <StatCard
           title="Total Transactions"
           value={stats.totalTransactions}
           icon={Receipt}
           color="purple"
-          trend={{ value: 15, isPositive: true }}
+          trend={stats.trends?.transactions || { value: 0, isPositive: true }}
         />
         <StatCard
           title="Cashback Issued"
           value={formatCurrency(stats.totalCashbackIssued / 100)}
           icon={DollarSign}
           color="orange"
-          trend={{ value: 22, isPositive: true }}
+          trend={stats.trends?.cashbackIssued || { value: 0, isPositive: true }}
         />
         <StatCard
           title="Cashback Redeemed"
           value={formatCurrency(stats.totalCashbackRedeemed / 100)}
           icon={TrendingUp}
           color="red"
-          trend={{ value: 5, isPositive: true }}
+          trend={stats.trends?.cashbackRedeemed || { value: 0, isPositive: true }}
         />
         <StatCard
           title="Active Offers"
