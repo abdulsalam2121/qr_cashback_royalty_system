@@ -97,6 +97,11 @@ const POSTerminal: React.FC = () => {
       }
       
       const card = await api.tenant.getCard(tenantSlug, cardUid);
+      console.log('🔍 Card API Response:', card);
+      console.log('🔍 Card customer:', card.customer);
+      console.log('🔍 Card status:', card.status);
+      console.log('🔍 Card customerId:', card.customerId);
+      
       setScannedCard(card);
       setActiveTab('purchase');
       setMessage({
