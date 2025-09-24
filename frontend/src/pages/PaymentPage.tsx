@@ -52,26 +52,39 @@ const CheckoutForm: React.FC<{
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
 
+  // Debug: Log stripe and elements status
+  useEffect(() => {
+    console.log('Stripe loaded:', !!stripe);
+    console.log('Elements loaded:', !!elements);
+    console.log('Client secret:', clientSecret);
+  }, [stripe, elements, clientSecret]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!stripe || !elements || disabled) return;
+    if (!stripe || !elements || disabled) {
+      console.log('Form submission blocked:', { stripe: !!stripe, elements: !!elements, disabled });
+      return;
+    }
 
     setProcessing(true);
     try {
-      const { error } = await stripe.confirmPayment({
+      const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
-          return_url: window.location.href, // optional redirect
+          return_url: window.location.href,
         },
         redirect: 'if_required',
       });
 
       if (error) {
+        console.error('Payment error:', error);
         onError(error.message || 'Payment failed');
-      } else {
+      } else if (paymentIntent) {
+        console.log('Payment successful:', paymentIntent);
         onSuccess();
       }
     } catch (err: any) {
+      console.error('Payment exception:', err);
       onError(err.message || 'Payment failed');
     } finally {
       setProcessing(false);
@@ -80,12 +93,35 @@ const CheckoutForm: React.FC<{
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <PaymentElement
-        options={{
-          layout: 'tabs',
-          paymentMethodOrder: ['card', 'apple_pay', 'google_pay'],
-        }}
-      />
+      <div className="p-4 border border-gray-200 rounded-lg">
+        <PaymentElement
+          options={{
+            layout: 'tabs',
+            paymentMethodOrder: ['card', 'apple_pay', 'google_pay'],
+            fields: {
+              billingDetails: {
+                name: 'auto',
+                email: 'auto',
+                phone: 'auto',
+                address: {
+                  line1: 'auto',
+                  line2: 'auto',
+                  city: 'auto',
+                  state: 'auto',
+                  postalCode: 'auto',
+                  country: 'auto',
+                },
+              },
+            },
+          }}
+          onReady={() => console.log('PaymentElement is ready')}
+          onFocus={() => console.log('PaymentElement focused')}
+          onBlur={() => console.log('PaymentElement blurred')}
+          onChange={(e) => {
+            console.log('PaymentElement changed:', e);
+          }}
+        />
+      </div>
       <button
         type="submit"
         disabled={!stripe || processing || disabled}
@@ -125,13 +161,25 @@ const PaymentPage: React.FC = () => {
   const loadPaymentData = async () => {
     if (!token) return;
     try {
+      setError(null); // Clear any previous errors
+      console.log('Loading payment data for token:', token);
+      
       const data = await api.tenant.getPaymentLink(token);
+      console.log('Payment link data:', data);
       setPaymentData(data);
 
       // request backend to create PaymentIntent for this link
+      console.log('Creating payment intent...');
       const intent = await api.tenant.createPaymentIntent(token);
-      setClientSecret(intent.client_secret);
+      console.log('Payment intent created:', intent);
+      
+      if (intent.client_secret) {
+        setClientSecret(intent.client_secret);
+      } else {
+        throw new Error('No client secret returned from payment intent creation');
+      }
     } catch (err) {
+      console.error('Error loading payment data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load payment info');
     } finally {
       setLoading(false);
@@ -316,15 +364,61 @@ const PaymentPage: React.FC = () => {
             </div>
 
             {/* Stripe Payment Element */}
-            {!isExpired && clientSecret && (
-              <Elements stripe={stripePromise} options={{ clientSecret }}>
-                <CheckoutForm
-                  clientSecret={clientSecret}
-                  amount={paymentData.paymentLink.amountCents}
-                  onSuccess={() => setSuccess(true)}
-                  onError={(msg) => setError(msg)}
-                />
-              </Elements>
+            {!isExpired && clientSecret ? (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900">Payment Information</h3>
+                <Elements 
+                  stripe={stripePromise} 
+                  options={{ 
+                    clientSecret,
+                    appearance: {
+                      theme: 'stripe',
+                      variables: {
+                        colorPrimary: '#2563eb',
+                        colorBackground: '#ffffff',
+                        colorText: '#1f2937',
+                        colorDanger: '#dc2626',
+                        fontFamily: 'system-ui, -apple-system, sans-serif',
+                        spacingUnit: '4px',
+                        borderRadius: '8px',
+                      },
+                    },
+                  }}
+                >
+                  <CheckoutForm
+                    clientSecret={clientSecret}
+                    amount={paymentData.paymentLink.amountCents}
+                    onSuccess={() => setSuccess(true)}
+                    onError={(msg) => setError(msg)}
+                  />
+                </Elements>
+              </div>
+            ) : !isExpired ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-center space-x-2">
+                  <LoadingSpinner size="sm" />
+                  <p className="text-sm text-yellow-800">Loading payment form...</p>
+                </div>
+              </div>
+            ) : null}
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="w-5 h-5 text-red-600" />
+                  <p className="text-sm font-medium text-red-800">Payment Error</p>
+                </div>
+                <p className="text-sm text-red-600 mt-1">{error}</p>
+                <button
+                  onClick={() => {
+                    setError(null);
+                    loadPaymentData();
+                  }}
+                  className="mt-2 text-sm bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
             )}
           </div>
 
