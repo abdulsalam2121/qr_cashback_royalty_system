@@ -11,10 +11,15 @@ const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const client_1 = require("@prisma/client");
 const pino_1 = __importDefault(require("pino"));
+// START DEBUG - This should show up in logs if deployed correctly
+console.log('🚀 SERVER STARTING - Index.ts loaded at:', new Date().toISOString());
+console.log('🔧 NODE_ENV:', process.env.NODE_ENV);
+console.log('🌍 Working directory:', process.cwd());
 const auth_js_1 = __importDefault(require("./routes/auth.js"));
 const cards_js_1 = __importDefault(require("./routes/cards.js"));
 const customers_js_1 = __importDefault(require("./routes/customers.js"));
 const transactions_js_1 = __importDefault(require("./routes/transactions.js"));
+const purchaseTransactions_js_1 = __importDefault(require("./routes/purchaseTransactions.js"));
 const rules_js_1 = __importDefault(require("./routes/rules.js"));
 const reports_js_1 = __importDefault(require("./routes/reports.js"));
 const notifications_js_1 = __importDefault(require("./routes/notifications.js"));
@@ -30,6 +35,8 @@ const webhooks_js_1 = __importDefault(require("./routes/webhooks.js"));
 const admin_js_1 = __importDefault(require("./routes/admin.js"));
 const errorHandler_js_1 = require("./middleware/errorHandler.js");
 const requestLogger_js_1 = require("./middleware/requestLogger.js");
+// Debug: Check if cardPrintOrderRoutes is loaded correctly
+console.log('📦 cardPrintOrderRoutes loaded:', !!cardPrintOrders_js_1.default, typeof cardPrintOrders_js_1.default);
 const app = (0, express_1.default)();
 const prisma = new client_1.PrismaClient();
 const logger = (0, pino_1.default)();
@@ -85,6 +92,11 @@ app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
 app.use((0, cookie_parser_1.default)());
 // Request logging
 app.use(requestLogger_js_1.requestLogger);
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+    console.log(`🔍 ${req.method} ${req.url} - ${new Date().toISOString()}`);
+    next();
+});
 // Health check endpoint
 app.get('/healthz', async (req, res) => {
     try {
@@ -113,12 +125,13 @@ app.use('/api/auth', auth_js_1.default);
 app.use('/api/platform', platform_js_1.default);
 app.use('/api/admin', admin_js_1.default);
 app.use('/api/card-orders', cardOrders_js_1.default); // Global card orders routes (pricing, etc.)
-app.use('/api/t', tenant_js_1.default);
 app.use('/api/stripe', stripe_js_1.default);
-// Legacy tenant-scoped routes (with tenant middleware)
+// Tenant-scoped routes (must come before /api/t to avoid conflicts)
+console.log('🔧 Registering tenant-scoped routes...');
 app.use('/api/t/:tenantSlug/cards', cards_js_1.default);
 app.use('/api/t/:tenantSlug/customers', customers_js_1.default);
 app.use('/api/t/:tenantSlug/transactions', transactions_js_1.default);
+app.use('/api/t/:tenantSlug/purchase-transactions', purchaseTransactions_js_1.default);
 app.use('/api/t/:tenantSlug/rules', rules_js_1.default);
 app.use('/api/t/:tenantSlug/reports', reports_js_1.default);
 app.use('/api/t/:tenantSlug/notifications', notifications_js_1.default);
@@ -126,7 +139,10 @@ app.use('/api/t/:tenantSlug/stores', stores_js_1.default);
 app.use('/api/t/:tenantSlug/users', users_js_1.default);
 app.use('/api/t/:tenantSlug/trial', trial_js_1.default);
 app.use('/api/t/:tenantSlug/card-orders', cardOrders_js_1.default);
+console.log('🖨️ Registering cardPrintOrderRoutes at /api/t/:tenantSlug/card-print-orders');
 app.use('/api/t/:tenantSlug/card-print-orders', cardPrintOrders_js_1.default);
+// General tenant routes (must come after specific tenant-scoped routes)
+app.use('/api/t', tenant_js_1.default);
 // Error handling
 app.use(errorHandler_js_1.errorHandler);
 // 404 handler
@@ -145,6 +161,8 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     logger.info(`🚀 Server running on port ${PORT}`);
     logger.info(`📊 Health check available at http://localhost:${PORT}/healthz`);
+    console.log('✅ SERVER FULLY STARTED - Routes should be registered now');
+    console.log('🖨️ Card Print Orders route should be available at: /api/t/:tenantSlug/card-print-orders');
 });
 exports.default = app;
 //# sourceMappingURL=index.js.map

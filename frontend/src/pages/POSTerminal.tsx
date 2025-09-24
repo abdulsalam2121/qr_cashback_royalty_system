@@ -1,25 +1,37 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { QrCode, Scan, DollarSign, Gift, CreditCard, User, AlertCircle, CheckCircle } from 'lucide-react';
+import { QrCode, Scan, DollarSign, Gift, CreditCard, User, AlertCircle, CheckCircle, Copy, ExternalLink, Banknote, Smartphone } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { api } from '../utils/api';
 import { formatCurrency, getTierColor } from '../utils/format';
 import { useAuthStore } from '../store/authStore';
-import { Card, Transaction } from '../types';
+import { Card, PurchaseTransaction } from '../types';
 
 const POSTerminal: React.FC = () => {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const { tenant } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'scan' | 'earn' | 'redeem'>('scan');
+  const [activeTab, setActiveTab] = useState<'scan' | 'purchase' | 'redeem'>('scan');
   const [scannedCard, setScannedCard] = useState<Card | null>(null);
   const [manualCardUid, setManualCardUid] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<'PURCHASE' | 'REPAIR' | 'OTHER'>('PURCHASE');
+  const [description, setDescription] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'QR_PAYMENT' | 'CASH' | 'CARD'>('CASH');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [showScanner, setShowScanner] = useState(false);
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [pendingTransaction, setPendingTransaction] = useState<PurchaseTransaction | null>(null);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  
+  // Customer information for new customers
+  const [customerInfo, setCustomerInfo] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+  });
   
   // Check subscription status
   const isSubscriptionActive = tenant?.subscriptionStatus === 'ACTIVE' || 
@@ -86,7 +98,14 @@ const POSTerminal: React.FC = () => {
       
       const card = await api.tenant.getCard(tenantSlug, cardUid);
       setScannedCard(card);
-      setActiveTab('earn');
+      setActiveTab('purchase');
+      setMessage({
+        type: 'success',
+        text: `Card loaded successfully! ${card.customer ? 
+          `Customer: ${card.customer.firstName} ${card.customer.lastName}` : 
+          'Card is not activated - customer will be prompted to register when they pay'
+        }`
+      });
     } catch (error) {
       setMessage({
         type: 'error',
@@ -103,8 +122,8 @@ const POSTerminal: React.FC = () => {
     setManualCardUid('');
   };
 
-  const handleEarnCashback = async () => {
-    if (!scannedCard || !amount || !tenantSlug) return;
+  const handleCreatePurchase = async () => {
+    if (!amount || !tenantSlug) return;
     
     if (!isSubscriptionActive) {
       setMessage({
@@ -114,24 +133,77 @@ const POSTerminal: React.FC = () => {
       return;
     }
 
+    // Validate customer info for QR payments without cards
+    if (paymentMethod === 'QR_PAYMENT' && !scannedCard && 
+        (!customerInfo.firstName || !customerInfo.lastName)) {
+      setMessage({
+        type: 'error',
+        text: 'Customer name is required for QR payments'
+      });
+      return;
+    }
+
     setLoading(true);
     setMessage(null);
+    setPaymentUrl(null);
 
     try {
       const amountCents = Math.round(parseFloat(amount) * 100);
-      const transaction = await api.tenant.earnCashback(tenantSlug, scannedCard.cardUid, amountCents, category, scannedCard.storeId!);
       
-      // Update card balance
-      setScannedCard(prev => prev ? {
-        ...prev,
-        balanceCents: transaction.newBalance
-      } : null);
+      const data: any = {
+        amountCents,
+        category,
+        description: description || undefined,
+        paymentMethod,
+      };
 
-      setMessage({
-        type: 'success',
-        text: `Earned ${formatCurrency(transaction.cashbackEarned)} cashback!`
-      });
-      setAmount('');
+      // Add card if scanned
+      if (scannedCard) {
+        data.cardUid = scannedCard.cardUid;
+      }
+
+      // Add customer info for non-card transactions or QR payments
+      if (!scannedCard || paymentMethod === 'QR_PAYMENT') {
+        if (customerInfo.firstName && customerInfo.lastName) {
+          data.customerInfo = customerInfo;
+        }
+      }
+
+      const result = await api.tenant.createPurchaseTransaction(tenantSlug, data);
+      
+      setPendingTransaction(result.transaction);
+
+      if (paymentMethod === 'QR_PAYMENT' && result.paymentUrl) {
+        setPaymentUrl(result.paymentUrl);
+        setMessage({
+          type: 'info',
+          text: 'QR Payment link generated! Share this link with the customer to complete payment.'
+        });
+      } else {
+        // For COD, CASH, CARD payments - they are completed immediately
+        setMessage({
+          type: 'success',
+          text: `${paymentMethod} transaction completed successfully! ${
+            result.transaction.cashbackCents ? 
+            `Cashback earned: ${formatCurrency(result.transaction.cashbackCents)}` : ''
+          }`
+        });
+        
+        // Update card balance if applicable
+        if (scannedCard && result.transaction.cashbackCents) {
+          setScannedCard(prev => prev ? {
+            ...prev,
+            balanceCents: prev.balanceCents + result.transaction.cashbackCents
+          } : null);
+        }
+        
+        // Clear form after successful transaction
+        setTimeout(() => {
+          setAmount('');
+          setDescription('');
+          setCustomerInfo({ firstName: '', lastName: '', email: '', phone: '' });
+        }, 1000);
+      }
     } catch (error) {
       setMessage({
         type: 'error',
@@ -181,30 +253,47 @@ const POSTerminal: React.FC = () => {
     }
   };
 
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setMessage({
+        type: 'success',
+        text: 'Payment link copied to clipboard!'
+      });
+    } catch (error) {
+      setMessage({
+        type: 'error',
+        text: 'Failed to copy to clipboard'
+      });
+    }
+  };
+
   const resetSession = () => {
     setScannedCard(null);
     setAmount('');
+    setDescription('');
     setMessage(null);
+    setPaymentUrl(null);
+    setPendingTransaction(null);
+    setCustomerInfo({ firstName: '', lastName: '', email: '', phone: '' });
     setActiveTab('scan');
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">POS Terminal</h1>
-            <p className="text-gray-600 mt-1">Scan cards to process transactions</p>
+            <p className="text-gray-600 mt-1">Process customer purchases and manage loyalty rewards</p>
           </div>
-          {scannedCard && (
-            <button
-              onClick={resetSession}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              New Transaction
-            </button>
-          )}
+          <button
+            onClick={resetSession}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            New Transaction
+          </button>
         </div>
       </div>
 
@@ -212,11 +301,15 @@ const POSTerminal: React.FC = () => {
       {message && (
         <div className={`p-4 rounded-lg flex items-center space-x-2 ${
           message.type === 'success' 
-            ? 'bg-green-50 text-green-700 border border-green-200' 
+            ? 'bg-green-50 text-green-700 border border-green-200'
+            : message.type === 'info'
+            ? 'bg-blue-50 text-blue-700 border border-blue-200'
             : 'bg-red-50 text-red-700 border border-red-200'
         }`}>
           {message.type === 'success' ? (
             <CheckCircle className="w-5 h-5" />
+          ) : message.type === 'info' ? (
+            <AlertCircle className="w-5 h-5 text-blue-500" />
           ) : (
             <AlertCircle className="w-5 h-5" />
           )}
@@ -227,15 +320,18 @@ const POSTerminal: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Panel - Scanner/Card Info */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          {!scannedCard ? (
-            <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                <QrCode className="w-5 h-5 mr-2" />
-                Scan Customer Card
-              </h2>
+          <div className="space-y-6">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+              <QrCode className="w-5 h-5 mr-2" />
+              Customer Card (Optional)
+            </h2>
 
-              {/* QR Scanner */}
+            {!scannedCard ? (
               <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Scan a customer card to earn cashback rewards, or create a transaction without a card.
+                </p>
+                
                 <button
                   onClick={() => {
                     setShowScanner(true);
@@ -296,73 +392,79 @@ const POSTerminal: React.FC = () => {
                     </button>
                   </div>
                 </div>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                <CreditCard className="w-5 h-5 mr-2" />
-                Card Information
-              </h2>
 
-              <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-2">
-                    <User className="w-5 h-5" />
-                    <span className="font-medium">
-                      {scannedCard.customer ? 
-                        `${scannedCard.customer.firstName} ${scannedCard.customer.lastName}` : 
-                        'Unknown Customer'
-                      }
-                    </span>
-                  </div>
-                  {scannedCard.customer && (
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium bg-white ${
-                      getTierColor(scannedCard.customer.tier).replace('bg-', 'text-').replace('text-', '')
-                    }`}>
-                      {scannedCard.customer.tier}
-                    </span>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="opacity-90">Card ID:</span>
-                    <span className="font-mono">{scannedCard.cardUid}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="opacity-90">Balance:</span>
-                    <span className="text-xl font-bold">
-                      {formatCurrency(scannedCard.balanceCents)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="opacity-90">Store:</span>
-                    <span>{scannedCard.storeName}</span>
-                  </div>
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600">
+                    <strong>Note:</strong> You can process transactions without scanning a card. 
+                    Customers will still be able to earn cashback if they provide their information.
+                  </p>
                 </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-2">
+                      <User className="w-5 h-5" />
+                      <span className="font-medium">
+                        {scannedCard.customer ? 
+                          `${scannedCard.customer.firstName} ${scannedCard.customer.lastName}` : 
+                          'Card Not Activated'
+                        }
+                      </span>
+                    </div>
+                    {scannedCard.customer && (
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium bg-white text-gray-800`}>
+                        {scannedCard.customer.tier}
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="opacity-90">Card ID:</span>
+                      <span className="font-mono">{scannedCard.cardUid}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="opacity-90">Balance:</span>
+                      <span className="text-xl font-bold">
+                        {formatCurrency(scannedCard.balanceCents || 0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="opacity-90">Store:</span>
+                      <span>{scannedCard.storeName || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setScannedCard(null)}
+                  className="w-full px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Remove Card
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Right Panel - Transaction Controls */}
+        {/* Right Panel - Transaction Form */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          {scannedCard ? (
-            <div className="space-y-6">
-              {/* Tab Navigation */}
-              <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setActiveTab('earn')}
-                  className={`flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    activeTab === 'earn'
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <DollarSign className="w-4 h-4 mr-1" />
-                  Earn Cashback
-                </button>
+          <div className="space-y-6">
+            <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setActiveTab('purchase')}
+                className={`flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                  activeTab === 'purchase'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <DollarSign className="w-4 h-4 mr-1" />
+                Create Purchase
+              </button>
+              {scannedCard && scannedCard.customer && (
                 <button
                   onClick={() => setActiveTab('redeem')}
                   className={`flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
@@ -372,118 +474,262 @@ const POSTerminal: React.FC = () => {
                   }`}
                 >
                   <Gift className="w-4 h-4 mr-1" />
-                  Redeem
+                  Redeem Cashback
                 </button>
-              </div>
-
-              {/* Earn Cashback */}
-              {activeTab === 'earn' && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Earn Cashback</h3>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Transaction Amount ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Category
-                    </label>
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value as 'PURCHASE' | 'REPAIR' | 'OTHER')}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="PURCHASE">Purchase</option>
-                      <option value="REPAIR">Repair</option>
-                      <option value="OTHER">Other</option>
-                    </select>
-                  </div>
-
-                  <button
-                    onClick={handleEarnCashback}
-                    disabled={!amount || loading}
-                    className={`w-full flex items-center justify-center px-4 py-3 rounded-lg transition-colors ${
-                      !isSubscriptionActive 
-                        ? 'bg-gray-400 text-white cursor-not-allowed' 
-                        : 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-50'
-                    }`}
-                  >
-                    {loading ? (
-                      <LoadingSpinner size="sm" className="mr-2" />
-                    ) : (
-                      <DollarSign className="w-5 h-5 mr-2" />
-                    )}
-                    Process Transaction
-                  </button>
-                </div>
               )}
+            </div>
 
-              {/* Redeem Cashback */}
-              {activeTab === 'redeem' && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Redeem Cashback</h3>
-                  
-                  <div className="bg-blue-50 p-4 rounded-lg">
+            {/* Purchase Transaction */}
+            {activeTab === 'purchase' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900">Create Purchase Transaction</h3>
+                
+                {/* Transaction Amount */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Purchase Amount ($) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Category
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value as 'PURCHASE' | 'REPAIR' | 'OTHER')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="PURCHASE">Purchase</option>
+                    <option value="REPAIR">Repair</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="e.g., iPhone 15 Pro"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Customer Information (if no card scanned) */}
+                {!scannedCard && (
+                  <div className="border border-gray-200 rounded-lg p-4 space-y-4">
+                    <h4 className="font-medium text-gray-900">Customer Information</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          First Name {paymentMethod === 'QR_PAYMENT' ? '*' : ''}
+                        </label>
+                        <input
+                          type="text"
+                          value={customerInfo.firstName}
+                          onChange={(e) => setCustomerInfo(prev => ({ ...prev, firstName: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Last Name {paymentMethod === 'QR_PAYMENT' ? '*' : ''}
+                        </label>
+                        <input
+                          type="text"
+                          value={customerInfo.lastName}
+                          onChange={(e) => setCustomerInfo(prev => ({ ...prev, lastName: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Email (Optional)
+                        </label>
+                        <input
+                          type="email"
+                          value={customerInfo.email}
+                          onChange={(e) => setCustomerInfo(prev => ({ ...prev, email: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Phone (Optional)
+                        </label>
+                        <input
+                          type="tel"
+                          value={customerInfo.phone}
+                          onChange={(e) => setCustomerInfo(prev => ({ ...prev, phone: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment Method */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Payment Method
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <button
+                      onClick={() => setPaymentMethod('CASH')}
+                      className={`flex items-center justify-center px-4 py-3 border-2 rounded-lg transition-colors ${
+                        paymentMethod === 'CASH'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                      }`}
+                    >
+                      <Banknote className="w-5 h-5 mr-2" />
+                      Cash
+                    </button>
+                    <button
+                      onClick={() => setPaymentMethod('CARD')}
+                      className={`flex items-center justify-center px-4 py-3 border-2 rounded-lg transition-colors ${
+                        paymentMethod === 'CARD'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                      }`}
+                    >
+                      <CreditCard className="w-5 h-5 mr-2" />
+                      Card Payment
+                    </button>
+                    <button
+                      onClick={() => setPaymentMethod('QR_PAYMENT')}
+                      className={`flex items-center justify-center px-4 py-3 border-2 rounded-lg transition-colors ${
+                        paymentMethod === 'QR_PAYMENT'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                      }`}
+                    >
+                      <Smartphone className="w-5 h-5 mr-2" />
+                      QR Payment
+                    </button>
+                  </div>
+                </div>
+
+                {paymentMethod === 'QR_PAYMENT' && (
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-sm text-blue-700">
-                      Available Balance: <span className="font-semibold">
-                        {formatCurrency(scannedCard.balanceCents)}
-                      </span>
+                      <strong>QR Payment:</strong> A payment link will be generated for the customer. 
+                      They can scan the QR code or use the link to complete payment online.
                     </p>
                   </div>
+                )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Redemption Amount ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max={scannedCard.balanceCents / 100}
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
+                <button
+                  onClick={handleCreatePurchase}
+                  disabled={!amount || loading || !isSubscriptionActive}
+                  className={`w-full flex items-center justify-center px-4 py-3 rounded-lg transition-colors ${
+                    !isSubscriptionActive 
+                      ? 'bg-gray-400 text-white cursor-not-allowed' 
+                      : 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-50'
+                  }`}
+                >
+                  {loading ? (
+                    <LoadingSpinner size="sm" className="mr-2" />
+                  ) : (
+                    <DollarSign className="w-5 h-5 mr-2" />
+                  )}
+                  Create Purchase
+                </button>
+
+                {/* Payment URL Display */}
+                {paymentUrl && (
+                  <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+                    <h4 className="font-medium text-gray-900">Payment Link Generated</h4>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600 truncate mr-2">{paymentUrl}</span>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => copyToClipboard(paymentUrl)}
+                            className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => window.open(paymentUrl, '_blank')}
+                            className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Share this link with the customer to complete their payment.
+                    </p>
                   </div>
+                )}
+              </div>
+            )}
 
-                  <button
-                    onClick={handleRedeemCashback}
-                    disabled={!amount || loading || (parseFloat(amount) * 100) > scannedCard.balanceCents}
-                    className={`w-full flex items-center justify-center px-4 py-3 rounded-lg transition-colors ${
-                      !isSubscriptionActive 
-                        ? 'bg-gray-400 text-white cursor-not-allowed' 
-                        : 'bg-red-600 text-white hover:bg-red-700 disabled:opacity-50'
-                    }`}
-                  >
-                    {loading ? (
-                      <LoadingSpinner size="sm" className="mr-2" />
-                    ) : (
-                      <Gift className="w-5 h-5 mr-2" />
-                    )}
-                    Process Redemption
-                  </button>
+            {/* Redeem Cashback */}
+            {activeTab === 'redeem' && scannedCard && scannedCard.customer && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900">Redeem Cashback</h3>
+                
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <p className="text-sm text-blue-700">
+                    Available Balance: <span className="font-semibold">
+                      {formatCurrency(scannedCard.balanceCents || 0)}
+                    </span>
+                  </p>
                 </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <QrCode className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">Scan a customer card to begin</p>
-            </div>
-          )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Redemption Amount ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max={(scannedCard.balanceCents || 0) / 100}
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <button
+                  onClick={handleRedeemCashback}
+                  disabled={!amount || loading || (parseFloat(amount) * 100) > (scannedCard.balanceCents || 0) || !isSubscriptionActive}
+                  className={`w-full flex items-center justify-center px-4 py-3 rounded-lg transition-colors ${
+                    !isSubscriptionActive 
+                      ? 'bg-gray-400 text-white cursor-not-allowed' 
+                      : 'bg-red-600 text-white hover:bg-red-700 disabled:opacity-50'
+                  }`}
+                >
+                  {loading ? (
+                    <LoadingSpinner size="sm" className="mr-2" />
+                  ) : (
+                    <Gift className="w-5 h-5 mr-2" />
+                  )}
+                  Process Redemption
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -96,6 +96,50 @@ export interface Transaction {
   };
 }
 
+export interface PurchaseTransaction {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  customerId?: string;
+  cashierId: string;
+  cardUid?: string;
+  paymentMethod: 'COD' | 'QR_PAYMENT' | 'CASH' | 'CARD';
+  paymentStatus: 'PENDING' | 'COMPLETED' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
+  amountCents: number;
+  cashbackCents?: number;
+  category: 'PURCHASE' | 'REPAIR' | 'OTHER';
+  description?: string;
+  paymentLinkId?: string;
+  paymentLinkExpiry?: string;
+  paidAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  store?: {
+    name: string;
+  };
+  customer?: {
+    firstName: string;
+    lastName: string;
+    email?: string;
+  };
+  cashier?: {
+    firstName?: string;
+    lastName?: string;
+  };
+  paymentLink?: PaymentLink;
+}
+
+export interface PaymentLink {
+  id: string;
+  tenantId: string;
+  token: string;
+  amountCents: number;
+  description?: string;
+  expiresAt: string;
+  usedAt?: string;
+  createdAt: string;
+}
+
 export interface Store {
   id: string;
   name: string;
