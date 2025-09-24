@@ -301,7 +301,7 @@ export const api = {
       });
     },
 createPaymentIntent: async (token: string): Promise<any> => {
-  return request(`/payment/create-payment-intent/${token}`, {
+  return request(`/purchase-transactions/create-payment-intent/${token}`, {
     method: 'POST',
   });
 },
