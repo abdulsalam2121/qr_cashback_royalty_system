@@ -190,7 +190,7 @@ const POSTerminal: React.FC = () => {
           type: 'success',
           text: `${paymentMethod} transaction completed successfully! ${
             result.transaction.cashbackCents ? 
-            `Cashback earned: ${formatCurrency(result.transaction.cashbackCents)}` : ''
+            `Cashback earned: ${formatCurrency(result.transaction.cashbackCents / 100)}` : ''
           }`
         });
         
@@ -433,7 +433,7 @@ const POSTerminal: React.FC = () => {
                     <div className="flex justify-between">
                       <span className="opacity-90">Balance:</span>
                       <span className="text-xl font-bold">
-                        {formatCurrency(scannedCard.balanceCents || 0)}
+                        {formatCurrency((scannedCard.balanceCents || 0) / 100)}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -752,7 +752,7 @@ const POSTerminal: React.FC = () => {
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <p className="text-sm text-blue-700">
                     Available Balance: <span className="font-semibold">
-                      {formatCurrency(scannedCard.balanceCents || 0)}
+                      {formatCurrency((scannedCard.balanceCents || 0) / 100)}
                     </span>
                   </p>
                 </div>

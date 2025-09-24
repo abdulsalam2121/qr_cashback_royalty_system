@@ -43,6 +43,14 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
   const { cardUid, customerId, amountCents, category, description, paymentMethod, customerInfo } = req.body;
   const { tenantId, userId: cashierId, storeId } = req.user;
 
+  console.log('🔍 Purchase Transaction Data:', {
+    amountCents,
+    category,
+    paymentMethod,
+    cardUid,
+    customerId
+  });
+
   if (!storeId) {
     res.status(400).json({ error: 'Cashier must be assigned to a store' });
     return;
