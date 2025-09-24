@@ -7,6 +7,11 @@ import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
 import pino from 'pino';
 
+// START DEBUG - This should show up in logs if deployed correctly
+console.log('🚀 SERVER STARTING - Index.ts loaded at:', new Date().toISOString());
+console.log('🔧 NODE_ENV:', process.env.NODE_ENV);
+console.log('🌍 Working directory:', process.cwd());
+
 import authRoutes from './routes/auth.js';
 import cardRoutes from './routes/cards.js';
 import customerRoutes from './routes/customers.js';
@@ -26,6 +31,9 @@ import webhookRoutes from './routes/webhooks.js';
 import adminRoutes from './routes/admin.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
+
+// Debug: Check if cardPrintOrderRoutes is loaded correctly
+console.log('📦 cardPrintOrderRoutes loaded:', !!cardPrintOrderRoutes, typeof cardPrintOrderRoutes);
 
 const app = express();
 const prisma = new PrismaClient();
@@ -92,6 +100,12 @@ app.use(cookieParser());
 // Request logging
 app.use(requestLogger);
 
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`🔍 ${req.method} ${req.url} - ${new Date().toISOString()}`);
+  next();
+});
+
 // Health check endpoint
 app.get('/healthz', async (req, res) => {
   try {
@@ -120,10 +134,10 @@ app.use('/api/auth', authRoutes);
 app.use('/api/platform', platformRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/card-orders', cardOrderRoutes); // Global card orders routes (pricing, etc.)
-app.use('/api/t', tenantRoutes);
 app.use('/api/stripe', stripeRoutes);
 
-// Legacy tenant-scoped routes (with tenant middleware)
+// Tenant-scoped routes (must come before /api/t to avoid conflicts)
+console.log('🔧 Registering tenant-scoped routes...');
 app.use('/api/t/:tenantSlug/cards', cardRoutes);
 app.use('/api/t/:tenantSlug/customers', customerRoutes);
 app.use('/api/t/:tenantSlug/transactions', transactionRoutes);
@@ -134,7 +148,11 @@ app.use('/api/t/:tenantSlug/stores', storeRoutes);
 app.use('/api/t/:tenantSlug/users', userRoutes);
 app.use('/api/t/:tenantSlug/trial', trialRoutes);
 app.use('/api/t/:tenantSlug/card-orders', cardOrderRoutes);
+console.log('🖨️ Registering cardPrintOrderRoutes at /api/t/:tenantSlug/card-print-orders');
 app.use('/api/t/:tenantSlug/card-print-orders', cardPrintOrderRoutes);
+
+// General tenant routes (must come after specific tenant-scoped routes)
+app.use('/api/t', tenantRoutes);
 
 // Error handling
 app.use(errorHandler);
@@ -159,6 +177,8 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   logger.info(`🚀 Server running on port ${PORT}`);
   logger.info(`📊 Health check available at http://localhost:${PORT}/healthz`);
+  console.log('✅ SERVER FULLY STARTED - Routes should be registered now');
+  console.log('🖨️ Card Print Orders route should be available at: /api/t/:tenantSlug/card-print-orders');
 });
 
 export default app;

@@ -9,6 +9,12 @@ import { validate } from '../middleware/validate.js';
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// Debug test route
+router.get('/test', (req, res) => {
+  console.log('🧪 Test route hit!');
+  res.json({ message: 'Card print orders route is working!', timestamp: new Date().toISOString() });
+});
+
 // Validation schemas
 const updatePrintOrderSchema = z.object({
   status: z.enum([
@@ -30,6 +36,7 @@ const updatePrintOrderSchema = z.object({
 
 // Get print orders for tenant admin
 router.get('/', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
+  console.log('🖨️ Card print orders route hit! User:', req.user?.tenantId, req.user?.role);
   const { tenantId } = req.user;
   const { page = 1, limit = 10, status } = req.query;
 
