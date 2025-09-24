@@ -84,14 +84,14 @@ const Dashboard: React.FC = () => {
         />
         <StatCard
           title="Cashback Issued"
-          value={formatCurrency(stats.totalCashbackIssued)}
+          value={formatCurrency(stats.totalCashbackIssued / 100)}
           icon={DollarSign}
           color="orange"
           trend={{ value: 22, isPositive: true }}
         />
         <StatCard
           title="Cashback Redeemed"
-          value={formatCurrency(stats.totalCashbackRedeemed)}
+          value={formatCurrency(stats.totalCashbackRedeemed / 100)}
           icon={TrendingUp}
           color="red"
           trend={{ value: 5, isPositive: true }}
