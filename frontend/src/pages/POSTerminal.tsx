@@ -4,6 +4,7 @@ import { QrCode, Scan, DollarSign, Gift, CreditCard, User, AlertCircle, CheckCir
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import QRCode from 'react-qr-code';
 import LoadingSpinner from '../components/LoadingSpinner';
+import StripePaymentElement from '../components/StripePaymentElement';
 import { api } from '../utils/api';
 import { formatCurrency, getTierColor } from '../utils/format';
 import { useAuthStore } from '../store/authStore';
@@ -25,6 +26,10 @@ const POSTerminal: React.FC = () => {
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const [redemptionType, setRedemptionType] = useState<'CASH' | 'STORE_CREDIT'>('CASH');
+  
+  // Stripe payment state
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [cardPaymentPending, setCardPaymentPending] = useState(false);
   
   // Customer information for new customers
   const [customerInfo, setCustomerInfo] = useState({
@@ -175,38 +180,59 @@ const POSTerminal: React.FC = () => {
         }
       }
 
-      const result = await api.tenant.createPurchaseTransaction(tenantSlug, data);
-
-      if (paymentMethod === 'QR_PAYMENT' && result.paymentUrl) {
-        setPaymentUrl(result.paymentUrl);
-        setMessage({
-          type: 'info',
-          text: 'QR Payment link generated! Share this link with the customer to complete payment.'
-        });
-      } else {
-        // For COD, CASH, CARD payments - they are completed immediately
-        setMessage({
-          type: 'success',
-          text: `${paymentMethod} transaction completed successfully! ${
-            result.transaction.cashbackCents ? 
-            `Cashback earned: ${formatCurrency(result.transaction.cashbackCents / 100)}` : ''
-          }`
-        });
+      // Special handling for card payments - create payment intent
+      if (paymentMethod === 'CARD') {
+        // First create the purchase transaction to get a payment link
+        const result = await api.tenant.createPurchaseTransaction(tenantSlug, { ...data, paymentMethod: 'QR_PAYMENT' });
         
-        // Update card balance if applicable
-        if (scannedCard && result.transaction.cashbackCents) {
-          setScannedCard(prev => prev ? {
-            ...prev,
-            balanceCents: prev.balanceCents + result.transaction.cashbackCents
-          } : null);
+        if (result.paymentUrl) {
+          // Extract token from the payment URL
+          const urlParts = result.paymentUrl.split('/');
+          const token = urlParts[urlParts.length - 1];
+          
+          // Create payment intent using the token
+          const intent = await api.tenant.createPaymentIntent(token);
+          setClientSecret(intent.client_secret);
+          setCardPaymentPending(true);
+          setMessage({
+            type: 'info',
+            text: 'Complete the card payment below to finalize the transaction.'
+          });
         }
-        
-        // Clear form after successful transaction
-        setTimeout(() => {
-          setAmount('');
-          setDescription('');
-          setCustomerInfo({ firstName: '', lastName: '', email: '', phone: '' });
-        }, 1000);
+      } else {
+        const result = await api.tenant.createPurchaseTransaction(tenantSlug, data);
+
+        if (paymentMethod === 'QR_PAYMENT' && result.paymentUrl) {
+          setPaymentUrl(result.paymentUrl);
+          setMessage({
+            type: 'info',
+            text: 'QR Payment link generated! Share this link with the customer to complete payment.'
+          });
+        } else {
+          // For CASH payments - they are completed immediately
+          setMessage({
+            type: 'success',
+            text: `${paymentMethod} transaction completed successfully! ${
+              result.transaction.cashbackCents ? 
+              `Cashback earned: ${formatCurrency(result.transaction.cashbackCents / 100)}` : ''
+            }`
+          });
+          
+          // Update card balance if applicable
+          if (scannedCard && result.transaction.cashbackCents) {
+            setScannedCard(prev => prev ? {
+              ...prev,
+              balanceCents: prev.balanceCents + result.transaction.cashbackCents
+            } : null);
+          }
+          
+          // Clear form after successful transaction
+          setTimeout(() => {
+            setAmount('');
+            setDescription('');
+            setCustomerInfo({ firstName: '', lastName: '', email: '', phone: '' });
+          }, 1000);
+        }
       }
     } catch (error) {
       setMessage({
@@ -270,6 +296,30 @@ const POSTerminal: React.FC = () => {
         text: 'Failed to copy to clipboard'
       });
     }
+  };
+
+  const handleStripePaymentSuccess = async () => {
+    // Card payment was successful, now complete the transaction
+    setCardPaymentPending(false);
+    setClientSecret(null);
+    setMessage({
+      type: 'success',
+      text: 'Card payment completed successfully!'
+    });
+    
+    // Clear form after successful transaction
+    setTimeout(() => {
+      setAmount('');
+      setDescription('');
+      setCustomerInfo({ firstName: '', lastName: '', email: '', phone: '' });
+    }, 1000);
+  };
+
+  const handleStripePaymentError = (error: string) => {
+    setMessage({
+      type: 'error',
+      text: `Card payment failed: ${error}`
+    });
   };
 
   const resetSession = () => {
@@ -639,77 +689,57 @@ const POSTerminal: React.FC = () => {
 
                 {paymentMethod === 'CARD' && (
                   <div className="border border-gray-200 rounded-lg p-4 space-y-4">
-                    <h4 className="font-medium text-gray-900">Card Payment Details</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Card Number *
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="1234 5678 9012 3456"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          maxLength={19}
-                        />
+                    <h4 className="font-medium text-gray-900">Card Payment</h4>
+                    {!cardPaymentPending ? (
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-blue-700">
+                          <strong>Secure Card Payment:</strong> Click "Create Purchase" below to prepare the secure card payment form.
+                          Payment will be processed using Stripe's secure payment system.
+                        </p>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Expiry Date *
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="MM/YY"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          maxLength={5}
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="text-sm text-gray-600">Complete the card payment to finalize the transaction:</p>
+                        <StripePaymentElement
+                          clientSecret={clientSecret!}
+                          amount={Math.round(parseFloat(amount) * 100)}
+                          onSuccess={handleStripePaymentSuccess}
+                          onError={handleStripePaymentError}
+                          submitButtonText="Complete Card Payment"
                         />
+                        <button
+                          onClick={() => {
+                            setCardPaymentPending(false);
+                            setClientSecret(null);
+                            setMessage(null);
+                          }}
+                          className="w-full px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          Cancel Card Payment
+                        </button>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          CVV *
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="123"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          maxLength={4}
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Cardholder Name *
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="John Doe"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <p className="text-sm text-yellow-700">
-                        <strong>Note:</strong> Card payment will be processed immediately. 
-                        This is for demonstration purposes only.
-                      </p>
-                    </div>
+                    )}
                   </div>
                 )}
 
-                <button
-                  onClick={handleCreatePurchase}
-                  disabled={!amount || loading || !isSubscriptionActive}
-                  className={`w-full flex items-center justify-center px-4 py-3 rounded-lg transition-colors ${
-                    !isSubscriptionActive 
-                      ? 'bg-gray-400 text-white cursor-not-allowed' 
-                      : 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-50'
-                  }`}
-                >
-                  {loading ? (
-                    <LoadingSpinner size="sm" className="mr-2" />
-                  ) : (
-                    <DollarSign className="w-5 h-5 mr-2" />
-                  )}
-                  Create Purchase
-                </button>
+                {!cardPaymentPending && (
+                  <button
+                    onClick={handleCreatePurchase}
+                    disabled={!amount || loading || !isSubscriptionActive}
+                    className={`w-full flex items-center justify-center px-4 py-3 rounded-lg transition-colors ${
+                      !isSubscriptionActive 
+                        ? 'bg-gray-400 text-white cursor-not-allowed' 
+                        : 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-50'
+                    }`}
+                  >
+                    {loading ? (
+                      <LoadingSpinner size="sm" className="mr-2" />
+                    ) : (
+                      <DollarSign className="w-5 h-5 mr-2" />
+                    )}
+                    {paymentMethod === 'CARD' ? 'Prepare Card Payment' : 'Create Purchase'}
+                  </button>
+                )}
 
                 {/* Payment URL Display */}
                 {paymentUrl && (
