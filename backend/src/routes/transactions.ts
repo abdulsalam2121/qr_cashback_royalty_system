@@ -356,8 +356,24 @@ router.get('/', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req
     prisma.transaction.count({ where }),
   ]);
 
+  // Flatten the nested structure for the frontend
+  const flattenedTransactions = transactions.map(transaction => ({
+    ...transaction,
+    customerName: transaction.customer ? 
+      `${transaction.customer.firstName} ${transaction.customer.lastName}` : '',
+    cardUid: transaction.card?.cardUid || '',
+    storeName: transaction.store?.name || '',
+    cashierName: transaction.cashier ? 
+      `${transaction.cashier.firstName} ${transaction.cashier.lastName}` : '',
+    // Remove the nested objects to avoid confusion
+    customer: undefined,
+    card: undefined,
+    store: undefined,
+    cashier: undefined,
+  }));
+
   res.json({
-    transactions,
+    transactions: flattenedTransactions,
     total,
     page: Number(page),
     limit: Number(limit),

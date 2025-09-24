@@ -215,6 +215,34 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
 
       // Check for tier upgrade
       await updateCustomerTier(customer.id, tenantId, tx);
+    } else if (paymentMethod === 'CASH' && card && customer) {
+      // Even if no cashback, create a transaction record for tracking
+      const newTotalSpend = new Decimal(customer.totalSpend).add(new Decimal(amountCents).div(100));
+      await tx.customer.update({
+        where: { id: customer.id },
+        data: { totalSpend: newTotalSpend }
+      });
+
+      await tx.transaction.create({
+        data: {
+          tenantId,
+          storeId,
+          cardId: card.id,
+          customerId: customer.id,
+          cashierId,
+          type: 'EARN',
+          category: category as TxCategory,
+          amountCents,
+          cashbackCents: 0,
+          beforeBalanceCents: card.balanceCents,
+          afterBalanceCents: card.balanceCents,
+          note: `Purchase transaction: ${purchaseTransaction.id}`,
+          sourceIp: req.ip || null,
+        }
+      });
+
+      // Check for tier upgrade
+      await updateCustomerTier(customer.id, tenantId, tx);
     }
 
     return purchaseTransaction;
