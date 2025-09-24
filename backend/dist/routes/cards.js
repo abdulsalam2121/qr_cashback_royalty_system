@@ -404,6 +404,7 @@ router.get('/:cardUid', (0, asyncHandler_js_1.asyncHandler)(async (req, res) => 
     // Check if user is authenticated and authorized
     const isAuthenticated = req.user;
     const isAuthorized = isAuthenticated &&
+        card.tenantId === req.user.tenantId && // Add tenant check
         (req.user.role === 'platform_admin' ||
             req.user.role === 'tenant_admin' ||
             req.user.role === 'cashier' ||
@@ -411,7 +412,10 @@ router.get('/:cardUid', (0, asyncHandler_js_1.asyncHandler)(async (req, res) => 
     console.log('Auth check:', {
         isAuthenticated,
         isAuthorized,
-        userRole: req.user?.role
+        userRole: req.user?.role,
+        userTenantId: req.user?.tenantId,
+        cardTenantId: card.tenantId,
+        tenantMatch: card.tenantId === req.user?.tenantId
     });
     // Return limited info for unauthenticated requests
     if (!isAuthenticated) {
