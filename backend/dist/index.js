@@ -17,6 +17,7 @@ console.log('🔧 NODE_ENV:', process.env.NODE_ENV);
 console.log('🌍 Working directory:', process.cwd());
 const auth_js_1 = __importDefault(require("./routes/auth.js"));
 const cards_js_1 = __importDefault(require("./routes/cards.js"));
+const publicCards_js_1 = __importDefault(require("./routes/publicCards.js"));
 const customers_js_1 = __importDefault(require("./routes/customers.js"));
 const transactions_js_1 = __importDefault(require("./routes/transactions.js"));
 const purchaseTransactions_js_1 = __importDefault(require("./routes/purchaseTransactions.js"));
@@ -128,6 +129,7 @@ app.use('/api/card-orders', cardOrders_js_1.default); // Global card orders rout
 app.use('/api/stripe', stripe_js_1.default);
 // Public routes (accessible without tenant context)
 app.use('/api/purchase-transactions', purchaseTransactions_js_1.default);
+app.use('/api/cards', publicCards_js_1.default);
 // Tenant-scoped routes (must come before /api/t to avoid conflicts)
 console.log('🔧 Registering tenant-scoped routes...');
 app.use('/api/t/:tenantSlug/cards', cards_js_1.default);

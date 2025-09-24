@@ -1,9 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { CreditCard, CheckCircle, AlertCircle, Clock, Store, User, DollarSign } from 'lucide-react';
+import {
+  CreditCard,
+  CheckCircle,
+  AlertCircle,
+  Clock,
+  Store,
+  User,
+  Lock,
+} from 'lucide-react';
+import { loadStripe } from '@stripe/stripe-js';
+import {
+  Elements,
+  PaymentElement,
+  useStripe,
+  useElements,
+} from '@stripe/react-stripe-js';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { api } from '../utils/api';
 import { formatCurrency } from '../utils/format';
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 interface PaymentLinkData {
   paymentLink: {
@@ -24,11 +41,77 @@ interface PaymentLinkData {
   };
 }
 
+const CheckoutForm: React.FC<{
+  clientSecret: string;
+  amount: number;
+  onSuccess: () => void;
+  onError: (error: string) => void;
+  disabled?: boolean;
+}> = ({ clientSecret, amount, onSuccess, onError, disabled = false }) => {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [processing, setProcessing] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements || disabled) return;
+
+    setProcessing(true);
+    try {
+      const { error } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: window.location.href, // optional redirect
+        },
+        redirect: 'if_required',
+      });
+
+      if (error) {
+        onError(error.message || 'Payment failed');
+      } else {
+        onSuccess();
+      }
+    } catch (err: any) {
+      onError(err.message || 'Payment failed');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <PaymentElement
+        options={{
+          layout: 'tabs',
+          paymentMethodOrder: ['card', 'apple_pay', 'google_pay'],
+        }}
+      />
+      <button
+        type="submit"
+        disabled={!stripe || processing || disabled}
+        className="w-full flex items-center justify-center px-6 py-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        {processing ? (
+          <>
+            <LoadingSpinner size="sm" className="mr-3" />
+            Processing Payment...
+          </>
+        ) : (
+          <>
+            <Lock className="w-5 h-5 mr-3" />
+            Pay {formatCurrency(amount / 100)} Securely
+          </>
+        )}
+      </button>
+    </form>
+  );
+};
+
 const PaymentPage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const [paymentData, setPaymentData] = useState<PaymentLinkData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -36,34 +119,22 @@ const PaymentPage: React.FC = () => {
     if (token) {
       loadPaymentData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const loadPaymentData = async () => {
     if (!token) return;
-    
     try {
       const data = await api.tenant.getPaymentLink(token);
       setPaymentData(data);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to load payment information');
+
+      // request backend to create PaymentIntent for this link
+      const intent = await api.tenant.createPaymentIntent(token);
+      setClientSecret(intent.client_secret);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load payment info');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handlePayment = async () => {
-    if (!token || !paymentData) return;
-    
-    setProcessing(true);
-    setError(null);
-
-    try {
-      await api.tenant.processPaymentLink(token);
-      setSuccess(true);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Payment failed');
-    } finally {
-      setProcessing(false);
     }
   };
 
@@ -87,7 +158,7 @@ const PaymentPage: React.FC = () => {
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Link Error</h1>
             <p className="text-gray-600 mb-6">{error}</p>
             <p className="text-sm text-gray-500">
-              This payment link may have expired or been used already. Please contact the merchant for a new payment link.
+              This link may have expired or been used already. Contact the merchant for a new payment link.
             </p>
           </div>
         </div>
@@ -103,14 +174,16 @@ const PaymentPage: React.FC = () => {
             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h1>
             <p className="text-gray-600 mb-6">
-              Your payment of {formatCurrency(paymentData?.paymentLink.amountCents || 0)} has been processed successfully.
+              Your payment of {formatCurrency((paymentData?.paymentLink.amountCents || 0) / 100)} was processed successfully.
             </p>
             <div className="bg-gray-50 p-4 rounded-lg text-left">
               <h3 className="font-medium text-gray-900 mb-2">Transaction Details</h3>
               <div className="space-y-1 text-sm text-gray-600">
                 <div className="flex justify-between">
                   <span>Amount:</span>
-                  <span className="font-medium">{formatCurrency(paymentData?.paymentLink.amountCents || 0)}</span>
+                  <span className="font-medium">
+                    {formatCurrency((paymentData?.paymentLink.amountCents || 0) / 100)}
+                  </span>
                 </div>
                 {paymentData?.transaction.description && (
                   <div className="flex justify-between">
@@ -139,14 +212,15 @@ const PaymentPage: React.FC = () => {
     );
   }
 
-  if (!paymentData) {
-    return null;
-  }
+  if (!paymentData) return null;
 
   const isExpired = new Date() > new Date(paymentData.paymentLink.expiresAt);
-  const timeRemaining = new Date(paymentData.paymentLink.expiresAt).getTime() - new Date().getTime();
+  const timeRemaining =
+    new Date(paymentData.paymentLink.expiresAt).getTime() - new Date().getTime();
   const hoursRemaining = Math.floor(timeRemaining / (1000 * 60 * 60));
-  const minutesRemaining = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+  const minutesRemaining = Math.floor(
+    (timeRemaining % (1000 * 60 * 60)) / (1000 * 60)
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
@@ -158,38 +232,35 @@ const PaymentPage: React.FC = () => {
               <CreditCard className="w-12 h-12 mx-auto mb-4" />
               <h1 className="text-2xl font-bold">Complete Your Payment</h1>
               <p className="text-blue-100 mt-2">
-                {paymentData.paymentLink.tenantName && `${paymentData.paymentLink.tenantName} • `}
-                Secure Payment Processing
+                {paymentData.paymentLink.tenantName && `${paymentData.paymentLink.tenantName} • `}Secure Payment
+                Processing
               </p>
             </div>
           </div>
 
-          {/* Payment Information */}
+          {/* Body */}
           <div className="p-6 space-y-6">
-            {/* Expiry Warning */}
             {!isExpired && timeRemaining < 24 * 60 * 60 * 1000 && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center space-x-3">
                 <Clock className="w-5 h-5 text-yellow-600" />
                 <div>
                   <p className="text-sm font-medium text-yellow-800">Payment Link Expires Soon</p>
                   <p className="text-xs text-yellow-600">
-                    {hoursRemaining > 0 
+                    {hoursRemaining > 0
                       ? `${hoursRemaining} hours and ${minutesRemaining} minutes remaining`
-                      : `${minutesRemaining} minutes remaining`
-                    }
+                      : `${minutesRemaining} minutes remaining`}
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Expired Notice */}
             {isExpired && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center space-x-3">
                 <AlertCircle className="w-5 h-5 text-red-600" />
                 <div>
                   <p className="text-sm font-medium text-red-800">Payment Link Expired</p>
                   <p className="text-xs text-red-600">
-                    This payment link expired on {new Date(paymentData.paymentLink.expiresAt).toLocaleString()}
+                    Expired on {new Date(paymentData.paymentLink.expiresAt).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -202,10 +273,9 @@ const PaymentPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Amount</span>
                   <span className="text-2xl font-bold text-gray-900">
-                    {formatCurrency(paymentData.paymentLink.amountCents)}
+                    {formatCurrency(paymentData.paymentLink.amountCents / 100)}
                   </span>
                 </div>
-                
                 {paymentData.transaction.description && (
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Item/Service</span>
@@ -214,14 +284,12 @@ const PaymentPage: React.FC = () => {
                     </span>
                   </div>
                 )}
-
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Category</span>
                   <span className="font-medium text-gray-900 capitalize">
                     {paymentData.transaction.category.toLowerCase()}
                   </span>
                 </div>
-
                 {paymentData.transaction.storeName && (
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600 flex items-center">
@@ -233,7 +301,6 @@ const PaymentPage: React.FC = () => {
                     </span>
                   </div>
                 )}
-
                 {paymentData.transaction.customerName && (
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600 flex items-center">
@@ -248,62 +315,23 @@ const PaymentPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Payment Button */}
-            {!isExpired && (
-              <div className="space-y-4">
-                {error && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center space-x-3">
-                    <AlertCircle className="w-5 h-5 text-red-600" />
-                    <p className="text-sm text-red-700">{error}</p>
-                  </div>
-                )}
-
-                <button
-                  onClick={handlePayment}
-                  disabled={processing || isExpired}
-                  className="w-full flex items-center justify-center px-6 py-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {processing ? (
-                    <>
-                      <LoadingSpinner size="sm" className="mr-3" />
-                      Processing Payment...
-                    </>
-                  ) : (
-                    <>
-                      <DollarSign className="w-5 h-5 mr-3" />
-                      Pay {formatCurrency(paymentData.paymentLink.amountCents)}
-                    </>
-                  )}
-                </button>
-
-                <p className="text-xs text-gray-500 text-center">
-                  By clicking "Pay", you confirm that you want to complete this payment. 
-                  This action cannot be undone.
-                </p>
-              </div>
-            )}
-
-            {/* Expired Action */}
-            {isExpired && (
-              <div className="text-center py-4">
-                <p className="text-gray-600 mb-4">
-                  This payment link has expired. Please contact the merchant to get a new payment link.
-                </p>
-                <button
-                  onClick={() => window.close()}
-                  className="px-6 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors"
-                >
-                  Close Window
-                </button>
-              </div>
+            {/* Stripe Payment Element */}
+            {!isExpired && clientSecret && (
+              <Elements stripe={stripePromise} options={{ clientSecret }}>
+                <CheckoutForm
+                  clientSecret={clientSecret}
+                  amount={paymentData.paymentLink.amountCents}
+                  onSuccess={() => setSuccess(true)}
+                  onError={(msg) => setError(msg)}
+                />
+              </Elements>
             )}
           </div>
 
           {/* Footer */}
           <div className="border-t border-gray-200 px-6 py-4 bg-gray-50">
             <p className="text-xs text-gray-500 text-center">
-              🔒 This is a secure payment processed by the QR Cashback & Loyalty System. 
-              Your payment information is encrypted and protected.
+              🔒 Secure payment powered by Stripe. Your card details are encrypted and never touch our servers.
             </p>
           </div>
         </div>

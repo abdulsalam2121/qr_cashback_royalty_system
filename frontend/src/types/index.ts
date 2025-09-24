@@ -75,6 +75,14 @@ export interface Card {
   balanceCents: number;
   qrUrl?: string;
   createdAt: string;
+  // Additional properties for redemption page
+  tier?: 'SILVER' | 'GOLD' | 'PLATINUM';
+  store?: {
+    id: string;
+    name: string;
+    address?: string;
+  };
+  tenantSlug?: string;
 }
 
 export interface Transaction {

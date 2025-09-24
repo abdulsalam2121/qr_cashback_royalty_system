@@ -153,10 +153,10 @@ const Dashboard: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatCurrency(transaction.amountCents)}
+                    {formatCurrency(transaction.amountCents / 100)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {transaction.type === 'EARN' ? formatCurrency(transaction.cashbackCents) : '-'}
+                    {transaction.type === 'EARN' ? formatCurrency(transaction.cashbackCents / 100) : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(transaction.createdAt).toLocaleDateString()}

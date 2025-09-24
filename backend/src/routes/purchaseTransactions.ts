@@ -11,6 +11,7 @@ import { calculateCashback } from '../utils/cashback.js';
 import { updateCustomerTier } from '../utils/tiers.js';
 import { sendNotification } from '../services/notification.js';
 import { generateSecureToken } from '../utils/crypto.js';
+import Stripe from 'stripe';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -263,6 +264,49 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
   });
 }));
 
+
+
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+  apiVersion: '2024-06-20', // use latest stable
+});
+
+// Create PaymentIntent for a payment link
+router.post('/create-payment-intent/:token', asyncHandler(async (req: Request, res: Response) => {
+  const { token } = req.params;
+
+  if (!token) {
+    res.status(400).json({ error: 'Token parameter is required' });
+    return;
+  }
+
+  const paymentLink = await prisma.paymentLink.findUnique({
+    where: { token },
+  });
+
+  if (!paymentLink) {
+    res.status(404).json({ error: 'Payment link not found' });
+    return;
+  }
+
+  if (paymentLink.usedAt || new Date() > paymentLink.expiresAt) {
+    res.status(400).json({ error: 'Payment link expired or already used' });
+    return;
+  }
+
+  // Create a PaymentIntent with Stripe
+  const intent = await stripe.paymentIntents.create({
+    amount: paymentLink.amountCents,
+    currency: 'usd',
+    metadata: {
+      paymentLinkId: paymentLink.id,
+    },
+  });
+
+  res.json({ client_secret: intent.client_secret });
+}));
+
+
 // Confirm payment (for completing QR payments)
 router.post('/confirm-payment', auth, rbac(['tenant_admin', 'cashier']), validate(confirmPaymentSchema), asyncHandler(async (req: Request, res: Response) => {
   const { purchaseTransactionId } = req.body;
@@ -369,7 +413,7 @@ router.post('/confirm-payment', auth, rbac(['tenant_admin', 'cashier']), validat
 }));
 
 // Process payment via link (customer-facing)
-router.post('/pay/:token', validate(paymentLinkSchema), asyncHandler(async (req: Request, res: Response) => {
+router.post('/pay/:token', asyncHandler(async (req: Request, res: Response) => {
   const { token } = req.params;
 
   if (!token) {

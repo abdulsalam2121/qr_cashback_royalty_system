@@ -2,11 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { QrCode, Scan, DollarSign, Gift, CreditCard, User, AlertCircle, CheckCircle, Copy, ExternalLink, Banknote, Smartphone } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
+import QRCode from 'react-qr-code';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { api } from '../utils/api';
 import { formatCurrency, getTierColor } from '../utils/format';
 import { useAuthStore } from '../store/authStore';
-import { Card, PurchaseTransaction } from '../types';
+import { Card } from '../types';
 
 const POSTerminal: React.FC = () => {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
@@ -22,8 +23,8 @@ const POSTerminal: React.FC = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
-  const [pendingTransaction, setPendingTransaction] = useState<PurchaseTransaction | null>(null);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const [redemptionType, setRedemptionType] = useState<'CASH' | 'STORE_CREDIT'>('CASH');
   
   // Customer information for new customers
   const [customerInfo, setCustomerInfo] = useState({
@@ -175,8 +176,6 @@ const POSTerminal: React.FC = () => {
       }
 
       const result = await api.tenant.createPurchaseTransaction(tenantSlug, data);
-      
-      setPendingTransaction(result.transaction);
 
       if (paymentMethod === 'QR_PAYMENT' && result.paymentUrl) {
         setPaymentUrl(result.paymentUrl);
@@ -279,7 +278,6 @@ const POSTerminal: React.FC = () => {
     setDescription('');
     setMessage(null);
     setPaymentUrl(null);
-    setPendingTransaction(null);
     setCustomerInfo({ firstName: '', lastName: '', email: '', phone: '' });
     setActiveTab('scan');
   };
@@ -715,30 +713,60 @@ const POSTerminal: React.FC = () => {
 
                 {/* Payment URL Display */}
                 {paymentUrl && (
-                  <div className="border border-gray-200 rounded-lg p-4 space-y-3">
-                    <h4 className="font-medium text-gray-900">Payment Link Generated</h4>
+                  <div className="border border-gray-200 rounded-lg p-6 space-y-4">
+                    <div className="text-center">
+                      <h4 className="font-medium text-gray-900 mb-4 flex items-center justify-center">
+                        <QrCode className="w-5 h-5 mr-2" />
+                        QR Payment Generated
+                      </h4>
+                      
+                      {/* QR Code Display */}
+                      <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300 inline-block mb-4">
+                        <QRCode
+                          size={200}
+                          style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                          value={paymentUrl}
+                          viewBox={`0 0 200 200`}
+                        />
+                      </div>
+                      
+                      <p className="text-sm text-gray-600 mb-4">
+                        Customer can scan this QR code with their phone to pay {formatCurrency(parseFloat(amount) || 0)}
+                      </p>
+                    </div>
+                    
+                    {/* Payment Link */}
                     <div className="bg-gray-50 p-3 rounded-lg">
+                      <label className="block text-xs font-medium text-gray-700 mb-2">
+                        Or share this payment link:
+                      </label>
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-600 truncate mr-2">{paymentUrl}</span>
                         <div className="flex space-x-2">
                           <button
                             onClick={() => copyToClipboard(paymentUrl)}
                             className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+                            title="Copy Link"
                           >
                             <Copy className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => window.open(paymentUrl, '_blank')}
                             className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+                            title="Open Link"
                           >
                             <ExternalLink className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
                     </div>
-                    <p className="text-xs text-gray-500">
-                      Share this link with the customer to complete their payment.
-                    </p>
+                    
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-xs text-blue-700 flex items-center">
+                        <Smartphone className="w-4 h-4 mr-1" />
+                        Instructions: Ask customer to scan QR code or open the link on their phone to complete payment
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -746,49 +774,160 @@ const POSTerminal: React.FC = () => {
 
             {/* Redeem Cashback */}
             {activeTab === 'redeem' && scannedCard && scannedCard.customer && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900">Redeem Cashback</h3>
+              <div className="space-y-6">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <Gift className="w-5 h-5 mr-2" />
+                  Redeem Cashback
+                </h3>
                 
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <p className="text-sm text-blue-700">
-                    Available Balance: <span className="font-semibold">
-                      {formatCurrency((scannedCard.balanceCents || 0) / 100)}
+                {/* Customer Info */}
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-gray-900">{scannedCard.customer.firstName} {scannedCard.customer.lastName}</h4>
+                    <span className={`px-3 py-1 text-xs font-medium rounded-full ${getTierColor(scannedCard.customer.tier)}`}>
+                      {scannedCard.customer.tier} Tier
                     </span>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    <p>Card: {scannedCard.cardUid}</p>
+                    <p className="font-semibold text-green-600">Available Balance: {formatCurrency((scannedCard.balanceCents || 0) / 100)}</p>
+                  </div>
+                </div>
+
+                {/* Redemption Type Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Redemption Type
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setRedemptionType('CASH')}
+                      className={`p-4 rounded-lg border-2 text-left transition-all ${
+                        redemptionType === 'CASH'
+                          ? 'border-green-500 bg-green-50 text-green-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center">
+                        <Banknote className="w-5 h-5 mr-2" />
+                        <div>
+                          <p className="font-medium">Cash Payout</p>
+                          <p className="text-xs text-gray-500">Direct cash payment</p>
+                        </div>
+                      </div>
+                    </button>
+                    
+                    <button
+                      onClick={() => setRedemptionType('STORE_CREDIT')}
+                      className={`p-4 rounded-lg border-2 text-left transition-all ${
+                        redemptionType === 'STORE_CREDIT'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center">
+                        <Gift className="w-5 h-5 mr-2" />
+                        <div>
+                          <p className="font-medium">Store Credit</p>
+                          <p className="text-xs text-gray-500">Credit for future purchases</p>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick Amount Buttons */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Quick Amounts
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[5, 10, 25, 50].map((quickAmount) => (
+                      <button
+                        key={quickAmount}
+                        onClick={() => setAmount(quickAmount.toString())}
+                        disabled={(quickAmount * 100) > (scannedCard.balanceCents || 0)}
+                        className={`py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                          (quickAmount * 100) > (scannedCard.balanceCents || 0)
+                            ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                            : 'border-gray-300 hover:border-blue-500 hover:text-blue-600'
+                        }`}
+                      >
+                        ${quickAmount}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Amount */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Custom Amount ($)
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <DollarSign className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={(scannedCard.balanceCents || 0) / 100}
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  {amount && parseFloat(amount) > 0 && (
+                    <div className="mt-2 text-sm text-gray-600">
+                      <p>Remaining balance after redemption: {formatCurrency(((scannedCard.balanceCents || 0) - (parseFloat(amount) * 100)) / 100)}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Process Redemption */}
+                <div className="space-y-3">
+                  <button
+                    onClick={handleRedeemCashback}
+                    disabled={!amount || loading || (parseFloat(amount) * 100) > (scannedCard.balanceCents || 0) || !isSubscriptionActive}
+                    className={`w-full flex items-center justify-center px-4 py-4 rounded-lg text-white font-semibold transition-colors ${
+                      !isSubscriptionActive 
+                        ? 'bg-gray-400 cursor-not-allowed' 
+                        : redemptionType === 'CASH'
+                        ? 'bg-green-600 hover:bg-green-700 disabled:opacity-50'
+                        : 'bg-blue-600 hover:bg-blue-700 disabled:opacity-50'
+                    }`}
+                  >
+                    {loading ? (
+                      <LoadingSpinner size="sm" className="mr-3" />
+                    ) : redemptionType === 'CASH' ? (
+                      <Banknote className="w-5 h-5 mr-3" />
+                    ) : (
+                      <Gift className="w-5 h-5 mr-3" />
+                    )}
+                    {loading 
+                      ? 'Processing...' 
+                      : `${redemptionType === 'CASH' ? 'Pay Cash' : 'Issue Store Credit'} ${amount ? formatCurrency(parseFloat(amount)) : ''}`
+                    }
+                  </button>
+                  
+                  <p className="text-xs text-gray-500 text-center">
+                    {redemptionType === 'CASH' 
+                      ? '💵 Customer will receive cash payment immediately'
+                      : '🎁 Store credit will be added for future use'
+                    }
                   </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Redemption Amount ($)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max={(scannedCard.balanceCents || 0) / 100}
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
+                {/* Redemption History Preview */}
+                <div className="border-t border-gray-200 pt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">Recent Redemptions</h4>
+                  <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                    <p>Last redemption data would show here</p>
+                    <p className="text-blue-600 cursor-pointer hover:underline">View full history →</p>
+                  </div>
                 </div>
-
-                <button
-                  onClick={handleRedeemCashback}
-                  disabled={!amount || loading || (parseFloat(amount) * 100) > (scannedCard.balanceCents || 0) || !isSubscriptionActive}
-                  className={`w-full flex items-center justify-center px-4 py-3 rounded-lg transition-colors ${
-                    !isSubscriptionActive 
-                      ? 'bg-gray-400 text-white cursor-not-allowed' 
-                      : 'bg-red-600 text-white hover:bg-red-700 disabled:opacity-50'
-                  }`}
-                >
-                  {loading ? (
-                    <LoadingSpinner size="sm" className="mr-2" />
-                  ) : (
-                    <Gift className="w-5 h-5 mr-2" />
-                  )}
-                  Process Redemption
-                </button>
               </div>
             )}
           </div>

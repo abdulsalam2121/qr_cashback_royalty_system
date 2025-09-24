@@ -25,6 +25,7 @@ import Rules from './pages/Rules';
 import Customer from './pages/Customer';
 import CardView from './pages/CardView';
 import PaymentPage from './pages/PaymentPage';
+import RedemptionPage from './pages/RedemptionPage';
 import PlatformDashboard from './pages/platform/Dashboard';
 import PlatformTenants from './pages/platform/Tenants';
 import PlatformAnalytics from './pages/platform/Analytics';
@@ -115,6 +116,7 @@ function AppContent() {
 
           {/* Payment Link Route - Public */}
           <Route path="/payment/:token" element={<PaymentPage />} />
+          <Route path="/redeem/:cardUid" element={<RedemptionPage />} />
 
           {/* Platform Admin Routes */}
           <Route path="/platform" element={<PlatformLayout />}>

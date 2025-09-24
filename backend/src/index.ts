@@ -14,6 +14,7 @@ console.log('🌍 Working directory:', process.cwd());
 
 import authRoutes from './routes/auth.js';
 import cardRoutes from './routes/cards.js';
+import publicCardRoutes from './routes/publicCards.js';
 import customerRoutes from './routes/customers.js';
 import transactionRoutes from './routes/transactions.js';
 import purchaseTransactionRoutes from './routes/purchaseTransactions.js';
@@ -139,6 +140,7 @@ app.use('/api/stripe', stripeRoutes);
 
 // Public routes (accessible without tenant context)
 app.use('/api/purchase-transactions', purchaseTransactionRoutes);
+app.use('/api/cards', publicCardRoutes);
 
 // Tenant-scoped routes (must come before /api/t to avoid conflicts)
 console.log('🔧 Registering tenant-scoped routes...');

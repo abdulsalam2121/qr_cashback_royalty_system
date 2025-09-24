@@ -300,6 +300,12 @@ export const api = {
         method: 'DELETE',
       });
     },
+createPaymentIntent: async (token: string): Promise<any> => {
+  return request(`/payment/create-payment-intent/${token}`, {
+    method: 'POST',
+  });
+},
+
 
     setDefaultPaymentMethod: async (tenantSlug: string, paymentMethodId: string): Promise<{ message: string }> => {
       return request(`/t/${tenantSlug}/billing/payment-methods/${paymentMethodId}/set-default`, {
@@ -385,6 +391,10 @@ export const api = {
       const token = params.get('t');
       const url = `/t/${tenantSlug}/cards/${cardUid}${token ? `?t=${token}` : ''}`;
       return request(url);
+    },
+
+    getCardByUid: async (cardUid: string): Promise<Card> => {
+      return request(`/cards/${cardUid}`);
     },
 
     createCardBatch: async (tenantSlug: string, count: number, storeId?: string): Promise<{ cards: Card[]; message: string }> => {
