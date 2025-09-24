@@ -277,13 +277,13 @@ const Transactions: React.FC = () => {
                     <div className="flex items-center">
                       <DollarSign className="w-4 h-4 text-gray-400 mr-1" />
                       <span className="text-sm font-medium text-gray-900">
-                        {formatCurrency(transaction.amountCents)}
+                        {formatCurrency(transaction.amountCents / 100)}
                       </span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="text-sm text-gray-900">
-                      {transaction.type === 'EARN' ? formatCurrency(transaction.cashbackCents) : '-'}
+                      {transaction.type === 'EARN' ? formatCurrency(transaction.cashbackCents / 100) : '-'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -295,10 +295,10 @@ const Transactions: React.FC = () => {
                       )}
                       <div className="text-sm">
                         <div className="text-gray-500">
-                          {formatCurrency(transaction.beforeBalanceCents)} →
+                          {formatCurrency(transaction.beforeBalanceCents / 100)} →
                         </div>
                         <div className="font-medium text-gray-900">
-                          {formatCurrency(transaction.afterBalanceCents)}
+                          {formatCurrency(transaction.afterBalanceCents / 100)}
                         </div>
                       </div>
                     </div>
