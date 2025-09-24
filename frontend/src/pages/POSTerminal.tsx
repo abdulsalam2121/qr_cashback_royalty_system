@@ -634,6 +634,63 @@ const POSTerminal: React.FC = () => {
                   </div>
                 )}
 
+                {paymentMethod === 'CARD' && (
+                  <div className="border border-gray-200 rounded-lg p-4 space-y-4">
+                    <h4 className="font-medium text-gray-900">Card Payment Details</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Card Number *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="1234 5678 9012 3456"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          maxLength={19}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Expiry Date *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="MM/YY"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          maxLength={5}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          CVV *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="123"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          maxLength={4}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Cardholder Name *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="John Doe"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-sm text-yellow-700">
+                        <strong>Note:</strong> Card payment will be processed immediately. 
+                        This is for demonstration purposes only.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <button
                   onClick={handleCreatePurchase}
                   disabled={!amount || loading || !isSubscriptionActive}
