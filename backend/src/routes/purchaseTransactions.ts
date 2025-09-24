@@ -101,7 +101,7 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
         throw new Error('Customer not found');
       }
     } else if (customerInfo && paymentMethod !== 'QR_PAYMENT') {
-      // Create new customer for COD/CASH transactions
+      // Create new customer for CASH/CARD transactions
       // First check if customer with email exists
       if (customerInfo.email) {
         customer = await tx.customer.findUnique({
