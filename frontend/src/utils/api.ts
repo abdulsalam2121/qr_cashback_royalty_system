@@ -387,10 +387,8 @@ createPaymentIntent: async (token: string): Promise<any> => {
     },
 
     getCard: async (tenantSlug: string, cardUid: string): Promise<Card> => {
-      const params = new URLSearchParams(window.location.search);
-      const token = params.get('t');
-      const url = `/t/${tenantSlug}/cards/${cardUid}${token ? `?t=${token}` : ''}`;
-      return request(url);
+      // Use POS-specific endpoint that ensures proper authorization for cashiers
+      return request(`/t/${tenantSlug}/cards/lookup/${cardUid}`);
     },
 
     getCardByUid: async (cardUid: string): Promise<Card> => {

@@ -102,21 +102,65 @@ const POSTerminal: React.FC = () => {
         console.log('Extracted card UID:', cardUid);
       }
       
-      const card = await api.tenant.getCard(tenantSlug, cardUid);
-      console.log('🔍 Card API Response:', card);
-      console.log('🔍 Card customer:', card.customer);
-      console.log('🔍 Card status:', card.status);
-      console.log('🔍 Card customerId:', card.customerId);
-      
-      setScannedCard(card);
-      setActiveTab('purchase');
-      setMessage({
-        type: 'success',
-        text: `Card loaded successfully! ${card.customer ? 
-          `Customer: ${card.customer.firstName} ${card.customer.lastName}` : 
-          'Card is not linked to a customer - transaction will proceed without cashback rewards'
-        }`
-      });
+      try {
+        const card = await api.tenant.getCard(tenantSlug, cardUid);
+        console.log('🔍 Card API Response:', card);
+        console.log('🔍 Card customer:', card.customer);
+        console.log('🔍 Card status:', card.status);
+        console.log('🔍 Card customerId:', card.customerId);
+        
+        // Check if we got limited card data (no customer info due to auth issues)
+        if (card.status === 'ACTIVE' && card.customerId && !card.customer) {
+          console.warn('⚠️ Card is active and has customerId but no customer data returned - likely auth issue');
+          setMessage({
+            type: 'error',
+            text: 'Authentication issue - please refresh page and try again'
+          });
+          return;
+        }
+        
+        setScannedCard(card);
+        setActiveTab('purchase');
+        setMessage({
+          type: 'success',
+          text: `Card loaded successfully! ${card.customer ? 
+            `Customer: ${card.customer.firstName} ${card.customer.lastName}` : 
+            'Card is not linked to a customer - transaction will proceed without cashback rewards'
+          }`
+        });
+      } catch (primaryError) {
+        console.error('❌ Card lookup failed:', primaryError);
+        
+        // If the primary lookup fails, try the legacy endpoint as fallback
+        try {
+          console.log('🔄 Trying fallback card lookup...');
+          const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/t/${tenantSlug}/cards/${cardUid}`, {
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          
+          const card = await response.json();
+          console.log('🔍 Fallback Card API Response:', card);
+          setScannedCard(card);
+          setActiveTab('purchase');
+          setMessage({
+            type: 'success',
+            text: `Card loaded successfully! ${card.customer ? 
+              `Customer: ${card.customer.firstName} ${card.customer.lastName}` : 
+              'Card is not linked to a customer - transaction will proceed without cashback rewards'
+            }`
+          });
+        } catch (fallbackError) {
+          console.error('❌ Fallback card lookup also failed:', fallbackError);
+          throw primaryError; // Throw the original error
+        }
+      }
     } catch (error) {
       setMessage({
         type: 'error',

@@ -147,6 +147,7 @@ console.log('🔧 Registering tenant-scoped routes...');
 app.use('/api/t/:tenantSlug/cards', cardRoutes);
 app.use('/api/t/:tenantSlug/customers', customerRoutes);
 app.use('/api/t/:tenantSlug/transactions', transactionRoutes);
+console.log('🔧 Registering purchase-transactions route...');
 app.use('/api/t/:tenantSlug/purchase-transactions', purchaseTransactionRoutes);
 app.use('/api/t/:tenantSlug/rules', rulesRoutes);
 app.use('/api/t/:tenantSlug/reports', reportRoutes);
