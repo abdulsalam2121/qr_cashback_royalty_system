@@ -360,6 +360,55 @@ router.get('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier'])
         pages: Math.ceil(total / Number(limit)),
     });
 }));
+// Special endpoint for POS terminal card lookup - requires only cashier auth
+router.get('/lookup/:cardUid', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+    const { cardUid } = req.params;
+    const { tenantId } = req.user;
+    console.log('🔍 POS Card Lookup:', { cardUid, tenantId, userRole: req.user.role });
+    const card = await prisma.card.findUnique({
+        where: { cardUid },
+        include: {
+            store: true,
+            customer: {
+                include: {
+                    transactions: {
+                        take: 10,
+                        orderBy: { createdAt: 'desc' },
+                        include: {
+                            store: true,
+                            cashier: {
+                                select: { firstName: true, lastName: true }
+                            }
+                        }
+                    }
+                }
+            },
+        },
+    });
+    if (!card) {
+        res.status(404).json({ error: 'Card not found' });
+        return;
+    }
+    // Verify card belongs to the same tenant
+    if (card.tenantId !== tenantId) {
+        console.log('❌ POS Card Lookup: Tenant mismatch', {
+            cardTenantId: card.tenantId,
+            userTenantId: tenantId
+        });
+        res.status(403).json({ error: 'Unauthorized - card belongs to different tenant' });
+        return;
+    }
+    // Always return full card info for POS operations by cashiers/admins
+    console.log('✅ POS Card Lookup: Success', {
+        cardUid: card.cardUid,
+        hasCustomer: !!card.customer,
+        customerName: card.customer ? `${card.customer.firstName} ${card.customer.lastName}` : null
+    });
+    res.json({
+        ...card,
+        storeName: card.store?.name || null
+    });
+}));
 // Get card by UID
 router.get('/:cardUid', auth_js_1.auth, (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const { cardUid } = req.params;
@@ -402,20 +451,46 @@ router.get('/:cardUid', auth_js_1.auth, (0, asyncHandler_js_1.asyncHandler)(asyn
         return;
     }
     // Check if user is authenticated and authorized
-    const isAuthenticated = req.user;
-    const isAuthorized = isAuthenticated &&
-        card.tenantId === req.user?.tenantId && // Add tenant check with optional chaining
-        (req.user.role === 'platform_admin' ||
-            req.user.role === 'tenant_admin' ||
-            req.user.role === 'cashier' ||
-            (req.user.role === 'customer' && card.customerId === req.user.customerId));
-    console.log('Auth check:', {
+    const isAuthenticated = !!req.user;
+    // Enhanced authorization logic with better debugging
+    let isAuthorized = false;
+    let authFailReason = '';
+    if (isAuthenticated) {
+        const tenantMatch = card.tenantId === req.user?.tenantId;
+        const isPlatformAdmin = req.user.role === 'platform_admin';
+        const isTenantAdmin = req.user.role === 'tenant_admin';
+        const isCashier = req.user.role === 'cashier';
+        const isCardOwner = req.user.role === 'customer' && card.customerId === req.user.customerId;
+        if (isPlatformAdmin) {
+            isAuthorized = true;
+        }
+        else if (!tenantMatch) {
+            authFailReason = 'Tenant ID mismatch';
+        }
+        else if (isTenantAdmin || isCashier) {
+            isAuthorized = true;
+        }
+        else if (isCardOwner) {
+            isAuthorized = true;
+        }
+        else {
+            authFailReason = 'Role not authorized for this card';
+        }
+    }
+    else {
+        authFailReason = 'User not authenticated';
+    }
+    console.log('🔍 Enhanced Auth Check:', {
         isAuthenticated,
         isAuthorized,
+        authFailReason,
         userRole: req.user?.role,
         userTenantId: req.user?.tenantId,
         cardTenantId: card.tenantId,
-        tenantMatch: card.tenantId === req.user?.tenantId
+        tenantMatch: isAuthenticated ? card.tenantId === req.user?.tenantId : false,
+        cardUid: card.cardUid,
+        hasCustomer: !!card.customer,
+        customerName: card.customer ? `${card.customer.firstName} ${card.customer.lastName}` : null
     });
     // Return limited info for unauthenticated requests
     if (!isAuthenticated) {
@@ -425,6 +500,10 @@ router.get('/:cardUid', auth_js_1.auth, (0, asyncHandler_js_1.asyncHandler)(asyn
             status: card.status,
             storeName: card.store?.name,
             isActive: card.status === 'ACTIVE',
+            // Add debug info in development
+            ...(process.env.NODE_ENV === 'development' && {
+                _debug: { reason: 'unauthenticated', authFailReason }
+            })
         });
         return;
     }
@@ -438,8 +517,21 @@ router.get('/:cardUid', auth_js_1.auth, (0, asyncHandler_js_1.asyncHandler)(asyn
         return;
     }
     else {
-        console.log('❌ Unauthorized access attempt');
-        res.status(403).json({ error: 'Unauthorized' });
+        console.log(`❌ Unauthorized access attempt: ${authFailReason}`);
+        res.status(403).json({
+            error: 'Unauthorized',
+            message: authFailReason,
+            // Add debug info in development
+            ...(process.env.NODE_ENV === 'development' && {
+                _debug: {
+                    reason: 'unauthorized',
+                    authFailReason,
+                    userRole: req.user?.role,
+                    userTenantId: req.user?.tenantId,
+                    cardTenantId: card.tenantId
+                }
+            })
+        });
         return;
     }
 }));
