@@ -25,6 +25,12 @@ router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(
     return;
   }
 
+  console.log('🎯 Received Stripe webhook event:', event.type, {
+    eventId: event.id,
+    paymentIntentId: event.type === 'payment_intent.succeeded' ? (event.data.object as any).id : null,
+    metadata: event.type === 'payment_intent.succeeded' ? (event.data.object as any).metadata : null
+  });
+
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -175,8 +181,15 @@ async function handleCardOrderPaymentIntent(paymentIntent: Stripe.PaymentIntent)
 async function handlePurchaseTransactionPaymentIntent(paymentIntent: Stripe.PaymentIntent) {
   const paymentLinkId = paymentIntent.metadata?.paymentLinkId;
   
+  console.log('🎯 Processing PaymentIntent for purchase transaction:', {
+    paymentIntentId: paymentIntent.id,
+    paymentLinkId,
+    amount: paymentIntent.amount,
+    status: paymentIntent.status
+  });
+  
   if (!paymentLinkId) {
-    console.error('No payment link ID in payment intent metadata');
+    console.error('❌ No payment link ID in payment intent metadata');
     return;
   }
 
@@ -194,9 +207,17 @@ async function handlePurchaseTransactionPaymentIntent(paymentIntent: Stripe.Paym
       });
 
       if (!purchaseTransaction) {
-        console.error(`No pending purchase transaction found for payment link ${paymentLinkId}`);
+        console.error(`❌ No pending purchase transaction found for payment link ${paymentLinkId}`);
         return;
       }
+
+      console.log('✅ Found purchase transaction:', {
+        id: purchaseTransaction.id,
+        amount: purchaseTransaction.amountCents,
+        cardUid: purchaseTransaction.cardUid,
+        customerId: purchaseTransaction.customerId,
+        paymentStatus: purchaseTransaction.paymentStatus
+      });
 
       // Update purchase transaction status
       const updatedTransaction = await tx.purchaseTransaction.update({
@@ -213,21 +234,25 @@ async function handlePurchaseTransactionPaymentIntent(paymentIntent: Stripe.Paym
         data: { usedAt: new Date() }
       });
 
-      // Process cashback if applicable
-      if (purchaseTransaction.cardUid && purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0) {
+      // Process cashback and create transaction record
+      if (purchaseTransaction.cardUid) {
         const card = await tx.card.findUnique({
           where: { cardUid: purchaseTransaction.cardUid },
           include: { customer: true }
         });
 
         if (card && card.customer) {
-          const newBalance = card.balanceCents + purchaseTransaction.cashbackCents;
-
-          // Update card balance
-          await tx.card.update({
-            where: { id: card.id },
-            data: { balanceCents: newBalance }
-          });
+          let newBalance = card.balanceCents;
+          
+          // Update card balance if there's cashback
+          if (purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0) {
+            newBalance = card.balanceCents + purchaseTransaction.cashbackCents;
+            
+            await tx.card.update({
+              where: { id: card.id },
+              data: { balanceCents: newBalance }
+            });
+          }
 
           // Update customer total spend
           const newTotalSpend = new Decimal(card.customer.totalSpend).add(new Decimal(purchaseTransaction.amountCents).div(100));
@@ -236,7 +261,7 @@ async function handlePurchaseTransactionPaymentIntent(paymentIntent: Stripe.Paym
             data: { totalSpend: newTotalSpend }
           });
 
-          // Create traditional cashback transaction record
+          // Always create transaction record for card-based transactions (even if no cashback)
           await tx.transaction.create({
             data: {
               tenantId: purchaseTransaction.tenantId,
@@ -247,18 +272,43 @@ async function handlePurchaseTransactionPaymentIntent(paymentIntent: Stripe.Paym
               type: 'EARN',
               category: purchaseTransaction.category,
               amountCents: purchaseTransaction.amountCents,
-              cashbackCents: purchaseTransaction.cashbackCents,
+              cashbackCents: purchaseTransaction.cashbackCents || 0,
               beforeBalanceCents: card.balanceCents,
               afterBalanceCents: newBalance,
               note: `Purchase transaction: ${purchaseTransaction.id} (Stripe Payment)`,
             }
           });
 
+          console.log('✅ Created transaction record for card-based purchase:', {
+            cardId: card.id,
+            customerId: card.customer.id,
+            amountCents: purchaseTransaction.amountCents,
+            cashbackCents: purchaseTransaction.cashbackCents || 0
+          });
+
           // Check for tier upgrade
           await updateCustomerTier(card.customer.id, purchaseTransaction.tenantId, tx);
         }
+      } else if (purchaseTransaction.customerId) {
+        // For transactions without cards, just update customer spend (can't create transaction record due to schema constraint)
+        const customer = await tx.customer.findUnique({
+          where: { id: purchaseTransaction.customerId }
+        });
+
+        if (customer) {
+          // Update customer total spend
+          const newTotalSpend = new Decimal(customer.totalSpend).add(new Decimal(purchaseTransaction.amountCents).div(100));
+          await tx.customer.update({
+            where: { id: customer.id },
+            data: { totalSpend: newTotalSpend }
+          });
+
+          // Check for tier upgrade
+          await updateCustomerTier(customer.id, purchaseTransaction.tenantId, tx);
+        }
       }
 
+      console.log('🎯 Purchase transaction payment intent succeeded for transaction', purchaseTransaction.id);
       if (process.env.NODE_ENV !== 'production') {
         console.log(`Purchase transaction payment intent succeeded for transaction ${purchaseTransaction.id}`);
       }
