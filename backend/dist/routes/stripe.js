@@ -7,6 +7,8 @@ const express_1 = __importDefault(require("express"));
 const client_1 = require("@prisma/client");
 const stripe_1 = __importDefault(require("stripe"));
 const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
+const decimal_js_1 = require("decimal.js");
+const tiers_js_1 = require("../utils/tiers.js");
 const router = express_1.default.Router();
 const prisma = new client_1.PrismaClient();
 const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
@@ -81,6 +83,10 @@ router.post('/webhook', express_1.default.raw({ type: 'application/json' }), (0,
                 if (paymentIntent.metadata?.orderId) {
                     await handleCardOrderPaymentIntent(paymentIntent);
                 }
+                // Handle QR payment transactions
+                else if (paymentIntent.metadata?.paymentLinkId) {
+                    await handlePurchaseTransactionPaymentIntent(paymentIntent);
+                }
                 break;
             }
             default:
@@ -144,6 +150,91 @@ async function handleCardOrderPaymentIntent(paymentIntent) {
     }
     catch (error) {
         console.error(`Failed to update card order ${orderId}:`, error);
+    }
+}
+// Handle payment intent for purchase transactions (QR payments)
+async function handlePurchaseTransactionPaymentIntent(paymentIntent) {
+    const paymentLinkId = paymentIntent.metadata?.paymentLinkId;
+    if (!paymentLinkId) {
+        console.error('No payment link ID in payment intent metadata');
+        return;
+    }
+    try {
+        await prisma.$transaction(async (tx) => {
+            // Find the purchase transaction linked to this payment link
+            const purchaseTransaction = await tx.purchaseTransaction.findFirst({
+                where: {
+                    paymentLinkId: paymentLinkId,
+                    paymentStatus: 'PENDING'
+                },
+                include: {
+                    customer: true
+                }
+            });
+            if (!purchaseTransaction) {
+                console.error(`No pending purchase transaction found for payment link ${paymentLinkId}`);
+                return;
+            }
+            // Update purchase transaction status
+            const updatedTransaction = await tx.purchaseTransaction.update({
+                where: { id: purchaseTransaction.id },
+                data: {
+                    paymentStatus: 'COMPLETED',
+                    paidAt: new Date(),
+                }
+            });
+            // Mark payment link as used
+            await tx.paymentLink.update({
+                where: { id: paymentLinkId },
+                data: { usedAt: new Date() }
+            });
+            // Process cashback if applicable
+            if (purchaseTransaction.cardUid && purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0) {
+                const card = await tx.card.findUnique({
+                    where: { cardUid: purchaseTransaction.cardUid },
+                    include: { customer: true }
+                });
+                if (card && card.customer) {
+                    const newBalance = card.balanceCents + purchaseTransaction.cashbackCents;
+                    // Update card balance
+                    await tx.card.update({
+                        where: { id: card.id },
+                        data: { balanceCents: newBalance }
+                    });
+                    // Update customer total spend
+                    const newTotalSpend = new decimal_js_1.Decimal(card.customer.totalSpend).add(new decimal_js_1.Decimal(purchaseTransaction.amountCents).div(100));
+                    await tx.customer.update({
+                        where: { id: card.customer.id },
+                        data: { totalSpend: newTotalSpend }
+                    });
+                    // Create traditional cashback transaction record
+                    await tx.transaction.create({
+                        data: {
+                            tenantId: purchaseTransaction.tenantId,
+                            storeId: purchaseTransaction.storeId,
+                            cardId: card.id,
+                            customerId: card.customer.id,
+                            cashierId: purchaseTransaction.cashierId,
+                            type: 'EARN',
+                            category: purchaseTransaction.category,
+                            amountCents: purchaseTransaction.amountCents,
+                            cashbackCents: purchaseTransaction.cashbackCents,
+                            beforeBalanceCents: card.balanceCents,
+                            afterBalanceCents: newBalance,
+                            note: `Purchase transaction: ${purchaseTransaction.id} (Stripe Payment)`,
+                        }
+                    });
+                    // Check for tier upgrade
+                    await (0, tiers_js_1.updateCustomerTier)(card.customer.id, purchaseTransaction.tenantId, tx);
+                }
+            }
+            if (process.env.NODE_ENV !== 'production') {
+                console.log(`Purchase transaction payment intent succeeded for transaction ${purchaseTransaction.id}`);
+            }
+        });
+    }
+    catch (error) {
+        console.error(`Failed to process purchase transaction for payment link ${paymentLinkId}:`, error);
     }
 }
 // Handle customer funds payment completion

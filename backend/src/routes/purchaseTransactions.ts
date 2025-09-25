@@ -19,6 +19,7 @@ const prisma = new PrismaClient();
 const createPurchaseSchema = z.object({
   cardUid: z.string().optional(),
   customerId: z.string().optional(),
+  storeId: z.string().optional(), // Allow tenant admins to specify store
   amountCents: z.number().int().positive(),
   category: z.enum(['PURCHASE', 'REPAIR', 'OTHER']),
   description: z.string().optional(),
@@ -41,18 +42,55 @@ const paymentLinkSchema = z.object({
 
 // Create purchase transaction (with or without card)
 router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createPurchaseSchema), asyncHandler(async (req: Request, res: Response) => {
-  const { cardUid, customerId, amountCents, category, description, paymentMethod, customerInfo } = req.body;
-  const { tenantId, userId: cashierId, storeId } = req.user;
+  const { cardUid, customerId, amountCents, category, description, paymentMethod, customerInfo, storeId: requestedStoreId } = req.body;
+  const { tenantId, userId: cashierId, storeId: userStoreId, role } = req.user;
 
   console.log('🔍 Purchase Transaction Data:', {
     amountCents,
     category,
     paymentMethod,
     cardUid,
-    customerId
+    customerId,
+    userRole: role,
+    userStoreId,
+    requestedStoreId
   });
 
-  if (!storeId) {
+  // Determine which store to use for the transaction
+  let transactionStoreId = userStoreId;
+
+  // If user is tenant_admin and no store is assigned, they can specify a store
+  if (role === 'tenant_admin') {
+    if (requestedStoreId) {
+      // Verify the requested store belongs to the tenant
+      const store = await prisma.store.findFirst({
+        where: { 
+          id: requestedStoreId, 
+          tenantId 
+        }
+      });
+
+      if (!store) {
+        res.status(400).json({ error: 'Invalid store specified' });
+        return;
+      }
+
+      transactionStoreId = requestedStoreId;
+    } else if (!userStoreId) {
+      // If tenant admin has no store assignment and none specified, use first available store
+      const firstStore = await prisma.store.findFirst({
+        where: { tenantId, active: true }
+      });
+
+      if (!firstStore) {
+        res.status(400).json({ error: 'No active stores found for tenant' });
+        return;
+      }
+
+      transactionStoreId = firstStore.id;
+    }
+  } else if (role === 'cashier' && !userStoreId) {
+    // Cashiers must be assigned to a store
     res.status(400).json({ error: 'Cashier must be assigned to a store' });
     return;
   }
@@ -85,8 +123,8 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
         throw new Error('Card is not linked to a customer');
       }
 
-      // Enforce store binding
-      if (card.storeId !== storeId) {
+      // Enforce store binding for card-based transactions (unless tenant_admin)
+      if (card.storeId && card.storeId !== transactionStoreId && role !== 'tenant_admin') {
         throw new Error(`This card can only be used at ${card.store?.name}`);
       }
 
@@ -157,7 +195,7 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
     const purchaseTransaction = await tx.purchaseTransaction.create({
       data: {
         tenantId,
-        storeId,
+        storeId: transactionStoreId,
         customerId: customer?.id || null,
         cashierId,
         cardUid,
@@ -199,7 +237,7 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
       await tx.transaction.create({
         data: {
           tenantId,
-          storeId,
+          storeId: transactionStoreId,
           cardId: card.id,
           customerId: customer.id,
           cashierId,
@@ -227,7 +265,7 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
       await tx.transaction.create({
         data: {
           tenantId,
-          storeId,
+          storeId: transactionStoreId,
           cardId: card.id,
           customerId: customer.id,
           cashierId,
