@@ -58,6 +58,10 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req: Re
         await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
         break;
 
+      case 'payment_intent.succeeded':
+        await handlePaymentIntentSucceeded(event.data.object as Stripe.PaymentIntent);
+        break;
+
       default:
         if (process.env.NODE_ENV !== 'production') {
           console.log(`Unhandled event type: ${event.type}`);
@@ -484,6 +488,193 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
 
       if (process.env.NODE_ENV !== 'production') {
         console.log(`Payment failed, grace period set until ${graceEndsAt}`);
+      }
+    }
+  }
+}
+
+async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Processing payment_intent.succeeded');
+  }
+
+  const paymentLinkId = paymentIntent.metadata?.paymentLinkId;
+  const purchaseTransactionId = paymentIntent.metadata?.purchaseTransactionId;
+
+  // Handle QR payment via payment link
+  if (paymentLinkId) {
+    await handleQRPaymentSuccess(paymentLinkId);
+  }
+  // Handle direct card payment
+  else if (purchaseTransactionId) {
+    await handleDirectCardPaymentSuccess(purchaseTransactionId);
+  }
+  else {
+    console.error('No paymentLinkId or purchaseTransactionId found in PaymentIntent metadata');
+    return;
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`Successfully processed PaymentIntent ${paymentIntent.id}`);
+  }
+}
+
+async function handleQRPaymentSuccess(paymentLinkId: string) {
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Find the payment link and associated purchase transaction
+      const paymentLink = await tx.paymentLink.findUnique({
+        where: { id: paymentLinkId },
+        include: {
+          purchaseTransactions: {
+            where: { paymentStatus: 'PENDING' },
+            include: {
+              store: { select: { name: true } },
+              customer: { select: { firstName: true, lastName: true, email: true } },
+            }
+          }
+        }
+      });
+
+      if (!paymentLink) {
+        throw new Error('Payment link not found');
+      }
+
+      if (paymentLink.usedAt) {
+        console.log('Payment link already used, skipping processing');
+        return;
+      }
+
+      const purchaseTransaction = paymentLink.purchaseTransactions[0];
+      if (!purchaseTransaction) {
+        throw new Error('No pending transaction found for this payment link');
+      }
+
+      // Mark payment link as used
+      await tx.paymentLink.update({
+        where: { id: paymentLink.id },
+        data: { usedAt: new Date() }
+      });
+
+      // Process the transaction completion
+      await completeTransaction(purchaseTransaction.id, 'QR Payment via Stripe', tx);
+    });
+  } catch (error) {
+    console.error('Error processing QR payment success:', error);
+    throw error;
+  }
+}
+
+async function handleDirectCardPaymentSuccess(purchaseTransactionId: string) {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const purchaseTransaction = await tx.purchaseTransaction.findUnique({
+        where: { id: purchaseTransactionId },
+      });
+
+      if (!purchaseTransaction) {
+        throw new Error('Purchase transaction not found');
+      }
+
+      if (purchaseTransaction.paymentStatus !== 'PENDING') {
+        console.log('Transaction is not pending, skipping processing');
+        return;
+      }
+
+      // Process the transaction completion
+      await completeTransaction(purchaseTransactionId, 'Direct Card Payment via Stripe', tx);
+    });
+  } catch (error) {
+    console.error('Error processing direct card payment success:', error);
+    throw error;
+  }
+}
+
+async function completeTransaction(purchaseTransactionId: string, source: string, tx: any) {
+  // Update payment status
+  const updatedTransaction = await tx.purchaseTransaction.update({
+    where: { id: purchaseTransactionId },
+    data: {
+      paymentStatus: 'COMPLETED',
+      paidAt: new Date(),
+    },
+  });
+
+  // Process cashback and create transaction record
+  if (updatedTransaction.cardUid) {
+    const card = await tx.card.findUnique({
+      where: { cardUid: updatedTransaction.cardUid },
+      include: { customer: true }
+    });
+
+    if (card && card.customer) {
+      let newBalance = card.balanceCents;
+      
+      // Update card balance if there's cashback
+      if (updatedTransaction.cashbackCents && updatedTransaction.cashbackCents > 0) {
+        newBalance = card.balanceCents + updatedTransaction.cashbackCents;
+
+        await tx.card.update({
+          where: { id: card.id },
+          data: { balanceCents: newBalance }
+        });
+      }
+
+      // Update customer total spend
+      const { Decimal } = await import('decimal.js');
+      const newTotalSpend = new Decimal(card.customer.totalSpend).add(new Decimal(updatedTransaction.amountCents).div(100));
+      await tx.customer.update({
+        where: { id: card.customer.id },
+        data: { totalSpend: newTotalSpend }
+      });
+
+      // Always create transaction record for card-based transactions (even if no cashback)
+      await tx.transaction.create({
+        data: {
+          tenantId: updatedTransaction.tenantId,
+          storeId: updatedTransaction.storeId,
+          cardId: card.id,
+          customerId: card.customer.id,
+          cashierId: updatedTransaction.cashierId,
+          type: 'EARN',
+          category: updatedTransaction.category,
+          amountCents: updatedTransaction.amountCents,
+          cashbackCents: updatedTransaction.cashbackCents || 0,
+          beforeBalanceCents: card.balanceCents,
+          afterBalanceCents: newBalance,
+          note: `Purchase transaction: ${updatedTransaction.id} (${source})`,
+        }
+      });
+
+      // Check for tier upgrade
+      const { updateCustomerTier } = await import('../utils/tiers.js');
+      await updateCustomerTier(card.customer.id, updatedTransaction.tenantId, tx);
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Processed payment for transaction ${updatedTransaction.id}, cashback: ${updatedTransaction.cashbackCents || 0} cents`);
+      }
+    }
+  } else if (updatedTransaction.customerId) {
+    // For transactions without cards, just update customer spend
+    const customer = await tx.customer.findUnique({
+      where: { id: updatedTransaction.customerId }
+    });
+
+    if (customer) {
+      // Update customer total spend
+      const { Decimal } = await import('decimal.js');
+      const newTotalSpend = new Decimal(customer.totalSpend).add(new Decimal(updatedTransaction.amountCents).div(100));
+      await tx.customer.update({
+        where: { id: customer.id },
+        data: { totalSpend: newTotalSpend }
+      });
+
+      // Check for tier upgrade
+      const { updateCustomerTier } = await import('../utils/tiers.js');
+      await updateCustomerTier(customer.id, updatedTransaction.tenantId, tx);
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Updated customer spend for transaction ${updatedTransaction.id}`);
       }
     }
   }

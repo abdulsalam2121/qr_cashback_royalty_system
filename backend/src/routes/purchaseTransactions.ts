@@ -40,6 +40,10 @@ const paymentLinkSchema = z.object({
   token: z.string(),
 });
 
+const cardPaymentIntentSchema = z.object({
+  purchaseTransactionId: z.string(),
+});
+
 // Create purchase transaction (with or without card)
 router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createPurchaseSchema), asyncHandler(async (req: Request, res: Response) => {
   const { cardUid, customerId, amountCents, category, description, paymentMethod, customerInfo, storeId: requestedStoreId } = req.body;
@@ -338,6 +342,53 @@ router.post('/create-payment-intent/:token', asyncHandler(async (req: Request, r
     currency: 'usd',
     metadata: {
       paymentLinkId: paymentLink.id,
+    },
+  });
+
+  res.json({ client_secret: intent.client_secret });
+}));
+
+// Create PaymentIntent for direct card payment
+router.post('/create-card-payment-intent', auth, rbac(['tenant_admin', 'cashier']), validate(cardPaymentIntentSchema), asyncHandler(async (req: Request, res: Response) => {
+  const { purchaseTransactionId } = req.body;
+  const { tenantId } = req.user;
+
+  if (!purchaseTransactionId) {
+    res.status(400).json({ error: 'Purchase transaction ID is required' });
+    return;
+  }
+
+  const purchaseTransaction = await prisma.purchaseTransaction.findUnique({
+    where: { id: purchaseTransactionId },
+  });
+
+  if (!purchaseTransaction) {
+    res.status(404).json({ error: 'Purchase transaction not found' });
+    return;
+  }
+
+  if (purchaseTransaction.tenantId !== tenantId) {
+    res.status(403).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  if (purchaseTransaction.paymentStatus !== 'PENDING') {
+    res.status(400).json({ error: 'Transaction is not pending' });
+    return;
+  }
+
+  if (purchaseTransaction.paymentMethod !== 'CARD') {
+    res.status(400).json({ error: 'This endpoint is only for card payments' });
+    return;
+  }
+
+  // Create a PaymentIntent with Stripe
+  const intent = await stripe.paymentIntents.create({
+    amount: purchaseTransaction.amountCents,
+    currency: 'usd',
+    metadata: {
+      purchaseTransactionId: purchaseTransaction.id,
+      tenantId: tenantId,
     },
   });
 
