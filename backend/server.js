@@ -19,6 +19,8 @@ import userRoutes from './dist/routes/users';
 import platformRoutes from './dist/routes/platform';
 import tenantRoutes from './dist/routes/tenant';
 import stripeRoutes from './dist/routes/stripe';
+import webhooksRoutes from './dist/routes/webhooks';
+import purchaseTransactionRoutes from './dist/routes/purchaseTransactions';
 import trialRoutes from './dist/routes/trial';
 import cardOrderRoutes from './dist/routes/cardOrders';
 import adminRoutes from './dist/routes/admin';
@@ -75,6 +77,9 @@ app.use(limiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/transactions', transactionLimiter);
 
+// Webhook endpoints need raw body - must be before express.json()
+app.use('/api/webhooks', webhooksRoutes);
+
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -110,6 +115,7 @@ app.get('/healthz', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/platform', platformRoutes);
+app.use('/api/purchase-transactions', purchaseTransactionRoutes);
 app.use('/api/card-orders', cardOrderRoutes); // Global card orders routes (pricing, etc.)
 app.use('/api/t', tenantRoutes);
 app.use('/api/stripe', stripeRoutes);
@@ -118,6 +124,7 @@ app.use('/api/stripe', stripeRoutes);
 app.use('/api/t/:tenantSlug/cards', cardRoutes);
 app.use('/api/t/:tenantSlug/customers', customerRoutes);
 app.use('/api/t/:tenantSlug/transactions', transactionRoutes);
+app.use('/api/t/:tenantSlug/purchase-transactions', purchaseTransactionRoutes);
 app.use('/api/t/:tenantSlug/rules', rulesRoutes);
 app.use('/api/t/:tenantSlug/reports', reportRoutes);
 app.use('/api/t/:tenantSlug/notifications', notificationRoutes);
