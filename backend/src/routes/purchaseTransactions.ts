@@ -40,16 +40,12 @@ const paymentLinkSchema = z.object({
   token: z.string(),
 });
 
-const cardPaymentIntentSchema = z.object({
-  purchaseTransactionId: z.string(),
-});
-
 // Create purchase transaction (with or without card)
 router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createPurchaseSchema), asyncHandler(async (req: Request, res: Response) => {
   const { cardUid, customerId, amountCents, category, description, paymentMethod, customerInfo, storeId: requestedStoreId } = req.body;
   const { tenantId, userId: cashierId, storeId: userStoreId, role } = req.user;
 
-  console.log('🔍 Purchase Transaction Data:', {
+  console.log('?? Purchase Transaction Data:', {
     amountCents,
     category,
     paymentMethod,
@@ -348,53 +344,6 @@ router.post('/create-payment-intent/:token', asyncHandler(async (req: Request, r
   res.json({ client_secret: intent.client_secret });
 }));
 
-// Create PaymentIntent for direct card payment
-router.post('/create-card-payment-intent', auth, rbac(['tenant_admin', 'cashier']), validate(cardPaymentIntentSchema), asyncHandler(async (req: Request, res: Response) => {
-  const { purchaseTransactionId } = req.body;
-  const { tenantId } = req.user;
-
-  if (!purchaseTransactionId) {
-    res.status(400).json({ error: 'Purchase transaction ID is required' });
-    return;
-  }
-
-  const purchaseTransaction = await prisma.purchaseTransaction.findUnique({
-    where: { id: purchaseTransactionId },
-  });
-
-  if (!purchaseTransaction) {
-    res.status(404).json({ error: 'Purchase transaction not found' });
-    return;
-  }
-
-  if (purchaseTransaction.tenantId !== tenantId) {
-    res.status(403).json({ error: 'Unauthorized' });
-    return;
-  }
-
-  if (purchaseTransaction.paymentStatus !== 'PENDING') {
-    res.status(400).json({ error: 'Transaction is not pending' });
-    return;
-  }
-
-  if (purchaseTransaction.paymentMethod !== 'CARD') {
-    res.status(400).json({ error: 'This endpoint is only for card payments' });
-    return;
-  }
-
-  // Create a PaymentIntent with Stripe
-  const intent = await stripe.paymentIntents.create({
-    amount: purchaseTransaction.amountCents,
-    currency: 'usd',
-    metadata: {
-      purchaseTransactionId: purchaseTransaction.id,
-      tenantId: tenantId,
-    },
-  });
-
-  res.json({ client_secret: intent.client_secret });
-}));
-
 
 // Confirm payment (for completing QR payments)
 router.post('/confirm-payment', auth, rbac(['tenant_admin', 'cashier']), validate(confirmPaymentSchema), asyncHandler(async (req: Request, res: Response) => {
@@ -436,25 +385,21 @@ router.post('/confirm-payment', auth, rbac(['tenant_admin', 'cashier']), validat
       }
     });
 
-    // Process cashback and create transaction record
-    if (purchaseTransaction.cardUid) {
+    // If there's a card and cashback, process it
+    if (purchaseTransaction.cardUid && purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0) {
       const card = await tx.card.findUnique({
         where: { cardUid: purchaseTransaction.cardUid },
         include: { customer: true }
       });
 
       if (card && card.customer) {
-        let newBalance = card.balanceCents;
+        const newBalance = card.balanceCents + purchaseTransaction.cashbackCents;
         
-        // Update card balance if there's cashback
-        if (purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0) {
-          newBalance = card.balanceCents + purchaseTransaction.cashbackCents;
-          
-          await tx.card.update({
-            where: { id: card.id },
-            data: { balanceCents: newBalance }
-          });
-        }
+        // Update card balance
+        await tx.card.update({
+          where: { id: card.id },
+          data: { balanceCents: newBalance }
+        });
 
         // Update customer total spend
         const newTotalSpend = new Decimal(card.customer.totalSpend).add(new Decimal(purchaseTransaction.amountCents).div(100));
@@ -463,7 +408,7 @@ router.post('/confirm-payment', auth, rbac(['tenant_admin', 'cashier']), validat
           data: { totalSpend: newTotalSpend }
         });
 
-        // Always create transaction record for card-based transactions (even if no cashback)
+        // Create traditional cashback transaction record
         await tx.transaction.create({
           data: {
             tenantId,
@@ -474,7 +419,7 @@ router.post('/confirm-payment', auth, rbac(['tenant_admin', 'cashier']), validat
             type: 'EARN',
             category: purchaseTransaction.category,
             amountCents: purchaseTransaction.amountCents,
-            cashbackCents: purchaseTransaction.cashbackCents || 0,
+            cashbackCents: purchaseTransaction.cashbackCents,
             beforeBalanceCents: card.balanceCents,
             afterBalanceCents: newBalance,
             note: `Purchase transaction: ${purchaseTransaction.id}`,
@@ -484,23 +429,6 @@ router.post('/confirm-payment', auth, rbac(['tenant_admin', 'cashier']), validat
 
         // Check for tier upgrade
         await updateCustomerTier(card.customer.id, tenantId, tx);
-      }
-    } else if (purchaseTransaction.customerId) {
-      // For transactions without cards, just update customer spend (can't create transaction record due to schema constraint)
-      const customer = await tx.customer.findUnique({
-        where: { id: purchaseTransaction.customerId }
-      });
-
-      if (customer) {
-        // Update customer total spend
-        const newTotalSpend = new Decimal(customer.totalSpend).add(new Decimal(purchaseTransaction.amountCents).div(100));
-        await tx.customer.update({
-          where: { id: customer.id },
-          data: { totalSpend: newTotalSpend }
-        });
-
-        // Check for tier upgrade
-        await updateCustomerTier(customer.id, tenantId, tx);
       }
     }
 
@@ -582,25 +510,21 @@ router.post('/pay/:token', asyncHandler(async (req: Request, res: Response) => {
       data: { usedAt: new Date() }
     });
 
-    // Process cashback and create transaction record
-    if (purchaseTransaction.cardUid) {
+    // Process cashback if applicable
+    if (purchaseTransaction.cardUid && purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0) {
       const card = await tx.card.findUnique({
         where: { cardUid: purchaseTransaction.cardUid },
         include: { customer: true }
       });
 
       if (card && card.customer) {
-        let newBalance = card.balanceCents;
-        
-        // Update card balance if there's cashback
-        if (purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0) {
-          newBalance = card.balanceCents + purchaseTransaction.cashbackCents;
+        const newBalance = card.balanceCents + purchaseTransaction.cashbackCents;
 
-          await tx.card.update({
-            where: { id: card.id },
-            data: { balanceCents: newBalance }
-          });
-        }
+        // Update card balance
+        await tx.card.update({
+          where: { id: card.id },
+          data: { balanceCents: newBalance }
+        });
 
         // Update customer total spend
         const newTotalSpend = new Decimal(card.customer.totalSpend).add(new Decimal(purchaseTransaction.amountCents).div(100));
@@ -609,7 +533,7 @@ router.post('/pay/:token', asyncHandler(async (req: Request, res: Response) => {
           data: { totalSpend: newTotalSpend }
         });
 
-        // Always create transaction record for card-based transactions (even if no cashback)
+        // Create traditional cashback transaction record
         await tx.transaction.create({
           data: {
             tenantId: purchaseTransaction.tenantId,
@@ -620,7 +544,7 @@ router.post('/pay/:token', asyncHandler(async (req: Request, res: Response) => {
             type: 'EARN',
             category: purchaseTransaction.category,
             amountCents: purchaseTransaction.amountCents,
-            cashbackCents: purchaseTransaction.cashbackCents || 0,
+            cashbackCents: purchaseTransaction.cashbackCents,
             beforeBalanceCents: card.balanceCents,
             afterBalanceCents: newBalance,
             note: `Purchase transaction: ${purchaseTransaction.id}`,
@@ -629,23 +553,6 @@ router.post('/pay/:token', asyncHandler(async (req: Request, res: Response) => {
 
         // Check for tier upgrade
         await updateCustomerTier(card.customer.id, purchaseTransaction.tenantId, tx);
-      }
-    } else if (purchaseTransaction.customerId) {
-      // For transactions without cards, just update customer spend (can't create transaction record due to schema constraint)
-      const customer = await tx.customer.findUnique({
-        where: { id: purchaseTransaction.customerId }
-      });
-
-      if (customer) {
-        // Update customer total spend
-        const newTotalSpend = new Decimal(customer.totalSpend).add(new Decimal(purchaseTransaction.amountCents).div(100));
-        await tx.customer.update({
-          where: { id: customer.id },
-          data: { totalSpend: newTotalSpend }
-        });
-
-        // Check for tier upgrade
-        await updateCustomerTier(customer.id, purchaseTransaction.tenantId, tx);
       }
     }
 
