@@ -1,7 +1,7 @@
 {
-  "name": "stripe-webhook-tester",
+  "name": "backend-webhook-tester",
   "version": "1.0.0",
-  "description": "A testing utility for Stripe webhook endpoints",
+  "description": "A testing utility for the backend's Stripe webhook endpoints",
   "main": "test-webhook.js",
   "scripts": {
     "test": "node test-webhook.js",
@@ -16,8 +16,9 @@
     "stripe",
     "webhook",
     "testing",
-    "payments"
+    "payments",
+    "backend"
   ],
-  "author": "Your Name",
+  "author": "QR Cashback System",
   "license": "MIT"
 }

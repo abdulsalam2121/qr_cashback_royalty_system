@@ -91,6 +91,10 @@ app.use(limiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/transactions', transactionLimiter);
 
+// Stripe webhook endpoint needs raw body for signature verification
+// This must come BEFORE the express.json() middleware
+app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
+
 // Webhooks need raw body access, so add before JSON parsing
 app.use('/api/webhooks', webhookRoutes);
 

@@ -1,6 +1,10 @@
-# Stripe Webhook Tester
+# Backend Webhook Tester
 
-A comprehensive testing utility for validating Stripe webhook endpoints. This tool sends mock webhook events with proper signatures to test your webhook handler implementation.
+A comprehensive testing utility for validating the backend's Stripe webhook endpoints. This tool sends mock webhook events with proper signatures to test your webhook handler implementation.
+
+## Location
+
+This testing utility is located in the backend directory (`backend/webhook-tester/`) as it specifically tests backend webhook functionality.
 
 ## Features
 
@@ -13,9 +17,9 @@ A comprehensive testing utility for validating Stripe webhook endpoints. This to
 
 ## Installation
 
-1. Navigate to the webhook-tester directory:
+1. Navigate to the backend webhook-tester directory:
 ```bash
-cd webhook-tester
+cd backend/webhook-tester
 ```
 
 2. Install dependencies:

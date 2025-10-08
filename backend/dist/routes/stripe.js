@@ -13,7 +13,7 @@ const router = express_1.default.Router();
 const prisma = new client_1.PrismaClient();
 const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
 // Stripe webhook handler
-router.post('/webhook', express_1.default.raw({ type: 'application/json' }), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/webhook', (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
     const sig = req.headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     let event;
