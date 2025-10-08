@@ -1,0 +1,23 @@
+{
+  "name": "stripe-webhook-tester",
+  "version": "1.0.0",
+  "description": "A testing utility for Stripe webhook endpoints",
+  "main": "test-webhook.js",
+  "scripts": {
+    "test": "node test-webhook.js",
+    "test:local": "node test-webhook.js --local",
+    "test:debug": "node test-webhook.js --debug",
+    "test:production": "node test-webhook.js --url https://loyalty-qr.com/api/stripe/webhook"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "keywords": [
+    "stripe",
+    "webhook",
+    "testing",
+    "payments"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
