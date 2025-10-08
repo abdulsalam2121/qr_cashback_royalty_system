@@ -2,6 +2,8 @@
 
 const crypto = require('crypto');
 const axios = require('axios');
+require('dotenv').config();
+
 
 /**
  * Stripe Webhook Testing Script
@@ -13,12 +15,12 @@ const axios = require('axios');
 class StripeWebhookTester {
   constructor(config = {}) {
     this.config = {
-      // Default to production URL, override if needed
-      webhookUrl: config.webhookUrl || 'https://loyalty-qr.com/api/stripe/webhook',
-      webhookSecret: config.webhookSecret || 'whsec_1234567890abcdef1234567890abcdef1234567890abcdef',
-      debug: config.debug || false,
-      ...config
-    };
+  webhookUrl: config.webhookUrl || process.env.STRIPE_WEBHOOK_URL || 'https://loyalty-qr.com/api/stripe/webhook',
+  webhookSecret: config.webhookSecret || process.env.STRIPE_WEBHOOK_SECRET,
+  debug: config.debug || false,
+  ...config
+};
+
   }
 
   /**
