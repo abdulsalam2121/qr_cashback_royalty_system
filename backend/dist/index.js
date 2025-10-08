@@ -85,6 +85,9 @@ const transactionLimiter = (0, express_rate_limit_1.default)({
 app.use(limiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/transactions', transactionLimiter);
+// Stripe webhook endpoint needs raw body for signature verification
+// This must come BEFORE the express.json() middleware
+app.use('/api/stripe/webhook', express_1.default.raw({ type: 'application/json' }));
 // Webhooks need raw body access, so add before JSON parsing
 app.use('/api/webhooks', webhooks_js_1.default);
 // Body parsing middleware
