@@ -16,7 +16,8 @@ require('dotenv').config({ path: '../.env' });
 class StripeWebhookTester {
   constructor(config = {}) {
     this.config = {
-  webhookUrl: config.webhookUrl || process.env.STRIPE_WEBHOOK_URL || 'https://loyalty-qr.com/api/stripe/webhook',
+  webhookUrl: config.webhookUrl || process.env.STRIPE_WEBHOOK_URL || 'https://www.loyalty-qr.com/api/webhooks/stripe',
+
   webhookSecret: config.webhookSecret || process.env.STRIPE_WEBHOOK_SECRET,
   debug: config.debug || false,
   ...config
