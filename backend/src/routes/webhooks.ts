@@ -1,6 +1,8 @@
 import express from 'express';
 import Stripe from 'stripe';
 import { PrismaClient, PaymentMethod, PaymentStatus, TxCategory } from '@prisma/client';
+import { Decimal } from 'decimal.js';
+import { updateCustomerTier } from '../utils/tiers.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -45,7 +47,13 @@ router.post(
 
           try {
             const md = paymentIntent.metadata ?? {};
-            if (md.tenantId && md.storeId && md.cashierId) {
+            
+            // Handle QR code payments (paymentLinkId metadata)
+            if (md.paymentLinkId) {
+              await handleQRPaymentSuccess(paymentIntent, md.paymentLinkId);
+            }
+            // Handle POS payments (tenantId, storeId, cashierId metadata)  
+            else if (md.tenantId && md.storeId && md.cashierId) {
               await prisma.purchaseTransaction.create({
                 data: {
                   tenantId: md.tenantId,
@@ -60,8 +68,14 @@ router.post(
                   paidAt: new Date(),
                 },
               });
-            } else {
-              console.log('⚠️ Missing required metadata; skipping transaction creation');
+              console.log(`✅ Created POS transaction for payment ${paymentIntent.id}`);
+            } 
+            // Handle card order payments (orderId metadata)
+            else if (md.orderId) {
+              await handleCardOrderPayment(paymentIntent, md.orderId);
+            }
+            else {
+              console.log('⚠️ Unknown payment type or missing metadata; skipping transaction creation');
             }
           } catch (e) {
             console.error('💥 DB error (payment_intent.succeeded):', e);
@@ -76,7 +90,13 @@ router.post(
 
           try {
             const md = paymentIntent.metadata ?? {};
-            if (md.tenantId && md.storeId && md.cashierId) {
+            
+            // Handle QR code payment failures
+            if (md.paymentLinkId) {
+              await handleQRPaymentFailure(paymentIntent, md.paymentLinkId);
+            }
+            // Handle POS payment failures
+            else if (md.tenantId && md.storeId && md.cashierId) {
               await prisma.purchaseTransaction.create({
                 data: {
                   tenantId: md.tenantId,
@@ -90,8 +110,9 @@ router.post(
                   customerId: md.customerId || null,
                 },
               });
+              console.log(`⚠️ Created failed POS transaction for payment ${paymentIntent.id}`);
             } else {
-              console.log('⚠️ Missing required metadata; skipping failed-transaction creation');
+              console.log('⚠️ Unknown payment type or missing metadata; skipping failed transaction creation');
             }
           } catch (e) {
             console.error('💥 DB error (payment_intent.payment_failed):', e);
@@ -440,5 +461,142 @@ router.post(
     }
   }
 );
+
+// Helper function to handle QR payment success
+async function handleQRPaymentSuccess(paymentIntent: Stripe.PaymentIntent, paymentLinkId: string) {
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Find the purchase transaction linked to this payment link
+      const purchaseTransaction = await tx.purchaseTransaction.findFirst({
+        where: { 
+          paymentLinkId: paymentLinkId,
+          paymentStatus: 'PENDING'
+        },
+        include: {
+          customer: true
+        }
+      });
+
+      if (!purchaseTransaction) {
+        console.error(`No pending purchase transaction found for payment link ${paymentLinkId}`);
+        return;
+      }
+
+      // Update purchase transaction status
+      await tx.purchaseTransaction.update({
+        where: { id: purchaseTransaction.id },
+        data: {
+          paymentStatus: 'COMPLETED',
+          paidAt: new Date(),
+        }
+      });
+
+      // Mark payment link as used
+      await tx.paymentLink.update({
+        where: { id: paymentLinkId },
+        data: { usedAt: new Date() }
+      });
+
+      // Process cashback if applicable
+      if (purchaseTransaction.cardUid && purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0) {
+        const card = await tx.card.findUnique({
+          where: { cardUid: purchaseTransaction.cardUid },
+          include: { customer: true }
+        });
+
+        if (card && card.customer) {
+          const newBalance = card.balanceCents + purchaseTransaction.cashbackCents;
+
+          // Update card balance
+          await tx.card.update({
+            where: { id: card.id },
+            data: { balanceCents: newBalance }
+          });
+
+          // Update customer total spend
+          const newTotalSpend = new Decimal(card.customer.totalSpend).add(new Decimal(purchaseTransaction.amountCents).div(100));
+          await tx.customer.update({
+            where: { id: card.customer.id },
+            data: { totalSpend: newTotalSpend }
+          });
+
+          // Create traditional cashback transaction record
+          await tx.transaction.create({
+            data: {
+              tenantId: purchaseTransaction.tenantId,
+              storeId: purchaseTransaction.storeId,
+              cardId: card.id,
+              customerId: card.customer.id,
+              cashierId: purchaseTransaction.cashierId,
+              type: 'EARN',
+              category: purchaseTransaction.category,
+              amountCents: purchaseTransaction.amountCents,
+              cashbackCents: purchaseTransaction.cashbackCents,
+              beforeBalanceCents: card.balanceCents,
+              afterBalanceCents: newBalance,
+              note: `Purchase transaction: ${purchaseTransaction.id} (Stripe Payment)`,
+            }
+          });
+
+          // Check for tier upgrade
+          if (typeof updateCustomerTier === 'function') {
+            await updateCustomerTier(card.customer.id, purchaseTransaction.tenantId, tx);
+          }
+        }
+      }
+
+      console.log(`✅ Processed QR payment for transaction ${purchaseTransaction.id}`);
+    });
+  } catch (error) {
+    console.error(`Failed to process QR payment for payment link ${paymentLinkId}:`, error);
+  }
+}
+
+// Helper function to handle QR payment failure
+async function handleQRPaymentFailure(paymentIntent: Stripe.PaymentIntent, paymentLinkId: string) {
+  try {
+    // Find the purchase transaction linked to this payment link
+    const purchaseTransaction = await prisma.purchaseTransaction.findFirst({
+      where: { 
+        paymentLinkId: paymentLinkId,
+        paymentStatus: 'PENDING'
+      }
+    });
+
+    if (purchaseTransaction) {
+      // Update purchase transaction status to failed
+      await prisma.purchaseTransaction.update({
+        where: { id: purchaseTransaction.id },
+        data: {
+          paymentStatus: 'FAILED',
+        }
+      });
+
+      console.log(`⚠️ Marked QR payment as failed for transaction ${purchaseTransaction.id}`);
+    } else {
+      console.log(`⚠️ No pending transaction found for failed payment link ${paymentLinkId}`);
+    }
+  } catch (error) {
+    console.error(`Failed to process QR payment failure for payment link ${paymentLinkId}:`, error);
+  }
+}
+
+// Helper function to handle card order payment success
+async function handleCardOrderPayment(paymentIntent: Stripe.PaymentIntent, orderId: string) {
+  try {
+    await prisma.cardOrder.update({
+      where: { id: orderId },
+      data: {
+        status: 'PENDING',
+        stripePaymentId: paymentIntent.id,
+        paidAt: new Date(),
+      }
+    });
+
+    console.log(`✅ Updated card order ${orderId} payment status`);
+  } catch (error) {
+    console.error(`Failed to update card order ${orderId}:`, error);
+  }
+}
 
 export default router;

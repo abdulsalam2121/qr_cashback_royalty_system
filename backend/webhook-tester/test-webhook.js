@@ -106,7 +106,8 @@ class StripeWebhookTester {
     console.log('='.repeat(50));
 
     const tests = [
-      { name: 'Payment Intent Succeeded', fn: () => this.testPaymentIntentSucceeded() },
+      { name: 'Payment Intent Succeeded (QR)', fn: () => this.testPaymentIntentSucceeded() },
+      { name: 'Payment Intent Succeeded (POS)', fn: () => this.testPaymentIntentSucceededPOS() },
       { name: 'Checkout Session Completed', fn: () => this.testCheckoutSessionCompleted() },
       { name: 'Subscription Created', fn: () => this.testSubscriptionCreated() },
       { name: 'Subscription Updated', fn: () => this.testSubscriptionUpdated() },
@@ -187,10 +188,44 @@ class StripeWebhookTester {
           currency: 'usd',
           status: 'succeeded',
           metadata: {
-            orderId: 'order_test_123',
-            customerId: 'cust_test_123'
+            paymentLinkId: 'link_test_123', // This matches QR payment flow
           },
           client_secret: 'pi_test_client_secret',
+        }
+      },
+      livemode: false,
+      pending_webhooks: 1,
+      request: {
+        id: 'req_test_123',
+        idempotency_key: null
+      },
+      type: 'payment_intent.succeeded'
+    };
+
+    return await this.sendWebhookEvent(event);
+  }
+
+  async testPaymentIntentSucceededPOS() {
+    const event = {
+      id: 'evt_test_webhook',
+      object: 'event',
+      api_version: '2024-06-20',
+      created: Math.floor(Date.now() / 1000),
+      data: {
+        object: {
+          id: 'pi_test_pos_payment_intent',
+          object: 'payment_intent',
+          amount: 5000,
+          currency: 'usd',
+          status: 'succeeded',
+          description: 'POS Terminal Payment',
+          metadata: {
+            tenantId: 'tenant_test_123',
+            storeId: 'store_test_123', 
+            cashierId: 'cashier_test_123',
+            customerId: 'customer_test_123'
+          },
+          client_secret: 'pi_test_pos_client_secret',
         }
       },
       livemode: false,
@@ -483,6 +518,7 @@ Examples:
     // Run specific test
     const testMethods = {
       'payment_intent': () => tester.testPaymentIntentSucceeded(),
+      'payment_intent_pos': () => tester.testPaymentIntentSucceededPOS(),
       'checkout': () => tester.testCheckoutSessionCompleted(),
       'subscription_created': () => tester.testSubscriptionCreated(),
       'subscription_updated': () => tester.testSubscriptionUpdated(),
