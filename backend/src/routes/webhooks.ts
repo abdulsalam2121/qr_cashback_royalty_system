@@ -18,11 +18,11 @@ router.post(
     const secret = process.env.STRIPE_WEBHOOK_SECRET;
 
     if (!secret) {
-      console.error('❌ STRIPE_WEBHOOK_SECRET not configured');
+      console.error('? STRIPE_WEBHOOK_SECRET not configured');
       return res.status(500).json({ error: 'Webhook secret not configured' });
     }
     if (!sig) {
-      console.error('❌ Missing stripe-signature header');
+      console.error('? Missing stripe-signature header');
       return res.status(400).json({ error: 'Missing Stripe signature' });
     }
 
@@ -32,7 +32,7 @@ router.post(
       // req.body is a Buffer because of express.raw
       event = stripe.webhooks.constructEvent(req.body, sig, secret);
     } catch (err: any) {
-      console.error('❌ Webhook signature verification failed:', err.message);
+      console.error('? Webhook signature verification failed:', err.message);
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
@@ -41,7 +41,7 @@ router.post(
       switch (event.type) {
         case 'payment_intent.succeeded': {
           const paymentIntent = event.data.object as Stripe.PaymentIntent;
-          console.log(`✅ payment_intent.succeeded: ${paymentIntent.id}`);
+          console.log(`? payment_intent.succeeded: ${paymentIntent.id}`);
 
           try {
             const md = paymentIntent.metadata ?? {};
@@ -61,17 +61,17 @@ router.post(
                 },
               });
             } else {
-              console.log('⚠️ Missing required metadata; skipping transaction creation');
+              console.log('?? Missing required metadata; skipping transaction creation');
             }
           } catch (e) {
-            console.error('💥 DB error (payment_intent.succeeded):', e);
+            console.error('?? DB error (payment_intent.succeeded):', e);
           }
           break;
         }
 
         case 'payment_intent.payment_failed': {
           const paymentIntent = event.data.object as Stripe.PaymentIntent;
-          console.log(`❌ payment_intent.payment_failed: ${paymentIntent.id}`);
+          console.log(`? payment_intent.payment_failed: ${paymentIntent.id}`);
 
           try {
             const md = paymentIntent.metadata ?? {};
@@ -90,17 +90,17 @@ router.post(
                 },
               });
             } else {
-              console.log('⚠️ Missing required metadata; skipping failed-transaction creation');
+              console.log('?? Missing required metadata; skipping failed-transaction creation');
             }
           } catch (e) {
-            console.error('💥 DB error (payment_intent.payment_failed):', e);
+            console.error('?? DB error (payment_intent.payment_failed):', e);
           }
           break;
         }
 
         case 'charge.refunded': {
           const charge = event.data.object as Stripe.Charge;
-          console.log(`💸 charge.refunded: ${charge.id}`);
+          console.log(`?? charge.refunded: ${charge.id}`);
 
           try {
             const md = charge.metadata ?? {};
@@ -119,53 +119,53 @@ router.post(
                 },
               });
             } else {
-              console.log('⚠️ Missing required metadata; skipping refund transaction creation');
+              console.log('?? Missing required metadata; skipping refund transaction creation');
             }
           } catch (e) {
-            console.error('💥 DB error (charge.refunded):', e);
+            console.error('?? DB error (charge.refunded):', e);
           }
           break;
         }
 
         case 'checkout.session.completed': {
           const session = event.data.object as Stripe.Checkout.Session;
-          console.log(`🎉 checkout.session.completed: ${session.id}`);
+          console.log(`?? checkout.session.completed: ${session.id}`);
           // Optional: mark order/checkout as complete
           break;
         }
 
         case 'customer.subscription.created': {
           const subscription = event.data.object as Stripe.Subscription;
-          console.log(`🔔 customer.subscription.created: ${subscription.id}`);
+          console.log(`?? customer.subscription.created: ${subscription.id}`);
           // TODO: upsert subscription in your DB
           break;
         }
 
         case 'customer.subscription.updated': {
           const subscription = event.data.object as Stripe.Subscription;
-          console.log(`🔄 customer.subscription.updated: ${subscription.id}`);
+          console.log(`?? customer.subscription.updated: ${subscription.id}`);
           try {
             // TODO: update subscription details in your DB
           } catch (e) {
-            console.error('💥 DB error (subscription.updated):', e);
+            console.error('?? DB error (subscription.updated):', e);
           }
           break;
         }
 
         case 'customer.subscription.deleted': {
           const subscription = event.data.object as Stripe.Subscription;
-          console.log(`❌ customer.subscription.deleted: ${subscription.id}`);
+          console.log(`? customer.subscription.deleted: ${subscription.id}`);
           try {
             // TODO: mark subscription canceled in your DB
           } catch (e) {
-            console.error('💥 DB error (subscription.deleted):', e);
+            console.error('?? DB error (subscription.deleted):', e);
           }
           break;
         }
 
         case 'invoice.payment_succeeded': {
           const invoice = event.data.object as Stripe.Invoice;
-          console.log(`💰 invoice.payment_succeeded: ${invoice.id}`);
+          console.log(`?? invoice.payment_succeeded: ${invoice.id}`);
 
           try {
             const md = invoice.metadata ?? {};
@@ -185,27 +185,27 @@ router.post(
                 },
               });
             } else {
-              console.log('⚠️ No metadata on invoice; skipping transaction creation');
+              console.log('?? No metadata on invoice; skipping transaction creation');
             }
           } catch (e) {
-            console.error('💥 DB error (invoice.payment_succeeded):', e);
+            console.error('?? DB error (invoice.payment_succeeded):', e);
           }
           break;
         }
 
         case 'invoice.payment_failed': {
           const invoice = event.data.object as Stripe.Invoice;
-          console.log(`💳 invoice.payment_failed: ${invoice.id}`);
+          console.log(`?? invoice.payment_failed: ${invoice.id}`);
           try {
             // TODO: flag unpaid invoice / notify user / dunning flow
           } catch (e) {
-            console.error('💥 DB error (invoice.payment_failed):', e);
+            console.error('?? DB error (invoice.payment_failed):', e);
           }
           break;
         }
 
         default: {
-          console.log(`ℹ️ Unhandled event type: ${event.type}`);
+          console.log(`?? Unhandled event type: ${event.type}`);
           break;
         }
       }
@@ -213,8 +213,8 @@ router.post(
       // Always 200 once received & processed (Stripe expects this)
       return res.status(200).json({ received: true });
     } catch (err) {
-      // Catch-all (shouldn’t hit because of per-case try/catch)
-      console.error('💥 Unexpected webhook processing error:', err);
+      // Catch-all (shouldn�t hit because of per-case try/catch)
+      console.error('?? Unexpected webhook processing error:', err);
       return res.status(200).json({ received: true }); // still 200 to avoid Stripe retries storm
     }
   }
