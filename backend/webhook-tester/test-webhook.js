@@ -20,6 +20,7 @@ class StripeWebhookTester {
 
   webhookSecret: config.webhookSecret || process.env.STRIPE_WEBHOOK_SECRET,
   debug: config.debug || false,
+  timeout: config.timeout || 10000,
   ...config
 };
 
@@ -66,7 +67,7 @@ class StripeWebhookTester {
           'Stripe-Signature': signature,
           'User-Agent': 'Stripe/1.0 (+https://stripe.com/docs/webhooks)',
         },
-        timeout: 10000,
+        timeout: this.config.timeout,
       });
 
       return {
@@ -76,13 +77,23 @@ class StripeWebhookTester {
         headers: response.headers,
       };
     } catch (error) {
-      return {
+      const errorResponse = {
         success: false,
         status: error.response?.status || 0,
         error: error.message,
         data: error.response?.data,
         headers: error.response?.headers,
       };
+
+      // Add more detailed error information
+      if (error.code) {
+        errorResponse.errorCode = error.code;
+      }
+      if (error.response?.statusText) {
+        errorResponse.statusText = error.response.statusText;
+      }
+
+      return errorResponse;
     }
   }
 
@@ -92,7 +103,7 @@ class StripeWebhookTester {
   async runAllTests() {
     console.log('🎯 Starting Stripe Webhook Tests');
     console.log(`📍 Endpoint: ${this.config.webhookUrl}`);
-    console.log('=' * 50);
+    console.log('='.repeat(50));
 
     const tests = [
       { name: 'Payment Intent Succeeded', fn: () => this.testPaymentIntentSucceeded() },
@@ -114,10 +125,16 @@ class StripeWebhookTester {
         
         if (result.success) {
           console.log(`✅ ${test.name} - PASSED (${result.status})`);
+          if (this.config.debug && result.data) {
+            console.log('   Response data:', result.data);
+          }
         } else {
           console.log(`❌ ${test.name} - FAILED (${result.status}) - ${result.error}`);
           if (result.data) {
             console.log('   Response:', result.data);
+          }
+          if (result.headers && this.config.debug) {
+            console.log('   Response headers:', result.headers);
           }
         }
       } catch (error) {
@@ -134,9 +151,9 @@ class StripeWebhookTester {
    * Print test summary
    */
   printSummary(results) {
-    console.log('\n' + '=' * 50);
+    console.log('\n' + '='.repeat(50));
     console.log('📊 Test Summary');
-    console.log('=' * 50);
+    console.log('='.repeat(50));
 
     const passed = results.filter(r => r.success).length;
     const failed = results.length - passed;
