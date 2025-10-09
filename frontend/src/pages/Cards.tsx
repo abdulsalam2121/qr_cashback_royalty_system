@@ -747,7 +747,7 @@ const Cards: React.FC = () => {
                   </span>
                 </div>
                 <p className="text-sm text-gray-500">
-                  Balance: {formatCurrency(card.balanceCents)}
+                  Balance: {formatCurrency(card.balanceCents / 100)}
                 </p>
                 <p className="text-sm text-gray-500">
                   Store: {card.storeName || 'Not assigned'}
