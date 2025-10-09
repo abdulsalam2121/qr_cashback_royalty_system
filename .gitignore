@@ -7,7 +7,6 @@ nginx/
 .env.development.local
 .env.test.local
 .env.production.local
-backend/.env.example
 
 # Firebase service account keys (keep these secure!)
 backend/config/firebase-service-account.json
