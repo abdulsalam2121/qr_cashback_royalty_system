@@ -1106,44 +1106,154 @@ const POSTerminal: React.FC = () => {
 
                 {/* Process Redemption */}
                 <div className="space-y-3">
-                  <button
-                    onClick={handleRedeemCashback}
-                    disabled={
-                      !amount || 
-                      loading || 
-                      (redemptionType === 'CASH' && (parseFloat(amount) * 100) > (scannedCard.balanceCents || 0)) || 
-                      !isSubscriptionActive
-                    }
-                    className={`w-full flex items-center justify-center px-4 py-4 rounded-lg text-white font-semibold transition-colors ${
-                      !isSubscriptionActive 
-                        ? 'bg-gray-400 cursor-not-allowed' 
+                  {!cardPaymentPending && (
+                    <button
+                      onClick={handleRedeemCashback}
+                      disabled={
+                        !amount || 
+                        loading || 
+                        (redemptionType === 'CASH' && (parseFloat(amount) * 100) > (scannedCard.balanceCents || 0)) || 
+                        !isSubscriptionActive
+                      }
+                      className={`w-full flex items-center justify-center px-4 py-4 rounded-lg text-white font-semibold transition-colors ${
+                        !isSubscriptionActive 
+                          ? 'bg-gray-400 cursor-not-allowed' 
+                          : redemptionType === 'CASH'
+                          ? 'bg-green-600 hover:bg-green-700 disabled:opacity-50'
+                          : 'bg-blue-600 hover:bg-blue-700 disabled:opacity-50'
+                      }`}
+                    >
+                      {loading ? (
+                        <LoadingSpinner size="sm" className="mr-3" />
+                      ) : redemptionType === 'CASH' ? (
+                        <Banknote className="w-5 h-5 mr-3" />
+                      ) : (
+                        <Gift className="w-5 h-5 mr-3" />
+                      )}
+                      {loading 
+                        ? 'Processing...' 
                         : redemptionType === 'CASH'
-                        ? 'bg-green-600 hover:bg-green-700 disabled:opacity-50'
-                        : 'bg-blue-600 hover:bg-blue-700 disabled:opacity-50'
-                    }`}
-                  >
-                    {loading ? (
-                      <LoadingSpinner size="sm" className="mr-3" />
-                    ) : redemptionType === 'CASH' ? (
-                      <Banknote className="w-5 h-5 mr-3" />
-                    ) : (
-                      <Gift className="w-5 h-5 mr-3" />
-                    )}
-                    {loading 
-                      ? 'Processing...' 
-                      : redemptionType === 'CASH'
-                      ? `Pay Cash ${amount ? formatCurrency(parseFloat(amount)) : ''}`
-                      : `Add Store Credit ${amount ? formatCurrency(parseFloat(amount)) : ''} (${storeCreditPaymentMethod})`
-                    }
-                  </button>
+                        ? `Pay Cash ${amount ? formatCurrency(parseFloat(amount)) : ''}`
+                        : redemptionType === 'STORE_CREDIT' && storeCreditPaymentMethod === 'CARD'
+                        ? `Prepare Card Payment ${amount ? formatCurrency(parseFloat(amount)) : ''}`
+                        : `Add Store Credit ${amount ? formatCurrency(parseFloat(amount)) : ''} (${storeCreditPaymentMethod})`
+                      }
+                    </button>
+                  )}
                   
-                  <p className="text-xs text-gray-500 text-center">
-                    {redemptionType === 'CASH' 
-                      ? '💵 Customer receives cash. Balance will be deducted.'
-                      : `💳 Customer pays via ${storeCreditPaymentMethod}. Balance will be added.`
-                    }
-                  </p>
+                  {!cardPaymentPending && (
+                    <p className="text-xs text-gray-500 text-center">
+                      {redemptionType === 'CASH' 
+                        ? '💵 Customer receives cash. Balance will be deducted.'
+                        : `💳 Customer pays via ${storeCreditPaymentMethod}. Balance will be added.`
+                      }
+                    </p>
+                  )}
                 </div>
+
+                {/* Card Payment Form for Store Credit */}
+                {cardPaymentPending && redemptionType === 'STORE_CREDIT' && storeCreditPaymentMethod === 'CARD' && (
+                  <div className="border border-gray-200 rounded-lg p-4 space-y-4">
+                    <h4 className="font-medium text-gray-900">Complete Card Payment</h4>
+                    <p className="text-sm text-gray-600">Process the card payment to add store credit:</p>
+                    <StripePaymentElement
+                      clientSecret={clientSecret!}
+                      amount={Math.round(parseFloat(amount) * 100)}
+                      onSuccess={async () => {
+                        setCardPaymentPending(false);
+                        setClientSecret(null);
+                        
+                        // Refresh card balance after successful payment
+                        if (scannedCard?.cardUid) {
+                          try {
+                            const updatedCard = await api.tenant.getCard(tenantSlug!, scannedCard.cardUid);
+                            setScannedCard(updatedCard);
+                            fetchRecentRedemptions(scannedCard.cardUid);
+                          } catch (error) {
+                            console.error('Failed to refresh card:', error);
+                          }
+                        }
+                        
+                        setMessage({
+                          type: 'success',
+                          text: `Card payment completed! ${formatCurrency(parseFloat(amount))} added to balance.`
+                        });
+                        setAmount('');
+                      }}
+                      onError={handleStripePaymentError}
+                      submitButtonText="Complete Store Credit Payment"
+                    />
+                    <button
+                      onClick={() => {
+                        setCardPaymentPending(false);
+                        setClientSecret(null);
+                        setMessage(null);
+                      }}
+                      className="w-full px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel Card Payment
+                    </button>
+                  </div>
+                )}
+
+                {/* QR Payment Display for Store Credit */}
+                {paymentUrl && redemptionType === 'STORE_CREDIT' && storeCreditPaymentMethod === 'QR_PAYMENT' && (
+                  <div className="border border-gray-200 rounded-lg p-6 space-y-4">
+                    <div className="text-center">
+                      <h4 className="font-medium text-gray-900 mb-4 flex items-center justify-center">
+                        <QrCode className="w-5 h-5 mr-2" />
+                        Store Credit Payment Link
+                      </h4>
+                      
+                      {/* QR Code Display */}
+                      <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300 inline-block mb-4">
+                        <QRCode
+                          size={200}
+                          style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                          value={paymentUrl}
+                          viewBox={`0 0 200 200`}
+                        />
+                      </div>
+                      
+                      <p className="text-sm text-gray-600 mb-4">
+                        Customer can scan this QR code to pay {formatCurrency(parseFloat(amount) || 0)} for store credit
+                      </p>
+                    </div>
+                    
+                    {/* Payment Link */}
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <label className="block text-xs font-medium text-gray-700 mb-2">
+                        Or share this payment link:
+                      </label>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600 truncate mr-2">{paymentUrl}</span>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => copyToClipboard(paymentUrl)}
+                            className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+                            title="Copy Link"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => window.open(paymentUrl, '_blank')}
+                            className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+                            title="Open Link"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-xs text-blue-700 flex items-center">
+                        <Smartphone className="w-4 h-4 mr-1" />
+                        Customer must complete payment to receive store credit. Balance will be added automatically after payment.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Redemption History Preview */}
                 <div className="border-t border-gray-200 pt-4">
