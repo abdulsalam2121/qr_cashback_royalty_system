@@ -26,6 +26,8 @@ const POSTerminal: React.FC = () => {
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const [redemptionType, setRedemptionType] = useState<'CASH' | 'STORE_CREDIT'>('CASH');
+  const [storeCreditPaymentMethod, setStoreCreditPaymentMethod] = useState<'CASH' | 'CARD' | 'QR_PAYMENT'>('CASH');
+  const [recentRedemptions, setRecentRedemptions] = useState<any[]>([]);
   
   // Stripe payment state
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -121,6 +123,12 @@ const POSTerminal: React.FC = () => {
         
         setScannedCard(card);
         setActiveTab('purchase');
+        
+        // Fetch recent redemptions if card has customer
+        if (card.customer) {
+          fetchRecentRedemptions(cardUid);
+        }
+        
         setMessage({
           type: 'success',
           text: `Card loaded successfully! ${card.customer ? 
@@ -175,6 +183,25 @@ const POSTerminal: React.FC = () => {
     if (!manualCardUid.trim()) return;
     await handleScan(manualCardUid.trim());
     setManualCardUid('');
+  };
+
+  const fetchRecentRedemptions = async (cardUid: string) => {
+    if (!tenantSlug) return;
+    
+    try {
+      const params = new URLSearchParams({
+        cardUid,
+        type: 'REDEEM',
+        limit: '5'
+      }).toString();
+      
+      const response = await api.tenant.getTransactions(tenantSlug, params);
+      
+      setRecentRedemptions(response.transactions || []);
+    } catch (error) {
+      console.error('Failed to fetch recent redemptions:', error);
+      setRecentRedemptions([]);
+    }
   };
 
   const handleCreatePurchase = async () => {
@@ -304,23 +331,59 @@ const POSTerminal: React.FC = () => {
 
     try {
       const amountCents = Math.round(parseFloat(amount) * 100);
-      const transaction = await api.tenant.redeemCashback(tenantSlug, scannedCard.cardUid, amountCents, scannedCard.storeId!);
       
-      // Update card balance
-      setScannedCard(prev => prev ? {
-        ...prev,
-        balanceCents: transaction.newBalance
-      } : null);
+      if (redemptionType === 'CASH') {
+        // Cash Payout - deduct from balance
+        const transaction = await api.tenant.redeemCashback(tenantSlug, scannedCard.cardUid, amountCents, scannedCard.storeId!);
+        
+        // Update card balance
+        setScannedCard(prev => prev ? {
+          ...prev,
+          balanceCents: transaction.newBalance
+        } : null);
 
-      setMessage({
-        type: 'success',
-        text: `Redeemed ${formatCurrency(transaction.amountRedeemed)} successfully!`
-      });
-      setAmount('');
+        setMessage({
+          type: 'success',
+          text: `Redeemed ${formatCurrency(transaction.amountRedeemed / 100)} successfully! Customer receives cash.`
+        });
+        setAmount('');
+        
+        // Refresh recent redemptions
+        if (scannedCard.cardUid) {
+          fetchRecentRedemptions(scannedCard.cardUid);
+        }
+      } else {
+        // Store Credit - add to balance (requires payment)
+        const transaction = await api.tenant.addFundsToCard(
+          tenantSlug, 
+          scannedCard.cardUid, 
+          amountCents, 
+          scannedCard.storeId!,
+          storeCreditPaymentMethod,
+          'Store credit redemption'
+        );
+        
+        // Update card balance
+        setScannedCard(prev => prev ? {
+          ...prev,
+          balanceCents: transaction.newBalance
+        } : null);
+
+        setMessage({
+          type: 'success',
+          text: `Added ${formatCurrency(transaction.amountAdded / 100)} to card balance via ${storeCreditPaymentMethod}!`
+        });
+        setAmount('');
+        
+        // Refresh recent redemptions
+        if (scannedCard.cardUid) {
+          fetchRecentRedemptions(scannedCard.cardUid);
+        }
+      }
     } catch (error) {
       setMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : 'Redemption failed'
+        text: error instanceof Error ? error.message : 'Transaction failed'
       });
     } finally {
       setLoading(false);
@@ -910,6 +973,55 @@ const POSTerminal: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Payment Method for Store Credit */}
+                {redemptionType === 'STORE_CREDIT' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Payment Method (Customer Pays)
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <button
+                        onClick={() => setStoreCreditPaymentMethod('CASH')}
+                        className={`p-3 rounded-lg border-2 text-center transition-all ${
+                          storeCreditPaymentMethod === 'CASH'
+                            ? 'border-green-500 bg-green-50 text-green-700'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <Banknote className="w-5 h-5 mx-auto mb-1" />
+                        <p className="text-sm font-medium">Cash</p>
+                      </button>
+                      
+                      <button
+                        onClick={() => setStoreCreditPaymentMethod('CARD')}
+                        className={`p-3 rounded-lg border-2 text-center transition-all ${
+                          storeCreditPaymentMethod === 'CARD'
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <CreditCard className="w-5 h-5 mx-auto mb-1" />
+                        <p className="text-sm font-medium">Card</p>
+                      </button>
+                      
+                      <button
+                        onClick={() => setStoreCreditPaymentMethod('QR_PAYMENT')}
+                        className={`p-3 rounded-lg border-2 text-center transition-all ${
+                          storeCreditPaymentMethod === 'QR_PAYMENT'
+                            ? 'border-purple-500 bg-purple-50 text-purple-700'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <QrCode className="w-5 h-5 mx-auto mb-1" />
+                        <p className="text-sm font-medium">QR Pay</p>
+                      </button>
+                    </div>
+                    <p className="mt-2 text-xs text-blue-600">
+                      💡 Customer pays this amount, and it will be added to their card balance
+                    </p>
+                  </div>
+                )}
+
                 {/* Quick Amount Buttons */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
@@ -920,9 +1032,9 @@ const POSTerminal: React.FC = () => {
                       <button
                         key={quickAmount}
                         onClick={() => setAmount(quickAmount.toString())}
-                        disabled={(quickAmount * 100) > (scannedCard.balanceCents || 0)}
+                        disabled={redemptionType === 'CASH' && (quickAmount * 100) > (scannedCard.balanceCents || 0)}
                         className={`py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
-                          (quickAmount * 100) > (scannedCard.balanceCents || 0)
+                          redemptionType === 'CASH' && (quickAmount * 100) > (scannedCard.balanceCents || 0)
                             ? 'border-gray-200 text-gray-400 cursor-not-allowed'
                             : 'border-gray-300 hover:border-blue-500 hover:text-blue-600'
                         }`}
@@ -946,16 +1058,21 @@ const POSTerminal: React.FC = () => {
                       type="number"
                       step="0.01"
                       min="0"
-                      max={(scannedCard.balanceCents || 0) / 100}
+                      max={redemptionType === 'CASH' ? (scannedCard.balanceCents || 0) / 100 : undefined}
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       placeholder="0.00"
                       className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
-                  {amount && parseFloat(amount) > 0 && (
+                  {amount && parseFloat(amount) > 0 && redemptionType === 'CASH' && (
                     <div className="mt-2 text-sm text-gray-600">
-                      <p>Remaining balance after redemption: {formatCurrency(((scannedCard.balanceCents || 0) - (parseFloat(amount) * 100)) / 100)}</p>
+                      <p>Remaining balance after cash payout: {formatCurrency(((scannedCard.balanceCents || 0) - (parseFloat(amount) * 100)) / 100)}</p>
+                    </div>
+                  )}
+                  {amount && parseFloat(amount) > 0 && redemptionType === 'STORE_CREDIT' && (
+                    <div className="mt-2 text-sm text-green-600">
+                      <p>New balance after adding credit: {formatCurrency(((scannedCard.balanceCents || 0) + (parseFloat(amount) * 100)) / 100)}</p>
                     </div>
                   )}
                 </div>
@@ -964,7 +1081,12 @@ const POSTerminal: React.FC = () => {
                 <div className="space-y-3">
                   <button
                     onClick={handleRedeemCashback}
-                    disabled={!amount || loading || (parseFloat(amount) * 100) > (scannedCard.balanceCents || 0) || !isSubscriptionActive}
+                    disabled={
+                      !amount || 
+                      loading || 
+                      (redemptionType === 'CASH' && (parseFloat(amount) * 100) > (scannedCard.balanceCents || 0)) || 
+                      !isSubscriptionActive
+                    }
                     className={`w-full flex items-center justify-center px-4 py-4 rounded-lg text-white font-semibold transition-colors ${
                       !isSubscriptionActive 
                         ? 'bg-gray-400 cursor-not-allowed' 
@@ -982,25 +1104,52 @@ const POSTerminal: React.FC = () => {
                     )}
                     {loading 
                       ? 'Processing...' 
-                      : `${redemptionType === 'CASH' ? 'Pay Cash' : 'Issue Store Credit'} ${amount ? formatCurrency(parseFloat(amount)) : ''}`
+                      : redemptionType === 'CASH'
+                      ? `Pay Cash ${amount ? formatCurrency(parseFloat(amount)) : ''}`
+                      : `Add Store Credit ${amount ? formatCurrency(parseFloat(amount)) : ''} (${storeCreditPaymentMethod})`
                     }
                   </button>
                   
                   <p className="text-xs text-gray-500 text-center">
                     {redemptionType === 'CASH' 
-                      ? '💵 Customer will receive cash payment immediately'
-                      : '🎁 Store credit will be added for future use'
+                      ? '💵 Customer receives cash. Balance will be deducted.'
+                      : `💳 Customer pays via ${storeCreditPaymentMethod}. Balance will be added.`
                     }
                   </p>
                 </div>
 
                 {/* Redemption History Preview */}
                 <div className="border-t border-gray-200 pt-4">
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Recent Redemptions</h4>
-                  <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                    <p>Last redemption data would show here</p>
-                    <p className="text-blue-600 cursor-pointer hover:underline">View full history →</p>
-                  </div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                    <Gift className="w-4 h-4 mr-2" />
+                    Recent Redemptions
+                  </h4>
+                  {recentRedemptions.length > 0 ? (
+                    <div className="space-y-2">
+                      {recentRedemptions.map((redemption) => (
+                        <div key={redemption.id} className="bg-gray-50 p-3 rounded-lg text-xs">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium text-gray-900">
+                              {formatCurrency(redemption.amountCents / 100)}
+                            </span>
+                            <span className="text-gray-500">
+                              {new Date(redemption.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-gray-600">
+                            <span>{redemption.type}</span>
+                            {redemption.note && (
+                              <span className="text-xs truncate max-w-[150px]">{redemption.note}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded text-center">
+                      <p>No recent redemptions found</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

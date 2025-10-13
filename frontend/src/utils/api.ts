@@ -541,6 +541,27 @@ createPaymentIntent: async (token: string): Promise<any> => {
       });
     },
 
+    // Add funds to card (Store Credit)
+    addFundsToCard: async (
+      tenantSlug: string,
+      cardUid: string,
+      amountCents: number,
+      storeId: string,
+      paymentMethod: 'CASH' | 'CARD' | 'QR_PAYMENT',
+      note?: string
+    ): Promise<{ transaction: Transaction; message: string; amountAdded: number; newBalance: number }> => {
+      return request(`/t/${tenantSlug}/transactions/add-funds`, {
+        method: 'POST',
+        body: JSON.stringify({
+          cardUid,
+          amountCents,
+          storeId,
+          paymentMethod,
+          note,
+        }),
+      });
+    },
+
     // Purchase Transactions
     createPurchaseTransaction: async (
       tenantSlug: string,
