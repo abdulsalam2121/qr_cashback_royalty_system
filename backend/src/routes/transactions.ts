@@ -472,7 +472,7 @@ router.post('/add-funds', auth, rbac(['tenant_admin', 'cashier']), validate(addF
     const beforeBalanceCents = card.balanceCents;
     const afterBalanceCents = beforeBalanceCents + amountCents;
 
-    // Create transaction record with type 'OTHER' to track the fund addition
+    // Create transaction record with type 'ADJUST' to track the fund addition
     const transaction = await tx.transaction.create({
       data: {
         tenantId,
@@ -480,7 +480,7 @@ router.post('/add-funds', auth, rbac(['tenant_admin', 'cashier']), validate(addF
         cardId: card.id,
         customerId: card.customerId!,
         cashierId,
-        type: 'OTHER' as TxType, // Using OTHER type to distinguish from EARN/REDEEM
+        type: 'ADJUST' as TxType, // Using ADJUST type for balance additions (Store Credit)
         category: 'OTHER' as TxCategory,
         amountCents,
         cashbackCents: 0,
