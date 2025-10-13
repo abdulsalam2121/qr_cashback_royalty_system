@@ -328,6 +328,7 @@ const POSTerminal: React.FC = () => {
 
     setLoading(true);
     setMessage(null);
+    setPaymentUrl(null);
 
     try {
       const amountCents = Math.round(parseFloat(amount) * 100);
@@ -354,7 +355,7 @@ const POSTerminal: React.FC = () => {
         }
       } else {
         // Store Credit - add to balance (requires payment)
-        const transaction = await api.tenant.addFundsToCard(
+        const result = await api.tenant.addFundsToCard(
           tenantSlug, 
           scannedCard.cardUid, 
           amountCents, 
@@ -363,21 +364,47 @@ const POSTerminal: React.FC = () => {
           'Store credit redemption'
         );
         
-        // Update card balance
-        setScannedCard(prev => prev ? {
-          ...prev,
-          balanceCents: transaction.newBalance
-        } : null);
+        // Handle different payment methods
+        if (storeCreditPaymentMethod === 'CASH') {
+          // Cash payment - immediately add balance
+          setScannedCard(prev => prev ? {
+            ...prev,
+            balanceCents: result.newBalance
+          } : null);
 
-        setMessage({
-          type: 'success',
-          text: `Added ${formatCurrency(transaction.amountAdded / 100)} to card balance via ${storeCreditPaymentMethod}!`
-        });
-        setAmount('');
-        
-        // Refresh recent redemptions
-        if (scannedCard.cardUid) {
-          fetchRecentRedemptions(scannedCard.cardUid);
+          setMessage({
+            type: 'success',
+            text: `Added ${formatCurrency(result.amountAdded / 100)} to card balance via CASH!`
+          });
+          setAmount('');
+          
+          // Refresh recent redemptions
+          if (scannedCard.cardUid) {
+            fetchRecentRedemptions(scannedCard.cardUid);
+          }
+        } else if (storeCreditPaymentMethod === 'CARD') {
+          // Card payment - need to process Stripe payment
+          if (result.paymentUrl) {
+            const urlParts = result.paymentUrl.split('/');
+            const token = urlParts[urlParts.length - 1];
+            
+            const intent = await api.tenant.createPaymentIntent(token);
+            setClientSecret(intent.client_secret);
+            setCardPaymentPending(true);
+            setMessage({
+              type: 'info',
+              text: `Complete the card payment below to add ${formatCurrency(amountCents / 100)} to card balance.`
+            });
+          }
+        } else if (storeCreditPaymentMethod === 'QR_PAYMENT') {
+          // QR Payment - generate payment link
+          if (result.paymentUrl) {
+            setPaymentUrl(result.paymentUrl);
+            setMessage({
+              type: 'info',
+              text: 'QR Payment link generated! Customer must complete payment to receive store credit.'
+            });
+          }
         }
       }
     } catch (error) {

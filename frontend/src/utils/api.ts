@@ -549,17 +549,32 @@ createPaymentIntent: async (token: string): Promise<any> => {
       storeId: string,
       paymentMethod: 'CASH' | 'CARD' | 'QR_PAYMENT',
       note?: string
-    ): Promise<{ transaction: Transaction; message: string; amountAdded: number; newBalance: number }> => {
-      return request(`/t/${tenantSlug}/transactions/add-funds`, {
-        method: 'POST',
-        body: JSON.stringify({
-          cardUid,
-          amountCents,
-          storeId,
-          paymentMethod,
-          note,
-        }),
-      });
+    ): Promise<{ transaction: Transaction; message: string; amountAdded: number; newBalance: number; paymentUrl?: string; paymentLink?: any }> => {
+      // For CASH, use the direct add-funds endpoint
+      if (paymentMethod === 'CASH') {
+        return request(`/t/${tenantSlug}/transactions/add-funds`, {
+          method: 'POST',
+          body: JSON.stringify({
+            cardUid,
+            amountCents,
+            storeId,
+            paymentMethod,
+            note,
+          }),
+        });
+      } else {
+        // For CARD and QR_PAYMENT, use the add-credit endpoint that creates payment links
+        return request(`/t/${tenantSlug}/purchase-transactions/add-credit`, {
+          method: 'POST',
+          body: JSON.stringify({
+            cardUid,
+            amountCents,
+            storeId,
+            paymentMethod,
+            description: note,
+          }),
+        });
+      }
     },
 
     // Purchase Transactions

@@ -428,6 +428,16 @@ const addFundsSchema = z.object({
 router.post('/add-funds', auth, rbac(['tenant_admin', 'cashier']), validate(addFundsSchema), asyncHandler(async (req: Request, res: Response) => {
   const { cardUid, amountCents, storeId, paymentMethod, note } = req.body;
   const { tenantId, userId: cashierId } = req.user;
+  
+  // For CARD and QR_PAYMENT, we need to create a payment link first
+  // Only CASH should immediately add funds
+  if (paymentMethod !== 'CASH') {
+    res.status(400).json({ 
+      error: 'For CARD and QR_PAYMENT, use the purchase transaction endpoint with store credit flag',
+      message: 'Please use /purchase-transactions/add-credit endpoint for non-cash payments'
+    });
+    return;
+  }
 
   const result = await prisma.$transaction(async (tx) => {
     // Get card with customer and current balance

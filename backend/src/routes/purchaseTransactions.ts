@@ -385,8 +385,70 @@ router.post('/confirm-payment', auth, rbac(['tenant_admin', 'cashier']), validat
       }
     });
 
-    // If there's a card and cashback, process it
-    if (purchaseTransaction.cardUid && purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0) {
+    // Check if this is a store credit transaction
+    const isStoreCredit = updatedTransaction.description?.startsWith('STORE_CREDIT:');
+    
+    if (isStoreCredit) {
+      // For store credit, add the amount directly to card balance
+      if (purchaseTransaction.cardUid) {
+        const card = await tx.card.findUnique({
+          where: { cardUid: purchaseTransaction.cardUid },
+          include: { customer: true }
+        });
+
+        if (card && card.customer) {
+          const beforeBalance = card.balanceCents;
+          const newBalance = beforeBalance + updatedTransaction.amountCents;
+          
+          // Update card balance
+          await tx.card.update({
+            where: { id: card.id },
+            data: { balanceCents: newBalance }
+          });
+
+          // Create an ADJUST transaction record
+          await tx.transaction.create({
+            data: {
+              tenantId,
+              storeId: purchaseTransaction.storeId,
+              cardId: card.id,
+              customerId: card.customer.id,
+              cashierId,
+              type: 'ADJUST',
+              category: 'OTHER',
+              amountCents: updatedTransaction.amountCents,
+              cashbackCents: 0,
+              beforeBalanceCents: beforeBalance,
+              afterBalanceCents: newBalance,
+              note: `Store Credit via ${updatedTransaction.paymentMethod}: ${purchaseTransaction.id}`,
+              sourceIp: req.ip || null,
+            }
+          });
+          
+          // Send notification
+          setImmediate(async () => {
+            try {
+              await sendNotification(
+                card.customer!.id,
+                'CASHBACK_EARNED',
+                {
+                  customerName: `${card.customer!.firstName} ${card.customer!.lastName}`,
+                  amount: (updatedTransaction.amountCents / 100).toFixed(2),
+                  balance: (newBalance / 100).toFixed(2),
+                  storeName: updatedTransaction.store?.name || 'Store',
+                },
+                tenantId
+              );
+            } catch (error) {
+              console.error('Failed to send store credit notification:', error);
+            }
+          });
+        }
+      }
+    } else {
+      // Regular purchase transaction - process cashback
+      // If there's a card and cashback, process it
+      if (purchaseTransaction.cardUid && purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0) {
       const card = await tx.card.findUnique({
         where: { cardUid: purchaseTransaction.cardUid },
         include: { customer: true }
@@ -431,6 +493,7 @@ router.post('/confirm-payment', auth, rbac(['tenant_admin', 'cashier']), validat
         await updateCustomerTier(card.customer.id, tenantId, tx);
       }
     }
+    } // End of else block for regular purchase transactions
 
     // Mark payment link as used if exists
     if (purchaseTransaction.paymentLinkId) {
@@ -676,6 +739,106 @@ router.get('/payment-link/:token', asyncHandler(async (req: Request, res: Respon
       storeName: purchaseTransaction.store?.name,
       customerName: purchaseTransaction.customer ? 
         `${purchaseTransaction.customer.firstName} ${purchaseTransaction.customer.lastName}` : null,
+    }
+  });
+}));
+
+// Add credit to card (Store Credit with payment)
+const addCreditSchema = z.object({
+  cardUid: z.string(),
+  amountCents: z.number().int().positive(),
+  storeId: z.string(),
+  paymentMethod: z.enum(['QR_PAYMENT', 'CARD']),
+  description: z.string().optional(),
+});
+
+router.post('/add-credit', auth, rbac(['tenant_admin', 'cashier']), validate(addCreditSchema), asyncHandler(async (req: Request, res: Response) => {
+  const { cardUid, amountCents, storeId, paymentMethod, description } = req.body;
+  const { tenantId, userId: cashierId } = req.user;
+
+  const result = await prisma.$transaction(async (tx) => {
+    // Get card with customer
+    const card = await tx.card.findUnique({
+      where: { cardUid },
+      include: { customer: true, store: true }
+    });
+
+    if (!card) {
+      throw new Error('Card not found');
+    }
+
+    if (card.tenantId !== tenantId) {
+      throw new Error('Unauthorized');
+    }
+
+    if (card.status !== 'ACTIVE') {
+      throw new Error('Card is not active');
+    }
+
+    if (!card.customer) {
+      throw new Error('Card is not linked to a customer');
+    }
+
+    // Enforce store binding
+    if (card.storeId !== storeId) {
+      throw new Error(`This card can only be used at ${card.store?.name}`);
+    }
+
+    // Generate payment link
+    const token = generateSecureToken();
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24); // 24 hour expiry
+
+    const paymentLink = await tx.paymentLink.create({
+      data: {
+        tenantId,
+        token,
+        amountCents,
+        description: description || 'Store Credit Top-up',
+        expiresAt,
+      }
+    });
+
+    // Create a special purchase transaction for store credit
+    // This will be marked as COMPLETED when payment is received
+    const purchaseTransaction = await tx.purchaseTransaction.create({
+      data: {
+        tenantId,
+        storeId,
+        customerId: card.customerId!,
+        cardUid: card.cardUid, // Use cardUid instead of cardId
+        cashierId,
+        amountCents,
+        category: 'OTHER' as TxCategory,
+        description: 'STORE_CREDIT: ' + (description || 'Store Credit Top-up'),
+        paymentMethod: paymentMethod as PaymentMethod,
+        paymentStatus: 'PENDING' as PaymentStatus,
+        paymentLinkId: paymentLink.id,
+        cashbackCents: 0, // No cashback for store credit top-ups
+      },
+      include: {
+        customer: true,
+        store: true,
+      }
+    });
+
+    return {
+      purchaseTransaction,
+      paymentLink,
+      customer: card.customer,
+    };
+  });
+
+  const paymentUrl = `${process.env.APP_BASE_URL || 'http://localhost:5173'}/pay/${result.paymentLink.token}`;
+
+  res.json({
+    message: 'Store credit payment link created',
+    transaction: result.purchaseTransaction,
+    paymentUrl,
+    paymentLink: {
+      id: result.paymentLink.id,
+      token: result.paymentLink.token,
+      expiresAt: result.paymentLink.expiresAt,
     }
   });
 }));
