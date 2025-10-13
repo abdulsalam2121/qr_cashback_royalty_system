@@ -497,50 +497,86 @@ async function handleQRPaymentSuccess(paymentIntent: Stripe.PaymentIntent, payme
         data: { usedAt: new Date() }
       });
 
-      // Process cashback if applicable
-      if (purchaseTransaction.cardUid && purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0) {
+      // Check if this is a store credit transaction
+      const isStoreCredit = purchaseTransaction.description?.startsWith('STORE_CREDIT:');
+      
+      if (purchaseTransaction.cardUid) {
         const card = await tx.card.findUnique({
           where: { cardUid: purchaseTransaction.cardUid },
           include: { customer: true }
         });
 
-        if (card && card.customer) {
-          const newBalance = card.balanceCents + purchaseTransaction.cashbackCents;
+        if (card) {
+          if (isStoreCredit) {
+            // Handle store credit - add the full amount to card balance
+            const beforeBalance = card.balanceCents;
+            const newBalance = beforeBalance + purchaseTransaction.amountCents;
 
-          // Update card balance
-          await tx.card.update({
-            where: { id: card.id },
-            data: { balanceCents: newBalance }
-          });
+            // Update card balance
+            await tx.card.update({
+              where: { id: card.id },
+              data: { balanceCents: newBalance }
+            });
 
-          // Update customer total spend
-          const newTotalSpend = new Decimal(card.customer.totalSpend).add(new Decimal(purchaseTransaction.amountCents).div(100));
-          await tx.customer.update({
-            where: { id: card.customer.id },
-            data: { totalSpend: newTotalSpend }
-          });
+            // Create ADJUST transaction record for store credit
+            await tx.transaction.create({
+              data: {
+                tenantId: purchaseTransaction.tenantId,
+                storeId: purchaseTransaction.storeId,
+                cardId: card.id,
+                customerId: card.customerId!,
+                cashierId: purchaseTransaction.cashierId,
+                type: 'ADJUST',
+                category: purchaseTransaction.category,
+                amountCents: purchaseTransaction.amountCents,
+                cashbackCents: 0,
+                beforeBalanceCents: beforeBalance,
+                afterBalanceCents: newBalance,
+                note: `Store Credit via ${purchaseTransaction.paymentMethod}: ${purchaseTransaction.id} (Webhook)`,
+              }
+            });
 
-          // Create traditional cashback transaction record
-          await tx.transaction.create({
-            data: {
-              tenantId: purchaseTransaction.tenantId,
-              storeId: purchaseTransaction.storeId,
-              cardId: card.id,
-              customerId: card.customer.id,
-              cashierId: purchaseTransaction.cashierId,
-              type: 'EARN',
-              category: purchaseTransaction.category,
-              amountCents: purchaseTransaction.amountCents,
-              cashbackCents: purchaseTransaction.cashbackCents,
-              beforeBalanceCents: card.balanceCents,
-              afterBalanceCents: newBalance,
-              note: `Purchase transaction: ${purchaseTransaction.id} (Stripe Payment)`,
+            console.log(`✅ Store credit added: $${purchaseTransaction.amountCents / 100} to card ${card.cardUid}`);
+          } else if (purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0 && card.customer) {
+            // Handle regular purchase with cashback
+            const beforeBalance = card.balanceCents;
+            const newBalance = beforeBalance + purchaseTransaction.cashbackCents;
+
+            // Update card balance
+            await tx.card.update({
+              where: { id: card.id },
+              data: { balanceCents: newBalance }
+            });
+
+            // Update customer total spend
+            const newTotalSpend = new Decimal(card.customer.totalSpend).add(new Decimal(purchaseTransaction.amountCents).div(100));
+            await tx.customer.update({
+              where: { id: card.customer.id },
+              data: { totalSpend: newTotalSpend }
+            });
+
+            // Create traditional cashback transaction record
+            await tx.transaction.create({
+              data: {
+                tenantId: purchaseTransaction.tenantId,
+                storeId: purchaseTransaction.storeId,
+                cardId: card.id,
+                customerId: card.customer.id,
+                cashierId: purchaseTransaction.cashierId,
+                type: 'EARN',
+                category: purchaseTransaction.category,
+                amountCents: purchaseTransaction.amountCents,
+                cashbackCents: purchaseTransaction.cashbackCents,
+                beforeBalanceCents: beforeBalance,
+                afterBalanceCents: newBalance,
+                note: `Purchase transaction: ${purchaseTransaction.id} (Stripe Payment)`,
+              }
+            });
+
+            // Check for tier upgrade
+            if (typeof updateCustomerTier === 'function') {
+              await updateCustomerTier(card.customer.id, purchaseTransaction.tenantId, tx);
             }
-          });
-
-          // Check for tier upgrade
-          if (typeof updateCustomerTier === 'function') {
-            await updateCustomerTier(card.customer.id, purchaseTransaction.tenantId, tx);
           }
         }
       }
