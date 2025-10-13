@@ -265,10 +265,12 @@ const POSTerminal: React.FC = () => {
           const intent = await api.tenant.createPaymentIntent(token);
           setClientSecret(intent.client_secret);
           setCardPaymentPending(true);
+          setLoading(false); // Stop loading to show the payment form
           setMessage({
             type: 'info',
             text: 'Complete the card payment below to finalize the transaction.'
           });
+          return; // Exit early to prevent further execution
         }
       } else {
         const result = await api.tenant.createPurchaseTransaction(tenantSlug, data);
@@ -391,10 +393,12 @@ const POSTerminal: React.FC = () => {
             const intent = await api.tenant.createPaymentIntent(token);
             setClientSecret(intent.client_secret);
             setCardPaymentPending(true);
+            setLoading(false); // Stop loading to show the payment form
             setMessage({
               type: 'info',
               text: `Complete the card payment below to add ${formatCurrency(amountCents / 100)} to card balance.`
             });
+            return; // Exit early to prevent further execution
           }
         } else if (storeCreditPaymentMethod === 'QR_PAYMENT') {
           // QR Payment - generate payment link
@@ -436,9 +440,20 @@ const POSTerminal: React.FC = () => {
     // Card payment was successful, now complete the transaction
     setCardPaymentPending(false);
     setClientSecret(null);
+    
+    // Refresh card balance after successful payment if card is scanned
+    if (scannedCard?.cardUid && tenantSlug) {
+      try {
+        const updatedCard = await api.tenant.getCard(tenantSlug, scannedCard.cardUid);
+        setScannedCard(updatedCard);
+      } catch (error) {
+        console.error('Failed to refresh card:', error);
+      }
+    }
+    
     setMessage({
       type: 'success',
-      text: 'Card payment completed successfully!'
+      text: 'Card payment completed successfully! Transaction has been recorded.'
     });
     
     // Clear form after successful transaction

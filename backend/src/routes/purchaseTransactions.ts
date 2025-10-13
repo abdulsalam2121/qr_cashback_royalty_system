@@ -829,7 +829,7 @@ router.post('/add-credit', auth, rbac(['tenant_admin', 'cashier']), validate(add
     };
   });
 
-  const paymentUrl = `${process.env.APP_BASE_URL || 'http://localhost:5173'}/pay/${result.paymentLink.token}`;
+  const paymentUrl = `${process.env.APP_BASE_URL || 'http://localhost:5173'}/payment/${result.paymentLink.token}`;
 
   res.json({
     message: 'Store credit payment link created',

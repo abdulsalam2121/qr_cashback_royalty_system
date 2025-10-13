@@ -81,7 +81,10 @@ const CheckoutForm: React.FC<{
         onError(error.message || 'Payment failed');
       } else if (paymentIntent) {
         console.log('Payment successful:', paymentIntent);
-        onSuccess();
+        // Give webhook a moment to process before showing success
+        setTimeout(() => {
+          onSuccess();
+        }, 2000);
       }
     } catch (err: any) {
       console.error('Payment exception:', err);
@@ -223,6 +226,7 @@ const PaymentPage: React.FC = () => {
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h1>
             <p className="text-gray-600 mb-6">
               Your payment of {formatCurrency((paymentData?.paymentLink.amountCents || 0) / 100)} was processed successfully.
+              The transaction has been recorded and your rewards (if applicable) will be updated shortly.
             </p>
             <div className="bg-gray-50 p-4 rounded-lg text-left">
               <h3 className="font-medium text-gray-900 mb-2">Transaction Details</h3>
