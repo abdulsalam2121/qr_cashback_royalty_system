@@ -263,7 +263,7 @@ asyncHandler(async (req: Request & { customer?: any }, res: Response) => {
   }
 }));
 
-// Confirm fund addition after successful payment
+// Confirm fund addition after successful payment (verification only - webhook handles processing)
 router.post('/add-funds/confirm', customerAuth, asyncHandler(async (req: Request & { customer?: any }, res: Response) => {
   const { customerId, cardUid, tenantId } = req.customer;
   const { paymentIntentId } = req.body;
@@ -290,88 +290,49 @@ router.post('/add-funds/confirm', customerAuth, asyncHandler(async (req: Request
       return;
     }
 
-    const amountCents = paymentIntent.amount;
+    // Wait a moment for webhook processing (if needed)
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Add funds to card balance
-    const result = await prisma.$transaction(async (tx) => {
-      // Get current card balance
-      const card = await tx.card.findUnique({
-        where: { cardUid },
-        select: { id: true, balanceCents: true }
-      });
-
-      if (!card) {
-        throw new Error('Card not found');
-      }
-
-      const beforeBalance = card.balanceCents;
-      const afterBalance = beforeBalance + amountCents;
-
-      // Update card balance
-      const updatedCard = await tx.card.update({
-        where: { cardUid },
-        data: { balanceCents: afterBalance }
-      });
-
-      // Create transaction record
-      const transaction = await tx.transaction.create({
-        data: {
-          tenantId,
-          storeId: card.id, // Use card ID as placeholder since this is online
-          cardId: card.id,
-          customerId,
-          cashierId: customerId, // Customer added funds themselves
-          type: 'ADJUST',
-          category: 'OTHER',
-          amountCents,
-          cashbackCents: 0,
-          beforeBalanceCents: beforeBalance,
-          afterBalanceCents: afterBalance,
-          note: `Funds added via credit card payment - Payment Intent: ${paymentIntentId}`,
-          sourceIp: req.ip || null
-        }
-      });
-
-      return { updatedCard, transaction };
+    // Get updated card balance and find the transaction
+    const card = await prisma.card.findUnique({
+      where: { cardUid },
+      select: { id: true, balanceCents: true }
     });
 
-    // Send email notification if email available
-    try {
-      const customer = await prisma.customer.findUnique({
-        where: { id: customerId },
-        include: { tenant: true }
-      });
+    if (!card) {
+      res.status(404).json({ error: 'Card not found' });
+      return;
+    }
 
-      if (customer?.email) {
-        await CustomerEmailService.sendFundsAddedNotification(
-          tenantId,
-          customerId,
-          {
-            customerName: `${customer.firstName} ${customer.lastName}`,
-            amountAdded: `$${(amountCents / 100).toFixed(2)}`,
-            newBalance: `$${(result.updatedCard.balanceCents / 100).toFixed(2)}`,
-            tenantName: customer.tenant.name,
-            timestamp: new Date().toLocaleString()
-          }
-        );
-      }
-    } catch (emailError) {
-      console.error('Email notification error:', emailError);
-      // Don't fail the transaction for email errors
+    // Find the most recent transaction for this payment intent
+    const transaction = await prisma.transaction.findFirst({
+      where: {
+        customerId,
+        cardId: card.id,
+        note: {
+          contains: paymentIntentId
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!transaction) {
+      res.status(404).json({ error: 'Transaction not found. Payment may still be processing.' });
+      return;
     }
 
     res.json({
       success: true,
-      newBalanceCents: result.updatedCard.balanceCents,
+      newBalanceCents: card.balanceCents,
       transaction: {
-        id: result.transaction.id,
-        amountCents: result.transaction.amountCents,
-        createdAt: result.transaction.createdAt
+        id: transaction.id,
+        amountCents: transaction.amountCents,
+        createdAt: transaction.createdAt
       }
     });
   } catch (error) {
     console.error('Confirm fund addition error:', error);
-    res.status(500).json({ error: 'Failed to add funds' });
+    res.status(500).json({ error: 'Failed to verify payment' });
   }
 }));
 

@@ -62,15 +62,16 @@ interface DashboardData {
 }
 
 function AddFundsForm({ onSuccess }: { onSuccess: () => void }) {
-  const stripe = useStripe();
-  const elements = useElements();
   const [amount, setAmount] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState('');
+  const [isCreatingPayment, setIsCreatingPayment] = useState(false);
   const [clientSecret, setClientSecret] = useState('');
+  const [error, setError] = useState('');
 
   const createPaymentIntent = async (amountCents: number) => {
     try {
+      setIsCreatingPayment(true);
+      setError('');
+      
       const response = await fetch('/api/customer/add-funds/create-payment-intent', {
         method: 'POST',
         headers: {
@@ -89,17 +90,22 @@ function AddFundsForm({ onSuccess }: { onSuccess: () => void }) {
         throw new Error(data.error || 'Failed to create payment');
       }
 
+      setClientSecret(data.clientSecret);
       return data;
     } catch (error) {
       console.error('Payment intent creation error:', error);
+      setError(error instanceof Error ? error.message : 'Failed to create payment');
       throw error;
+    } finally {
+      setIsCreatingPayment(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleAmountSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!stripe || !elements || !amount) {
+    if (!amount) {
+      setError('Please enter an amount');
       return;
     }
 
@@ -110,135 +116,116 @@ function AddFundsForm({ onSuccess }: { onSuccess: () => void }) {
       return;
     }
 
-    setIsProcessing(true);
+    await createPaymentIntent(amountCents);
+  };
+
+  const handlePaymentSuccess = async () => {
+    // Payment successful, confirm with backend and refresh data
+    onSuccess();
+    setAmount('');
+    setClientSecret('');
     setError('');
+  };
 
-    try {
-      // Create payment intent
-      const { clientSecret: newClientSecret } = await createPaymentIntent(amountCents);
-      setClientSecret(newClientSecret);
-
-      // Confirm payment
-      const cardElement = elements.getElement(CardElement);
-      if (!cardElement) {
-        throw new Error('Card element not found');
-      }
-
-      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(newClientSecret, {
-        payment_method: {
-          card: cardElement,
-        },
-      });
-
-      if (stripeError) {
-        throw new Error(stripeError.message);
-      }
-
-      if (paymentIntent?.status === 'succeeded') {
-        // Confirm with backend
-        const response = await fetch('/api/customer/add-funds/confirm', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('customerSession')}`,
-          },
-          body: JSON.stringify({
-            paymentIntentId: paymentIntent.id,
-          }),
-        });
-
-        const data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to confirm payment');
-        }
-
-        onSuccess();
-        setAmount('');
-      }
-    } catch (error) {
-      console.error('Payment error:', error);
-      setError(error instanceof Error ? error.message : 'Payment failed');
-    } finally {
-      setIsProcessing(false);
-    }
+  const handlePaymentError = (error: string) => {
+    setError(error);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label htmlFor="amount" className="block text-sm font-medium text-gray-700">
-          Amount to Add
-        </label>
-        <div className="mt-1 relative rounded-md shadow-sm">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <span className="text-gray-500 sm:text-sm">$</span>
+    <div className="space-y-6">
+      {!clientSecret ? (
+        // Amount selection form
+        <form onSubmit={handleAmountSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="amount" className="block text-sm font-medium text-gray-700">
+              Amount to Add
+            </label>
+            <div className="mt-1 relative rounded-md shadow-sm">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <span className="text-gray-500 sm:text-sm">$</span>
+              </div>
+              <input
+                type="number"
+                name="amount"
+                id="amount"
+                className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                min="1"
+                max="500"
+                step="0.01"
+                required
+                disabled={isCreatingPayment}
+              />
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                <span className="text-gray-500 sm:text-sm">USD</span>
+              </div>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Minimum: $1.00, Maximum: $500.00</p>
           </div>
-          <input
-            type="number"
-            name="amount"
-            id="amount"
-            className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
-            placeholder="0.00"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            min="1"
-            max="500"
-            step="0.01"
-            required
-          />
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-            <span className="text-gray-500 sm:text-sm">USD</span>
-          </div>
-        </div>
-        <p className="mt-1 text-xs text-gray-500">Minimum: $1.00, Maximum: $500.00</p>
-      </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Payment Method
-        </label>
-        <div className="border border-gray-300 rounded-md p-3">
-          <CardElement
-            options={{
-              style: {
-                base: {
-                  fontSize: '16px',
-                  color: '#424770',
-                  '::placeholder': {
-                    color: '#aab7c4',
-                  },
-                },
-              },
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={isCreatingPayment || !amount}
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isCreatingPayment ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Creating Payment...
+              </>
+            ) : (
+              `Continue with $${amount || '0.00'}`
+            )}
+          </button>
+        </form>
+      ) : (
+        // Payment form
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-medium text-blue-900">Complete Your Payment</h4>
+            <p className="text-sm text-blue-700 mt-1">
+              Adding ${amount} to your loyalty card balance
+            </p>
+          </div>
+
+          <StripePaymentElement
+            clientSecret={clientSecret}
+            amount={Math.round(parseFloat(amount) * 100)}
+            onSuccess={handlePaymentSuccess}
+            onError={handlePaymentError}
+            submitButtonText="Add Funds"
+          />
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setClientSecret('');
+              setError('');
             }}
-          />
-        </div>
-      </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-3">
-          <p className="text-sm text-red-800">{error}</p>
+            className="w-full py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          >
+            Change Amount
+          </button>
         </div>
       )}
-
-      <button
-        type="submit"
-        disabled={!stripe || isProcessing || !amount}
-        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isProcessing ? (
-          <>
-            <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Processing...
-          </>
-        ) : (
-          `Add $${amount || '0.00'} to Card`
-        )}
-      </button>
-    </form>
+    </div>
   );
 }
 
@@ -639,9 +626,7 @@ export default function CustomerDashboard() {
               <p className="text-sm text-gray-600 mb-6">
                 Use your credit or debit card to add funds to your loyalty card balance.
               </p>
-              <Elements stripe={stripePromise}>
-                <AddFundsForm onSuccess={handleAddFundsSuccess} />
-              </Elements>
+              <AddFundsForm onSuccess={handleAddFundsSuccess} />
             </div>
           </div>
         )}
