@@ -24,12 +24,12 @@ const activeSessions = new Map<string, CustomerSession>();
 // Validation schemas
 const qrLoginSchema = z.object({
   cardUid: z.string().min(1, 'Card UID is required'),
-  tenantSlug: z.string().min(1, 'Tenant slug is required').optional()
+  tenantSlug: z.string().optional()
 });
 
 const manualLoginSchema = z.object({
   cardUid: z.string().min(1, 'Card UID is required'),
-  tenantSlug: z.string().min(1, 'Tenant slug is required').optional()
+  tenantSlug: z.string().optional()
 });
 
 // Generate secure session token
@@ -174,7 +174,11 @@ router.post('/qr-login', validate(qrLoginSchema), asyncHandler(async (req: Reque
 router.post('/manual-login', validate(manualLoginSchema), asyncHandler(async (req: Request, res: Response) => {
   const { cardUid, tenantSlug } = req.body;
 
-  console.log(`Manual login attempt with cardUid: ${cardUid}, tenantSlug: ${tenantSlug}`);
+  console.log(`Manual login attempt received:`, {
+    cardUid: cardUid,
+    tenantSlug: tenantSlug,
+    body: req.body
+  });
 
   try {
     const normalizedCardUid = cardUid.trim().toUpperCase();

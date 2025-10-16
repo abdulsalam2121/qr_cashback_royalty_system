@@ -85,6 +85,18 @@ export default function CustomerLogin() {
       }
 
       if (!response.ok) {
+        console.error('API Error Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          data: data
+        });
+        
+        if ('details' in data && Array.isArray(data.details)) {
+          // Validation error - show specific field errors
+          const validationErrors = data.details.map((d: any) => `${d.path}: ${d.message}`).join(', ');
+          throw new Error(`Validation failed: ${validationErrors}`);
+        }
+        
         throw new Error('error' in data ? data.message || data.error : 'Login failed');
       }
 
