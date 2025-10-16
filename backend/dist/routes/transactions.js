@@ -339,5 +339,117 @@ router.get('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier
     res.json(transaction);
     return;
 }));
+// Add funds to card (Store Credit redemption)
+const addFundsSchema = zod_1.z.object({
+    cardUid: zod_1.z.string(),
+    amountCents: zod_1.z.number().int().positive(),
+    storeId: zod_1.z.string(),
+    paymentMethod: zod_1.z.enum(['CASH', 'CARD', 'QR_PAYMENT']),
+    note: zod_1.z.string().optional(),
+});
+router.post('/add-funds', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier']), (0, validate_js_1.validate)(addFundsSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+    const { cardUid, amountCents, storeId, paymentMethod, note } = req.body;
+    const { tenantId, userId: cashierId } = req.user;
+    // For CARD and QR_PAYMENT, we need to create a payment link first
+    // Only CASH should immediately add funds
+    if (paymentMethod !== 'CASH') {
+        res.status(400).json({
+            error: 'For CARD and QR_PAYMENT, use the purchase transaction endpoint with store credit flag',
+            message: 'Please use /purchase-transactions/add-credit endpoint for non-cash payments'
+        });
+        return;
+    }
+    const result = await prisma.$transaction(async (tx) => {
+        // Get card with customer and current balance
+        const card = await tx.card.findUnique({
+            where: { cardUid },
+            include: {
+                customer: true,
+                store: true
+            },
+        });
+        if (!card) {
+            throw new Error('Card not found');
+        }
+        if (card.tenantId !== tenantId) {
+            throw new Error('Unauthorized');
+        }
+        if (card.status !== 'ACTIVE') {
+            throw new Error('Card is not active');
+        }
+        if (!card.customer) {
+            throw new Error('Card is not linked to a customer');
+        }
+        // Enforce store binding
+        if (card.storeId !== storeId) {
+            throw new Error(`This card can only be used at ${card.store?.name}. Current store binding prevents cross-store transactions.`);
+        }
+        // Verify store exists
+        const store = await tx.store.findFirst({
+            where: { id: storeId, tenantId }
+        });
+        if (!store) {
+            throw new Error('Store not found');
+        }
+        const beforeBalanceCents = card.balanceCents;
+        const afterBalanceCents = beforeBalanceCents + amountCents;
+        // Create transaction record with type 'ADJUST' to track the fund addition
+        const transaction = await tx.transaction.create({
+            data: {
+                tenantId,
+                storeId,
+                cardId: card.id,
+                customerId: card.customerId,
+                cashierId,
+                type: 'ADJUST', // Using ADJUST type for balance additions (Store Credit)
+                category: 'OTHER',
+                amountCents,
+                cashbackCents: 0,
+                beforeBalanceCents,
+                afterBalanceCents,
+                note: note ? `Store Credit (${paymentMethod}): ${note}` : `Store Credit added via ${paymentMethod}`,
+                sourceIp: req.ip || null,
+            },
+            include: {
+                customer: true,
+                store: true,
+                cashier: {
+                    select: { firstName: true, lastName: true }
+                }
+            }
+        });
+        // Update card balance
+        await tx.card.update({
+            where: { id: card.id },
+            data: { balanceCents: afterBalanceCents }
+        });
+        return {
+            ...transaction,
+            customer: card.customer,
+            store: card.store
+        };
+    });
+    // Send notification (async, don't block response)
+    setImmediate(async () => {
+        try {
+            await (0, notification_js_1.sendNotification)(result.customerId, 'CASHBACK_EARNED', // Reusing this notification type as funds were added
+            {
+                customerName: `${result.customer.firstName} ${result.customer.lastName}`,
+                amount: (result.amountCents / 100).toFixed(2),
+                balance: (result.afterBalanceCents / 100).toFixed(2),
+                storeName: result.store?.name || 'Unknown Store',
+            }, tenantId);
+        }
+        catch (error) {
+            console.error('Failed to send notification:', error);
+        }
+    });
+    res.json({
+        message: 'Funds added successfully',
+        transaction: result,
+        amountAdded: result.amountCents,
+        newBalance: result.afterBalanceCents,
+    });
+}));
 exports.default = router;
 //# sourceMappingURL=transactions.js.map
