@@ -54,12 +54,13 @@ function createSession(cardUid: string, customerId: string, tenantId: string): s
 }
 
 // Customer middleware for session validation
-export const customerAuth = (req: Request & { customer?: any }, res: Response, next: any) => {
+export const customerAuth = (req: Request & { customer?: any }, res: Response, next: any): void => {
   const sessionToken = req.headers.authorization?.replace('Bearer ', '') || 
                       req.cookies?.customerSession;
 
   if (!sessionToken) {
-    return res.status(401).json({ error: 'No session token provided' });
+    res.status(401).json({ error: 'No session token provided' });
+    return;
   }
 
   const session = activeSessions.get(sessionToken);
@@ -68,7 +69,8 @@ export const customerAuth = (req: Request & { customer?: any }, res: Response, n
     if (session) {
       activeSessions.delete(sessionToken);
     }
-    return res.status(401).json({ error: 'Session expired or invalid' });
+    res.status(401).json({ error: 'Session expired or invalid' });
+    return;
   }
 
   req.customer = {

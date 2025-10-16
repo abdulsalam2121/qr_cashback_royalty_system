@@ -241,8 +241,8 @@ asyncHandler(async (req: Request & { customer?: any }, res: Response) => {
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountCents,
       currency: 'usd',
-      customer: stripeCustomerId || undefined,
-      setup_future_usage: savePaymentMethod ? 'off_session' : undefined,
+      ...(stripeCustomerId && { customer: stripeCustomerId }),
+      ...(savePaymentMethod && { setup_future_usage: 'off_session' }),
       metadata: {
         type: 'customer_funds',
         customerId: customerId,
@@ -328,7 +328,7 @@ router.post('/add-funds/confirm', customerAuth, asyncHandler(async (req: Request
           beforeBalanceCents: beforeBalance,
           afterBalanceCents: afterBalance,
           note: `Funds added via credit card payment - Payment Intent: ${paymentIntentId}`,
-          sourceIp: req.ip
+          sourceIp: req.ip || null
         }
       });
 
@@ -381,7 +381,7 @@ async function findOrCreateStripeCustomer(email: string, firstName: string, last
     // Search for existing customer
     const existingCustomers = await stripe.customers.list({ email });
     
-    if (existingCustomers.data.length > 0) {
+    if (existingCustomers.data && existingCustomers.data.length > 0) {
       return existingCustomers.data[0].id;
     }
 

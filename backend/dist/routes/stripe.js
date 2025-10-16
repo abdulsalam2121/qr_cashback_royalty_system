@@ -9,6 +9,7 @@ const stripe_1 = __importDefault(require("stripe"));
 const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
 const decimal_js_1 = require("decimal.js");
 const tiers_js_1 = require("../utils/tiers.js");
+const customerEmailService_js_1 = require("../services/customerEmailService.js");
 const router = express_1.default.Router();
 const prisma = new client_1.PrismaClient();
 const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
@@ -86,6 +87,10 @@ router.post('/webhook', express_1.default.raw({ type: 'application/json' }), (0,
                 // Handle QR payment transactions
                 else if (paymentIntent.metadata?.paymentLinkId) {
                     await handlePurchaseTransactionPaymentIntent(paymentIntent);
+                }
+                // Handle customer fund additions
+                else if (paymentIntent.metadata?.type === 'customer_funds') {
+                    await handleCustomerFundsPaymentIntent(paymentIntent);
                 }
                 break;
             }
@@ -374,6 +379,82 @@ async function updateTenantSubscription(subscription) {
     }
     else {
         console.error(`No tenant found for subscription ${subscription.id} or customer ${subscription.customer}`);
+    }
+}
+// Handle customer funds payment intent
+async function handleCustomerFundsPaymentIntent(paymentIntent) {
+    const { customerId, cardUid, tenantId } = paymentIntent.metadata;
+    if (!customerId || !cardUid || !tenantId) {
+        console.error('Missing required metadata for customer funds payment');
+        return;
+    }
+    try {
+        const amountCents = paymentIntent.amount;
+        await prisma.$transaction(async (tx) => {
+            // Get current card balance
+            const card = await tx.card.findUnique({
+                where: { cardUid },
+                select: { id: true, balanceCents: true }
+            });
+            if (!card) {
+                throw new Error('Card not found');
+            }
+            const beforeBalance = card.balanceCents;
+            const afterBalance = beforeBalance + amountCents;
+            // Update card balance
+            await tx.card.update({
+                where: { cardUid },
+                data: { balanceCents: afterBalance }
+            });
+            // Create transaction record
+            await tx.transaction.create({
+                data: {
+                    tenantId,
+                    storeId: card.id, // Use card ID as placeholder
+                    cardId: card.id,
+                    customerId,
+                    cashierId: customerId, // Customer added funds themselves
+                    type: 'ADJUST',
+                    category: 'OTHER',
+                    amountCents,
+                    cashbackCents: 0,
+                    beforeBalanceCents: beforeBalance,
+                    afterBalanceCents: afterBalance,
+                    note: `Funds added via credit card payment - Payment Intent: ${paymentIntent.id}`,
+                }
+            });
+        });
+        // Send email notification
+        try {
+            const customer = await prisma.customer.findUnique({
+                where: { id: customerId },
+                include: { tenant: true }
+            });
+            if (customer?.email) {
+                const updatedCard = await prisma.card.findUnique({
+                    where: { cardUid },
+                    select: { balanceCents: true }
+                });
+                if (updatedCard) {
+                    await customerEmailService_js_1.CustomerEmailService.sendFundsAddedNotification(tenantId, customerId, {
+                        customerName: `${customer.firstName} ${customer.lastName}`,
+                        amountAdded: `$${(amountCents / 100).toFixed(2)}`,
+                        newBalance: `$${(updatedCard.balanceCents / 100).toFixed(2)}`,
+                        tenantName: customer.tenant.name,
+                        timestamp: new Date().toLocaleString()
+                    });
+                }
+            }
+        }
+        catch (emailError) {
+            console.error('Email notification error:', emailError);
+        }
+        if (process.env.NODE_ENV !== 'production') {
+            console.log(`Customer funds added: $${(amountCents / 100).toFixed(2)} to card ${cardUid}`);
+        }
+    }
+    catch (error) {
+        console.error(`Failed to process customer funds for payment ${paymentIntent.id}:`, error);
     }
 }
 function mapStripeStatus(stripeStatus) {

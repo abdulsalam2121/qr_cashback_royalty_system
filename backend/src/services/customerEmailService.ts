@@ -7,7 +7,7 @@ export interface EmailData {
   customerName: string;
   amountAdded?: string;
   newBalance?: string;
-  tenantName: string;
+  tenantName: string | null;
   timestamp: string;
 }
 

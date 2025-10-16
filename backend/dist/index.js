@@ -34,6 +34,9 @@ const cardOrders_js_1 = __importDefault(require("./routes/cardOrders.js"));
 const cardPrintOrders_js_1 = __importDefault(require("./routes/cardPrintOrders.js"));
 const webhooks_js_1 = __importDefault(require("./routes/webhooks.js"));
 const admin_js_1 = __importDefault(require("./routes/admin.js"));
+const customerAuth_js_1 = __importDefault(require("./routes/customerAuth.js"));
+const customerDashboard_js_1 = __importDefault(require("./routes/customerDashboard.js"));
+const customerSecurity_js_1 = require("./middleware/customerSecurity.js");
 const errorHandler_js_1 = require("./middleware/errorHandler.js");
 const requestLogger_js_1 = require("./middleware/requestLogger.js");
 // Debug: Check if cardPrintOrderRoutes is loaded correctly
@@ -133,6 +136,9 @@ app.use('/api/stripe', stripe_js_1.default);
 // Public routes (accessible without tenant context)
 app.use('/api/purchase-transactions', purchaseTransactions_js_1.default);
 app.use('/api/cards', publicCards_js_1.default);
+// Customer dashboard routes (public, session-based)
+app.use('/api/customer-auth', customerSecurity_js_1.customerAuthLimiter, customerAuth_js_1.default);
+app.use('/api/customer', customerSecurity_js_1.customerAPILimiter, customerDashboard_js_1.default);
 // Tenant-scoped routes (must come before /api/t to avoid conflicts)
 console.log('🔧 Registering tenant-scoped routes...');
 app.use('/api/t/:tenantSlug/cards', cards_js_1.default);
