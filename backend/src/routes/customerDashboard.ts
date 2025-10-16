@@ -381,7 +381,7 @@ async function findOrCreateStripeCustomer(email: string, firstName: string, last
     // Search for existing customer
     const existingCustomers = await stripe.customers.list({ email });
     
-    if (existingCustomers.data && existingCustomers.data.length > 0) {
+    if (existingCustomers.data && existingCustomers.data.length > 0 && existingCustomers.data[0]) {
       return existingCustomers.data[0].id;
     }
 
