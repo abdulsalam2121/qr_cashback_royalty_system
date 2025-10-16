@@ -34,6 +34,8 @@ import PlatformCardPrintOrders from './pages/platform/CardPrintOrders';
 import PlatformSettings from './pages/platform/Settings';
 import TenantBilling from './pages/tenant/Billing';
 import SubscriptionAnalytics from './pages/admin/SubscriptionAnalytics';
+import CustomerLogin from './pages/CustomerLogin';
+import CustomerDashboard from './pages/CustomerDashboard';
 import { X } from 'lucide-react';
 
 // App content component that has access to AuthContext
