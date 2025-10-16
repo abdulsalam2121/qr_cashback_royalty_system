@@ -174,10 +174,15 @@ router.post('/qr-login', validate(qrLoginSchema), asyncHandler(async (req: Reque
 router.post('/manual-login', validate(manualLoginSchema), asyncHandler(async (req: Request, res: Response) => {
   const { cardUid, tenantSlug } = req.body;
 
+  console.log(`Manual login attempt with cardUid: ${cardUid}, tenantSlug: ${tenantSlug}`);
+
   try {
+    const normalizedCardUid = cardUid.trim().toUpperCase();
+    console.log(`Normalized cardUid: ${normalizedCardUid}`);
+    
     // Find the card and associated customer
     const card = await prisma.card.findUnique({
-      where: { cardUid: cardUid.toUpperCase() }, // Normalize to uppercase
+      where: { cardUid: normalizedCardUid },
       include: {
         customer: {
           select: {
@@ -200,7 +205,10 @@ router.post('/manual-login', validate(manualLoginSchema), asyncHandler(async (re
       }
     });
 
+    console.log(`Card lookup result:`, card ? 'Found' : 'Not found');
+
     if (!card) {
+      console.log(`Card not found for UID: ${normalizedCardUid}`);
       res.status(404).json({ 
         error: 'Card not found',
         message: 'Invalid card UID. Please check and try again.' 

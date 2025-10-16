@@ -41,6 +41,8 @@ export default function CustomerLogin() {
     try {
       const endpoint = loginMethod === 'qr' ? '/api/customer-auth/qr-login' : '/api/customer-auth/manual-login';
       
+      console.log(`Attempting login with UID: ${uid}, method: ${loginMethod}`);
+      
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -52,7 +54,30 @@ export default function CustomerLogin() {
         }),
       });
 
-      const data: LoginResponse | { error: string; message?: string } = await response.json();
+      console.log(`Response status: ${response.status}`);
+      console.log(`Response headers:`, response.headers);
+
+      // Check if response is actually JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('Response is not JSON:', contentType);
+        throw new Error('Server returned invalid response format');
+      }
+
+      const responseText = await response.text();
+      console.log(`Response text:`, responseText);
+
+      if (!responseText.trim()) {
+        throw new Error('Server returned empty response');
+      }
+
+      let data: LoginResponse | { error: string; message?: string };
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        throw new Error('Invalid response from server');
+      }
 
       if (!response.ok) {
         throw new Error('error' in data ? data.message || data.error : 'Login failed');
