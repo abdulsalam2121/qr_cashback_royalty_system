@@ -42,16 +42,21 @@ export default function CustomerLogin() {
       const endpoint = loginMethod === 'qr' ? '/api/customer-auth/qr-login' : '/api/customer-auth/manual-login';
       
       console.log(`Attempting login with UID: ${uid}, method: ${loginMethod}`);
+      console.log(`API endpoint: ${endpoint}`);
+      
+      const requestBody = {
+        cardUid: uid,
+        tenantSlug: new URLSearchParams(window.location.search).get('tenant')
+      };
+      
+      console.log(`Request body:`, requestBody);
       
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          cardUid: uid,
-          tenantSlug: new URLSearchParams(window.location.search).get('tenant')
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       console.log(`Response status: ${response.status}`);
