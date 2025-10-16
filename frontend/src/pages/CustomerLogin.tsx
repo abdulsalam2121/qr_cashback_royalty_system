@@ -44,10 +44,16 @@ export default function CustomerLogin() {
       console.log(`Attempting login with UID: ${uid}, method: ${loginMethod}`);
       console.log(`API endpoint: ${endpoint}`);
       
-      const requestBody = {
+      const tenantSlug = new URLSearchParams(window.location.search).get('tenant');
+      
+      const requestBody: any = {
         cardUid: uid,
-        tenantSlug: new URLSearchParams(window.location.search).get('tenant')
       };
+      
+      // Only include tenantSlug if it's not null/empty
+      if (tenantSlug) {
+        requestBody.tenantSlug = tenantSlug;
+      }
       
       console.log(`Request body:`, requestBody);
       

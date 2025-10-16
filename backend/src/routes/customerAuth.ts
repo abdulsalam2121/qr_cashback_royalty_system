@@ -24,12 +24,12 @@ const activeSessions = new Map<string, CustomerSession>();
 // Validation schemas
 const qrLoginSchema = z.object({
   cardUid: z.string().min(1, 'Card UID is required'),
-  tenantSlug: z.string().optional()
+  tenantSlug: z.string().nullable().optional()
 });
 
 const manualLoginSchema = z.object({
   cardUid: z.string().min(1, 'Card UID is required'),
-  tenantSlug: z.string().optional()
+  tenantSlug: z.string().nullable().optional()
 });
 
 // Generate secure session token
