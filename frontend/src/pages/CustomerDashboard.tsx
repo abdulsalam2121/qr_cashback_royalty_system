@@ -121,6 +121,7 @@ function AddFundsForm({ onSuccess }: { onSuccess: () => void }) {
 
   const handlePaymentSuccess = async () => {
     // Payment successful, confirm with backend and refresh data
+    console.log('Payment succeeded, refreshing dashboard data...');
     onSuccess();
     setAmount('');
     setClientSecret('');
