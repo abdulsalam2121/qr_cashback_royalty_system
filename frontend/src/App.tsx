@@ -280,6 +280,10 @@ function AppContent() {
             />
           </Route>
 
+          {/* Customer Portal Routes - Public, session-based */}
+          <Route path="/customer/login" element={<CustomerLogin />} />
+          <Route path="/customer/dashboard" element={<CustomerDashboard />} />
+
           {/* Fallback Routes */}
           <Route path="/unauthorized" element={
             <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">

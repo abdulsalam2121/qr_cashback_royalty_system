@@ -5,6 +5,7 @@ import Stripe from 'stripe';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { validate } from '../middleware/validate.js';
 import { customerAuth } from './customerAuth.js';
+import { CustomerEmailService } from '../services/customerEmailService.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -342,7 +343,17 @@ router.post('/add-funds/confirm', customerAuth, asyncHandler(async (req: Request
       });
 
       if (customer?.email) {
-        await sendFundsAddedEmail(customer, amountCents, result.updatedCard.balanceCents);
+        await CustomerEmailService.sendFundsAddedNotification(
+          tenantId,
+          customerId,
+          {
+            customerName: `${customer.firstName} ${customer.lastName}`,
+            amountAdded: `$${(amountCents / 100).toFixed(2)}`,
+            newBalance: `$${(result.updatedCard.balanceCents / 100).toFixed(2)}`,
+            tenantName: customer.tenant.name,
+            timestamp: new Date().toLocaleString()
+          }
+        );
       }
     } catch (emailError) {
       console.error('Email notification error:', emailError);
@@ -386,31 +397,6 @@ async function findOrCreateStripeCustomer(email: string, firstName: string, last
     return customer.id;
   } catch (error) {
     console.error('Stripe customer creation error:', error);
-    throw error;
-  }
-}
-
-// Helper function to send funds added email
-async function sendFundsAddedEmail(customer: any, amountCents: number, newBalanceCents: number) {
-  try {
-    await prisma.notification.create({
-      data: {
-        tenantId: customer.tenantId,
-        customerId: customer.id,
-        channel: 'SMS', // We'll use this for email too
-        template: 'FUNDS_ADDED',
-        payload: {
-          customerName: `${customer.firstName} ${customer.lastName}`,
-          amountAdded: `$${(amountCents / 100).toFixed(2)}`,
-          newBalance: `$${(newBalanceCents / 100).toFixed(2)}`,
-          tenantName: customer.tenant.name,
-          timestamp: new Date().toLocaleString()
-        },
-        status: 'PENDING'
-      }
-    });
-  } catch (error) {
-    console.error('Email notification creation error:', error);
     throw error;
   }
 }

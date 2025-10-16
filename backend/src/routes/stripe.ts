@@ -5,6 +5,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { Decimal } from 'decimal.js';
 import { updateCustomerTier } from '../utils/tiers.js';
+import { CustomerEmailService } from '../services/customerEmailService.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -490,22 +491,24 @@ async function handleCustomerFundsPaymentIntent(paymentIntent: Stripe.PaymentInt
       });
 
       if (customer?.email) {
-        await prisma.notification.create({
-          data: {
+        const updatedCard = await prisma.card.findUnique({
+          where: { cardUid },
+          select: { balanceCents: true }
+        });
+
+        if (updatedCard) {
+          await CustomerEmailService.sendFundsAddedNotification(
             tenantId,
             customerId,
-            channel: 'SMS', // We'll use this for email too
-            template: 'FUNDS_ADDED',
-            payload: {
+            {
               customerName: `${customer.firstName} ${customer.lastName}`,
               amountAdded: `$${(amountCents / 100).toFixed(2)}`,
-              newBalance: `$${((card.balanceCents + amountCents) / 100).toFixed(2)}`,
+              newBalance: `$${(updatedCard.balanceCents / 100).toFixed(2)}`,
               tenantName: customer.tenant.name,
               timestamp: new Date().toLocaleString()
-            },
-            status: 'PENDING'
-          }
-        });
+            }
+          );
+        }
       }
     } catch (emailError) {
       console.error('Email notification error:', emailError);

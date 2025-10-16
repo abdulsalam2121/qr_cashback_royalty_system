@@ -33,6 +33,7 @@ import webhookRoutes from './routes/webhooks.js';
 import adminRoutes from './routes/admin.js';
 import customerAuthRoutes from './routes/customerAuth.js';
 import customerDashboardRoutes from './routes/customerDashboard.js';
+import { customerAuthLimiter, customerAPILimiter } from './middleware/customerSecurity.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 
@@ -149,8 +150,8 @@ app.use('/api/purchase-transactions', purchaseTransactionRoutes);
 app.use('/api/cards', publicCardRoutes);
 
 // Customer dashboard routes (public, session-based)
-app.use('/api/customer-auth', customerAuthRoutes);
-app.use('/api/customer', customerDashboardRoutes);
+app.use('/api/customer-auth', customerAuthLimiter, customerAuthRoutes);
+app.use('/api/customer', customerAPILimiter, customerDashboardRoutes);
 
 // Tenant-scoped routes (must come before /api/t to avoid conflicts)
 console.log('🔧 Registering tenant-scoped routes...');
