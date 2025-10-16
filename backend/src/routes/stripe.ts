@@ -16,10 +16,13 @@ router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(
   const sig = req.headers['stripe-signature'] as string;
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
+  console.log(`[WEBHOOK] Received webhook request`);
+
   let event: Stripe.Event;
 
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    console.log(`[WEBHOOK] Successfully verified event: ${event.type} (${event.id})`);
   } catch (err: any) {
     console.error('Webhook signature verification failed:', err.message);
     res.status(400).send(`Webhook Error: ${err.message}`);
@@ -90,18 +93,30 @@ router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(
 
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        console.log(`[WEBHOOK] Payment intent succeeded: ${paymentIntent.id}`, {
+          amount: paymentIntent.amount,
+          currency: paymentIntent.currency,
+          metadata: paymentIntent.metadata,
+          status: paymentIntent.status
+        });
         
         // Handle one-time payments (like card orders)
         if (paymentIntent.metadata?.orderId) {
+          console.log(`[WEBHOOK] Processing card order payment: ${paymentIntent.metadata.orderId}`);
           await handleCardOrderPaymentIntent(paymentIntent);
         }
         // Handle QR payment transactions
         else if (paymentIntent.metadata?.paymentLinkId) {
+          console.log(`[WEBHOOK] Processing QR payment transaction: ${paymentIntent.metadata.paymentLinkId}`);
           await handlePurchaseTransactionPaymentIntent(paymentIntent);
         }
         // Handle customer fund additions
         else if (paymentIntent.metadata?.type === 'customer_funds') {
+          console.log(`[WEBHOOK] Processing customer funds addition for customer: ${paymentIntent.metadata.customerId}`);
           await handleCustomerFundsPaymentIntent(paymentIntent);
+        }
+        else {
+          console.log(`[WEBHOOK] Unhandled payment intent metadata:`, paymentIntent.metadata);
         }
         break;
       }
@@ -434,38 +449,48 @@ async function updateTenantSubscription(subscription: Stripe.Subscription) {
 
 // Handle customer funds payment intent
 async function handleCustomerFundsPaymentIntent(paymentIntent: Stripe.PaymentIntent) {
+  console.log(`[WEBHOOK] Starting customer funds processing for payment intent: ${paymentIntent.id}`);
   const { customerId, cardUid, tenantId } = paymentIntent.metadata;
   
+  console.log(`[WEBHOOK] Metadata:`, { customerId, cardUid, tenantId });
+  
   if (!customerId || !cardUid || !tenantId) {
-    console.error('Missing required metadata for customer funds payment');
+    console.error('[WEBHOOK] Missing required metadata for customer funds payment:', paymentIntent.metadata);
     return;
   }
 
   try {
     const amountCents = paymentIntent.amount;
+    console.log(`[WEBHOOK] Processing $${(amountCents / 100).toFixed(2)} addition to card ${cardUid}`);
 
     await prisma.$transaction(async (tx) => {
       // Get current card balance
+      console.log(`[WEBHOOK] Finding card with UID: ${cardUid}`);
       const card = await tx.card.findUnique({
         where: { cardUid },
         select: { id: true, balanceCents: true }
       });
 
       if (!card) {
+        console.error(`[WEBHOOK] Card not found for UID: ${cardUid}`);
         throw new Error('Card not found');
       }
+
+      console.log(`[WEBHOOK] Found card ${card.id} with balance: $${(card.balanceCents / 100).toFixed(2)}`);
 
       const beforeBalance = card.balanceCents;
       const afterBalance = beforeBalance + amountCents;
 
       // Update card balance
+      console.log(`[WEBHOOK] Updating card balance from $${(beforeBalance / 100).toFixed(2)} to $${(afterBalance / 100).toFixed(2)}`);
       await tx.card.update({
         where: { cardUid },
         data: { balanceCents: afterBalance }
       });
 
       // Create transaction record
-      await tx.transaction.create({
+      console.log(`[WEBHOOK] Creating transaction record`);
+      const transaction = await tx.transaction.create({
         data: {
           tenantId,
           storeId: card.id, // Use card ID as placeholder
