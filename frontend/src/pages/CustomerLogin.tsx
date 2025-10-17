@@ -1,11 +1,8 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import QRScanner from '../components/QRScanner';
-import { 
-  CheckCircle,
-  Shield,
-  Sparkles
-} from 'lucide-react';
+import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
 
 interface LoginResponse {
   success: boolean;
