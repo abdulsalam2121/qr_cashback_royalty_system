@@ -22,12 +22,23 @@ import stripeRoutes from './dist/routes/stripe.js';
 import trialRoutes from './dist/routes/trial.js';
 import cardOrderRoutes from './dist/routes/cardOrders.js';
 import adminRoutes from './dist/routes/admin.js';
+import customerAuthRoutes from './dist/routes/customerAuth.js';
+import customerDashboardRoutes from './dist/routes/customerDashboard.js';
+import publicCardRoutes from './dist/routes/publicCards.js';
+import purchaseTransactionRoutes from './dist/routes/purchaseTransactions.js';
+import cardPrintOrderRoutes from './dist/routes/cardPrintOrders.js';
+import { customerAuthLimiter, customerAPILimiter } from './dist/middleware/customerSecurity.js';
 import { errorHandler } from './dist/middleware/errorHandler.js';
 import { requestLogger } from './dist/middleware/requestLogger.js';
 
 const app = express();
 const prisma = new PrismaClient();
 const logger = pino();
+
+// START DEBUG - This should show up in logs if deployed correctly
+console.log('🚀 SERVER STARTING - server.js loaded at:', new Date().toISOString());
+console.log('🔧 NODE_ENV:', process.env.NODE_ENV);
+console.log('🌍 Working directory:', process.cwd());
 
 // Security middleware
 app.use(helmet({
@@ -41,6 +52,9 @@ app.use(helmet({
     },
   },
 }));
+
+// Trust proxy for rate limiting behind reverse proxy
+// app.set('trust proxy', 1);
 
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
@@ -87,6 +101,12 @@ app.use(cookieParser());
 // Request logging
 app.use(requestLogger);
 
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`🔍 ${req.method} ${req.url} - ${new Date().toISOString()}`);
+  next();
+});
+
 // Health check endpoint
 app.get('/healthz', async (req, res) => {
   try {
@@ -118,10 +138,22 @@ app.use('/api/card-orders', cardOrderRoutes); // Global card orders routes (pric
 app.use('/api/t', tenantRoutes);
 app.use('/api/stripe', stripeRoutes);
 
+// Public routes (accessible without tenant context)
+app.use('/api/purchase-transactions', purchaseTransactionRoutes);
+app.use('/api/cards', publicCardRoutes);
+
+// Customer dashboard routes (public, session-based)
+console.log('🔧 Registering customer auth routes...');
+app.use('/api/customer-auth', customerAuthLimiter, customerAuthRoutes);
+app.use('/api/customer', customerAPILimiter, customerDashboardRoutes);
+
 // Legacy tenant-scoped routes (with tenant middleware)
+console.log('🔧 Registering tenant-scoped routes...');
 app.use('/api/t/:tenantSlug/cards', cardRoutes);
 app.use('/api/t/:tenantSlug/customers', customerRoutes);
 app.use('/api/t/:tenantSlug/transactions', transactionRoutes);
+console.log('🔧 Registering purchase-transactions route...');
+app.use('/api/t/:tenantSlug/purchase-transactions', purchaseTransactionRoutes);
 app.use('/api/t/:tenantSlug/rules', rulesRoutes);
 app.use('/api/t/:tenantSlug/reports', reportRoutes);
 app.use('/api/t/:tenantSlug/notifications', notificationRoutes);
@@ -129,6 +161,8 @@ app.use('/api/t/:tenantSlug/stores', storeRoutes);
 app.use('/api/t/:tenantSlug/users', userRoutes);
 app.use('/api/t/:tenantSlug/trial', trialRoutes);
 app.use('/api/t/:tenantSlug/card-orders', cardOrderRoutes);
+console.log('🖨️ Registering cardPrintOrderRoutes at /api/t/:tenantSlug/card-print-orders');
+app.use('/api/t/:tenantSlug/card-print-orders', cardPrintOrderRoutes);
 
 // Error handling
 app.use(errorHandler);
@@ -165,6 +199,9 @@ const server = app.listen(PORT, HOST, () => {
   logger.info(`📂 Working directory: ${process.cwd()}`);
   logger.info(`⚡ Node.js version: ${process.version}`);
   logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log('✅ SERVER FULLY STARTED - Routes should be registered now');
+  console.log('🔧 Customer auth routes should be available at: /api/customer-auth/*');
+  console.log('🖨️ Card Print Orders route should be available at: /api/t/:tenantSlug/card-print-orders');
 });
 
 // Handle server errors

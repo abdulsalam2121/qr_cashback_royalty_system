@@ -1,47 +1,42 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const bcryptjs_1 = __importDefault(require("bcryptjs"));
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const zod_1 = require("zod");
-const client_1 = require("@prisma/client");
-const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
-const validate_js_1 = require("../middleware/validate.js");
-const auth_js_1 = require("../middleware/auth.js");
-const rbac_js_1 = require("../middleware/rbac.js");
-const verifyFirebaseToken_js_1 = require("../middleware/verifyFirebaseToken.js");
-const initializeDefaults_js_1 = require("../utils/initializeDefaults.js");
-const emailService_js_1 = require("../services/emailService.js");
-const tokenService_js_1 = require("../services/tokenService.js");
-const router = express_1.default.Router();
-const prisma = new client_1.PrismaClient();
-const loginSchema = zod_1.z.object({
-    email: zod_1.z.string().email(),
-    password: zod_1.z.string().min(6),
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { z } from 'zod';
+import { PrismaClient } from '@prisma/client';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { validate } from '../middleware/validate.js';
+import { auth } from '../middleware/auth.js';
+import { rbac } from '../middleware/rbac.js';
+import { verifyFirebaseToken } from '../middleware/verifyFirebaseToken.js';
+import { initializeDefaultRules } from '../utils/initializeDefaults.js';
+import { emailService } from '../services/emailService.js';
+import { TokenService } from '../services/tokenService.js';
+const router = express.Router();
+const prisma = new PrismaClient();
+const loginSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(6),
 });
-const registerSchema = zod_1.z.object({
-    email: zod_1.z.string().email(),
-    password: zod_1.z.string().min(6),
-    firstName: zod_1.z.string().min(1),
-    lastName: zod_1.z.string().min(1),
-    role: zod_1.z.enum(['admin', 'cashier', 'customer']).optional(),
-    storeId: zod_1.z.string().optional(),
+const registerSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(6),
+    firstName: z.string().min(1),
+    lastName: z.string().min(1),
+    role: z.enum(['admin', 'cashier', 'customer']).optional(),
+    storeId: z.string().optional(),
 });
-const forgotPasswordSchema = zod_1.z.object({
-    email: zod_1.z.string().email(),
+const forgotPasswordSchema = z.object({
+    email: z.string().email(),
 });
-const resetPasswordSchema = zod_1.z.object({
-    token: zod_1.z.string().min(1),
-    password: zod_1.z.string().min(6),
+const resetPasswordSchema = z.object({
+    token: z.string().min(1),
+    password: z.string().min(6),
 });
-const verifyEmailSchema = zod_1.z.object({
-    token: zod_1.z.string().min(1),
+const verifyEmailSchema = z.object({
+    token: z.string().min(1),
 });
 // Login
-router.post('/login', (0, validate_js_1.validate)(loginSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/login', validate(loginSchema), asyncHandler(async (req, res) => {
     const { email, password } = req.body;
     const user = await prisma.user.findUnique({
         where: { email },
@@ -54,7 +49,7 @@ router.post('/login', (0, validate_js_1.validate)(loginSchema), (0, asyncHandler
         res.status(401).json({ error: 'Invalid credentials' });
         return;
     }
-    const isValidPassword = await bcryptjs_1.default.compare(password, user.passwordHash);
+    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
     if (!isValidPassword) {
         res.status(401).json({ error: 'Invalid credentials' });
         return;
@@ -78,7 +73,7 @@ router.post('/login', (0, validate_js_1.validate)(loginSchema), (0, asyncHandler
         where: { id: user.id },
         data: { lastLogin: new Date() },
     });
-    const token = jsonwebtoken_1.default.sign({
+    const token = jwt.sign({
         userId: user.id,
         email: user.email,
         role: user.role,
@@ -120,7 +115,7 @@ router.post('/login', (0, validate_js_1.validate)(loginSchema), (0, asyncHandler
     return;
 }));
 // Public signup (for store owners) - now requires email verification
-router.post('/signup', (0, validate_js_1.validate)(registerSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/signup', validate(registerSchema), asyncHandler(async (req, res) => {
     const { email, password, firstName, lastName } = req.body;
     const existingUser = await prisma.user.findUnique({
         where: { email },
@@ -129,7 +124,7 @@ router.post('/signup', (0, validate_js_1.validate)(registerSchema), (0, asyncHan
         res.status(400).json({ error: 'User already exists' });
         return;
     }
-    const passwordHash = await bcryptjs_1.default.hash(password, 12);
+    const passwordHash = await bcrypt.hash(password, 12);
     // Generate unique slug for tenant
     const baseSlug = `${firstName}-${lastName}-store`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     let slug = baseSlug;
@@ -151,8 +146,8 @@ router.post('/signup', (0, validate_js_1.validate)(registerSchema), (0, asyncHan
         },
     });
     // Generate email verification token
-    const tokenData = tokenService_js_1.TokenService.generateEmailVerificationToken();
-    const hashedToken = tokenService_js_1.TokenService.hashToken(tokenData.token);
+    const tokenData = TokenService.generateEmailVerificationToken();
+    const hashedToken = TokenService.hashToken(tokenData.token);
     // Create the user as tenant admin but inactive until email verified
     const user = await prisma.user.create({
         data: {
@@ -170,10 +165,10 @@ router.post('/signup', (0, validate_js_1.validate)(registerSchema), (0, asyncHan
         },
     });
     // Initialize default cashback rules and tier rules
-    await (0, initializeDefaults_js_1.initializeDefaultRules)(tenant.id);
+    await initializeDefaultRules(tenant.id);
     // Send verification email
     try {
-        await emailService_js_1.emailService.sendEmailVerification(user.email, user.firstName || 'User', tokenData.token);
+        await emailService.sendEmailVerification(user.email, user.firstName || 'User', tokenData.token);
     }
     catch (error) {
         console.error('Failed to send verification email:', error);
@@ -190,7 +185,7 @@ router.post('/signup', (0, validate_js_1.validate)(registerSchema), (0, asyncHan
     return;
 }));
 // Register (admin only for creating staff)
-router.post('/register', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(registerSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/register', auth, rbac(['tenant_admin']), validate(registerSchema), asyncHandler(async (req, res) => {
     const { email, password, firstName, lastName, role = 'customer', storeId } = req.body;
     const { tenantId } = req.user;
     const existingUser = await prisma.user.findUnique({
@@ -200,7 +195,7 @@ router.post('/register', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), 
         res.status(400).json({ error: 'User already exists' });
         return;
     }
-    const passwordHash = await bcryptjs_1.default.hash(password, 12);
+    const passwordHash = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
         data: {
             email,
@@ -228,7 +223,7 @@ router.post('/register', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), 
     return;
 }));
 // Get current user
-router.get('/me', auth_js_1.auth, (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/me', auth, asyncHandler(async (req, res) => {
     const user = await prisma.user.findUnique({
         where: { id: req.user.userId },
         include: {
@@ -274,7 +269,7 @@ router.post('/logout', (req, res) => {
     res.json({ message: 'Logged out successfully' });
 });
 // Debug route to check users (remove in production)
-router.get('/debug/users', (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/debug/users', asyncHandler(async (req, res) => {
     const users = await prisma.user.findMany({
         select: {
             id: true,
@@ -301,7 +296,7 @@ router.get('/debug/users', (0, asyncHandler_js_1.asyncHandler)(async (req, res) 
     return;
 }));
 // Debug route to reset a user for testing (remove in production)
-router.post('/debug/reset-user/:email', (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/debug/reset-user/:email', asyncHandler(async (req, res) => {
     const { email } = req.params;
     // Find and delete the user
     const user = await prisma.user.findUnique({
@@ -333,7 +328,7 @@ router.post('/debug/reset-user/:email', (0, asyncHandler_js_1.asyncHandler)(asyn
 }));
 // Firebase Auth Routes
 // Sync user after Firebase authentication
-router.post('/sync', verifyFirebaseToken_js_1.verifyFirebaseToken, (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/sync', verifyFirebaseToken, asyncHandler(async (req, res) => {
     const firebaseUser = req.firebaseUser;
     if (!firebaseUser?.email || !firebaseUser.uid) {
         res.status(400).json({ error: 'Invalid Firebase user data' });
@@ -417,7 +412,7 @@ router.post('/sync', verifyFirebaseToken_js_1.verifyFirebaseToken, (0, asyncHand
                 }
                 // Initialize default rules for the new tenant
                 try {
-                    await (0, initializeDefaults_js_1.initializeDefaultRules)(tenant.id);
+                    await initializeDefaultRules(tenant.id);
                     if (process.env.NODE_ENV !== 'production') {
                         console.log(`[Google Auth] Initialized default rules for upgraded user tenant`);
                     }
@@ -508,7 +503,7 @@ router.post('/sync', verifyFirebaseToken_js_1.verifyFirebaseToken, (0, asyncHand
             }
             // Initialize default cashback rules and tier rules for the new tenant
             try {
-                await (0, initializeDefaults_js_1.initializeDefaultRules)(tenant.id);
+                await initializeDefaultRules(tenant.id);
                 if (process.env.NODE_ENV !== 'production') {
                     console.log(`[Google Auth] Initialized default rules for tenant`);
                 }
@@ -541,7 +536,7 @@ router.post('/sync', verifyFirebaseToken_js_1.verifyFirebaseToken, (0, asyncHand
             tenantName: user.tenant?.name,
         };
         // Create JWT token for subsequent requests (like regular login)
-        const token = jsonwebtoken_1.default.sign({
+        const token = jwt.sign({
             userId: user.id,
             email: user.email,
             role: user.role,
@@ -578,7 +573,7 @@ router.post('/sync', verifyFirebaseToken_js_1.verifyFirebaseToken, (0, asyncHand
     }
 }));
 // Get current user info (for Firebase auth)
-router.get('/me', verifyFirebaseToken_js_1.verifyFirebaseToken, (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/me', verifyFirebaseToken, asyncHandler(async (req, res) => {
     const firebaseUser = req.firebaseUser;
     if (!firebaseUser?.email) {
         res.status(400).json({ error: 'Invalid Firebase user' });
@@ -639,7 +634,7 @@ router.get('/me', verifyFirebaseToken_js_1.verifyFirebaseToken, (0, asyncHandler
     }
 }));
 // Resend email verification
-router.post('/resend-verification', (0, validate_js_1.validate)(forgotPasswordSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/resend-verification', validate(forgotPasswordSchema), asyncHandler(async (req, res) => {
     const { email } = req.body;
     const user = await prisma.user.findUnique({
         where: { email },
@@ -650,8 +645,8 @@ router.post('/resend-verification', (0, validate_js_1.validate)(forgotPasswordSc
         return;
     }
     // Generate new verification token
-    const tokenData = tokenService_js_1.TokenService.generateEmailVerificationToken();
-    const hashedToken = tokenService_js_1.TokenService.hashToken(tokenData.token);
+    const tokenData = TokenService.generateEmailVerificationToken();
+    const hashedToken = TokenService.hashToken(tokenData.token);
     // Update user with new verification token
     await prisma.user.update({
         where: { id: user.id },
@@ -662,7 +657,7 @@ router.post('/resend-verification', (0, validate_js_1.validate)(forgotPasswordSc
     });
     // Send verification email
     try {
-        await emailService_js_1.emailService.sendEmailVerification(user.email, user.firstName || 'User', tokenData.token);
+        await emailService.sendEmailVerification(user.email, user.firstName || 'User', tokenData.token);
     }
     catch (error) {
         console.error('Failed to resend verification email:', error);
@@ -672,7 +667,7 @@ router.post('/resend-verification', (0, validate_js_1.validate)(forgotPasswordSc
     return;
 }));
 // Forgot password
-router.post('/forgot-password', (0, validate_js_1.validate)(forgotPasswordSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/forgot-password', validate(forgotPasswordSchema), asyncHandler(async (req, res) => {
     const { email } = req.body;
     // Find user by email
     const user = await prisma.user.findUnique({
@@ -689,8 +684,8 @@ router.post('/forgot-password', (0, validate_js_1.validate)(forgotPasswordSchema
         return;
     }
     // Generate password reset token
-    const tokenData = tokenService_js_1.TokenService.generatePasswordResetToken();
-    const hashedToken = tokenService_js_1.TokenService.hashToken(tokenData.token);
+    const tokenData = TokenService.generatePasswordResetToken();
+    const hashedToken = TokenService.hashToken(tokenData.token);
     // Store the hashed token in database
     await prisma.user.update({
         where: { id: user.id },
@@ -701,7 +696,7 @@ router.post('/forgot-password', (0, validate_js_1.validate)(forgotPasswordSchema
     });
     // Send password reset email
     try {
-        await emailService_js_1.emailService.sendPasswordReset(user.email, user.firstName || 'User', tokenData.token);
+        await emailService.sendPasswordReset(user.email, user.firstName || 'User', tokenData.token);
     }
     catch (error) {
         console.error('Failed to send password reset email:', error);
@@ -711,9 +706,9 @@ router.post('/forgot-password', (0, validate_js_1.validate)(forgotPasswordSchema
     return;
 }));
 // Reset password
-router.post('/reset-password', (0, validate_js_1.validate)(resetPasswordSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/reset-password', validate(resetPasswordSchema), asyncHandler(async (req, res) => {
     const { token, password } = req.body;
-    const hashedToken = tokenService_js_1.TokenService.hashToken(token);
+    const hashedToken = TokenService.hashToken(token);
     // Find user with matching reset token that hasn't expired
     const user = await prisma.user.findFirst({
         where: {
@@ -728,7 +723,7 @@ router.post('/reset-password', (0, validate_js_1.validate)(resetPasswordSchema),
         return;
     }
     // Hash the new password
-    const passwordHash = await bcryptjs_1.default.hash(password, 12);
+    const passwordHash = await bcrypt.hash(password, 12);
     // Update user password and clear reset tokens
     await prisma.user.update({
         where: { id: user.id },
@@ -745,9 +740,9 @@ router.post('/reset-password', (0, validate_js_1.validate)(resetPasswordSchema),
     return;
 }));
 // Verify email
-router.post('/verify-email', (0, validate_js_1.validate)(verifyEmailSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/verify-email', validate(verifyEmailSchema), asyncHandler(async (req, res) => {
     const { token } = req.body;
-    const hashedToken = tokenService_js_1.TokenService.hashToken(token);
+    const hashedToken = TokenService.hashToken(token);
     // Find user with matching verification token that hasn't expired
     const user = await prisma.user.findFirst({
         where: {
@@ -780,7 +775,7 @@ router.post('/verify-email', (0, validate_js_1.validate)(verifyEmailSchema), (0,
         },
     });
     // Create JWT token for immediate login
-    const jwtToken = jsonwebtoken_1.default.sign({
+    const jwtToken = jwt.sign({
         userId: updatedUser.id,
         email: updatedUser.email,
         role: updatedUser.role,
@@ -824,5 +819,5 @@ router.post('/verify-email', (0, validate_js_1.validate)(verifyEmailSchema), (0,
     });
     return;
 }));
-exports.default = router;
+export default router;
 //# sourceMappingURL=auth.js.map

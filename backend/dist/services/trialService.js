@@ -1,18 +1,12 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.trackCardActivation = trackCardActivation;
-exports.getTrialStatus = getTrialStatus;
-exports.canActivateCards = canActivateCards;
-exports.resetTrial = resetTrial;
-const client_1 = require("@prisma/client");
-const prisma = new client_1.PrismaClient();
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
 // Constants
 const FREE_TRIAL_LIMIT = 40;
 const SUBSCRIPTION_PRICE = 19.99;
 /**
  * Track card activation and check trial limits
  */
-async function trackCardActivation(tenantId, cardId) {
+export async function trackCardActivation(tenantId, cardId) {
     try {
         // Get tenant info
         const tenant = await prisma.tenant.findUnique({
@@ -119,7 +113,7 @@ async function sendTrialWarning(tenantId, activationsRemaining) {
 /**
  * Get trial status for a tenant
  */
-async function getTrialStatus(tenantId) {
+export async function getTrialStatus(tenantId) {
     const tenant = await prisma.tenant.findUnique({
         where: { id: tenantId }
     });
@@ -141,7 +135,7 @@ async function getTrialStatus(tenantId) {
 /**
  * Check if tenant can activate cards (within trial or has subscription)
  */
-async function canActivateCards(tenantId) {
+export async function canActivateCards(tenantId) {
     const tenant = await prisma.tenant.findUnique({
         where: { id: tenantId }
     });
@@ -158,7 +152,7 @@ async function canActivateCards(tenantId) {
 /**
  * Reset trial for a tenant (admin function)
  */
-async function resetTrial(tenantId) {
+export async function resetTrial(tenantId) {
     await prisma.tenant.update({
         where: { id: tenantId },
         data: {

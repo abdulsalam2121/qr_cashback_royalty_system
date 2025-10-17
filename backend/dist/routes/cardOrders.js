@@ -1,65 +1,60 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const client_1 = require("@prisma/client");
-const stripe_1 = __importDefault(require("stripe"));
-const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
-const auth_js_1 = require("../middleware/auth.js");
-const rbac_js_1 = require("../middleware/rbac.js");
-const validate_js_1 = require("../middleware/validate.js");
-const cardLimitService_js_1 = require("../services/cardLimitService.js");
-const zod_1 = require("zod");
-const router = express_1.default.Router();
-const prisma = new client_1.PrismaClient();
-const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
+import express from 'express';
+import { PrismaClient } from '@prisma/client';
+import Stripe from 'stripe';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { auth } from '../middleware/auth.js';
+import { rbac } from '../middleware/rbac.js';
+import { validate } from '../middleware/validate.js';
+import { CardLimitService } from '../services/cardLimitService.js';
+import { z } from 'zod';
+const router = express.Router();
+const prisma = new PrismaClient();
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
 // Card pricing configuration
 const CARD_PRICES = {
     SINGLE_SIDED: 2.10,
     DOUBLE_SIDED_CUSTOM: 3.90
 };
 // Validation schemas
-const createOrderSchema = zod_1.z.object({
-    cardType: zod_1.z.enum(['SINGLE_SIDED', 'DOUBLE_SIDED_CUSTOM']),
-    quantity: zod_1.z.number().min(1).max(10000),
-    sourceType: zod_1.z.enum(['TRIAL', 'SUBSCRIPTION', 'ADDITIONAL']).default('SUBSCRIPTION'),
-    deductFromBalance: zod_1.z.boolean().default(true),
-    storeName: zod_1.z.string().optional(),
-    storePhone: zod_1.z.string().optional(),
-    storeAddress: zod_1.z.string().optional(),
-    customDesign: zod_1.z.string().optional(),
-    shippingAddress: zod_1.z.string().min(1, 'Shipping address is required')
+const createOrderSchema = z.object({
+    cardType: z.enum(['SINGLE_SIDED', 'DOUBLE_SIDED_CUSTOM']),
+    quantity: z.number().min(1).max(10000),
+    sourceType: z.enum(['TRIAL', 'SUBSCRIPTION', 'ADDITIONAL']).default('SUBSCRIPTION'),
+    deductFromBalance: z.boolean().default(true),
+    storeName: z.string().optional(),
+    storePhone: z.string().optional(),
+    storeAddress: z.string().optional(),
+    customDesign: z.string().optional(),
+    shippingAddress: z.string().min(1, 'Shipping address is required')
 });
-const createCheckoutSchema = zod_1.z.object({
-    cardType: zod_1.z.enum(['SINGLE_SIDED', 'DOUBLE_SIDED_CUSTOM']),
-    quantity: zod_1.z.number().min(1).max(10000),
-    sourceType: zod_1.z.enum(['TRIAL', 'SUBSCRIPTION', 'ADDITIONAL']).default('SUBSCRIPTION'),
-    deductFromBalance: zod_1.z.boolean().default(true),
-    storeName: zod_1.z.string().optional(),
-    storePhone: zod_1.z.string().optional(),
-    storeAddress: zod_1.z.string().optional(),
-    customDesign: zod_1.z.string().optional(),
-    shippingAddress: zod_1.z.string().min(1, 'Shipping address is required')
+const createCheckoutSchema = z.object({
+    cardType: z.enum(['SINGLE_SIDED', 'DOUBLE_SIDED_CUSTOM']),
+    quantity: z.number().min(1).max(10000),
+    sourceType: z.enum(['TRIAL', 'SUBSCRIPTION', 'ADDITIONAL']).default('SUBSCRIPTION'),
+    deductFromBalance: z.boolean().default(true),
+    storeName: z.string().optional(),
+    storePhone: z.string().optional(),
+    storeAddress: z.string().optional(),
+    customDesign: z.string().optional(),
+    shippingAddress: z.string().min(1, 'Shipping address is required')
 });
-const updateOrderSchema = zod_1.z.object({
-    status: zod_1.z.enum(['PENDING_APPROVAL', 'APPROVED', 'PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']).optional(),
-    trackingNumber: zod_1.z.string().optional()
+const updateOrderSchema = z.object({
+    status: z.enum(['PENDING_APPROVAL', 'APPROVED', 'PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']).optional(),
+    trackingNumber: z.string().optional()
 });
 // Get card pricing
-router.get('/pricing', (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/pricing', asyncHandler(async (req, res) => {
     res.json({
         prices: CARD_PRICES,
         currency: 'USD'
     });
 }));
 // Check card ordering eligibility
-router.get('/eligibility', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/eligibility', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { tenantId } = req.user;
     const { quantity = 1 } = req.query;
-    const eligibility = await cardLimitService_js_1.CardLimitService.canOrderCards(tenantId, Number(quantity));
-    const balance = await cardLimitService_js_1.CardLimitService.getCardBalance(tenantId);
+    const eligibility = await CardLimitService.canOrderCards(tenantId, Number(quantity));
+    const balance = await CardLimitService.getCardBalance(tenantId);
     res.json({
         ...eligibility,
         balance,
@@ -70,7 +65,7 @@ router.get('/eligibility', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin'])
     });
 }));
 // Get orders for tenant
-router.get('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { tenantId } = req.user;
     const { page = 1, limit = 10, status } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
@@ -98,7 +93,7 @@ router.get('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, async
     });
 }));
 // Get single order
-router.get('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res, next) => {
+router.get('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res, next) => {
     const { tenantId } = req.user;
     const { id } = req.params;
     if (!id) {
@@ -115,7 +110,7 @@ router.get('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, as
     res.json({ order });
 }));
 // Create Stripe checkout session for card order
-router.post('/checkout', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(createCheckoutSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/checkout', auth, rbac(['tenant_admin']), validate(createCheckoutSchema), asyncHandler(async (req, res) => {
     const { tenantId, email } = req.user;
     const { cardType, quantity, storeName, storePhone, storeAddress, customDesign, shippingAddress } = req.body;
     // Check trial status
@@ -232,11 +227,11 @@ router.post('/checkout', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), 
     }
 }));
 // Create new order (Direct order without payment - for admin testing)
-router.post('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(createOrderSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res, next) => {
+router.post('/', auth, rbac(['tenant_admin']), validate(createOrderSchema), asyncHandler(async (req, res, next) => {
     const { tenantId, id: userId } = req.user;
     const { cardType, quantity, sourceType = 'SUBSCRIPTION', deductFromBalance = true, storeName, storePhone, storeAddress, customDesign, shippingAddress } = req.body;
     // Check card ordering eligibility
-    const eligibility = await cardLimitService_js_1.CardLimitService.canOrderCards(tenantId, quantity);
+    const eligibility = await CardLimitService.canOrderCards(tenantId, quantity);
     if (!eligibility.canOrder) {
         res.status(403).json({
             error: 'Cannot order cards',
@@ -270,14 +265,14 @@ router.post('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, vali
         });
         // Deduct cards from balance if required
         if (deductFromBalance) {
-            await cardLimitService_js_1.CardLimitService.useCardsForOrder(tenantId, order.id, quantity, userId);
+            await CardLimitService.useCardsForOrder(tenantId, order.id, quantity, userId);
         }
         return order;
     });
     res.status(201).json({ order: result });
 }));
 // Approve order (platform admin only)
-router.post('/:id/approve', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/:id/approve', auth, rbac(['platform_admin']), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { id: userId } = req.user;
     if (!id) {
@@ -306,7 +301,7 @@ router.post('/:id/approve', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin
     res.json({ order: updatedOrder });
 }));
 // Reject order and refund cards (platform admin only)
-router.post('/:id/reject', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/:id/reject', auth, rbac(['platform_admin']), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { id: userId } = req.user;
     const { reason } = req.body;
@@ -337,13 +332,13 @@ router.post('/:id/reject', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin'
         // Refund cards if they were deducted
         const orderWithDetails = order;
         if (orderWithDetails.deductFromBalance) {
-            await cardLimitService_js_1.CardLimitService.refundCardsFromOrder(order.tenantId, order.id, order.quantity, userId);
+            await CardLimitService.refundCardsFromOrder(order.tenantId, order.id, order.quantity, userId);
         }
     });
     res.json({ message: 'Order rejected and cards refunded' });
 }));
 // Update order (admin only - for platform management)
-router.put('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0, validate_js_1.validate)(updateOrderSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res, next) => {
+router.put('/:id', auth, rbac(['platform_admin']), validate(updateOrderSchema), asyncHandler(async (req, res, next) => {
     const { id } = req.params;
     const updateData = req.body;
     if (!id) {
@@ -364,7 +359,7 @@ router.put('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0, 
     res.json({ order });
 }));
 // Cancel order
-router.delete('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res, next) => {
+router.delete('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res, next) => {
     const { tenantId } = req.user;
     const { id } = req.params;
     if (!id) {
@@ -392,17 +387,17 @@ router.delete('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0,
     res.json({ order: updatedOrder });
 }));
 // Get card balance and limits
-router.get('/balance', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/balance', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { tenantId } = req.user;
-    const balance = await cardLimitService_js_1.CardLimitService.getCardBalance(tenantId);
+    const balance = await CardLimitService.getCardBalance(tenantId);
     res.json({ balance });
 }));
 // Get card limit transaction history
-router.get('/balance/history', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/balance/history', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { tenantId } = req.user;
     const { limit = 50 } = req.query;
-    const history = await cardLimitService_js_1.CardLimitService.getTransactionHistory(tenantId, Number(limit));
+    const history = await CardLimitService.getTransactionHistory(tenantId, Number(limit));
     res.json({ history });
 }));
-exports.default = router;
+export default router;
 //# sourceMappingURL=cardOrders.js.map

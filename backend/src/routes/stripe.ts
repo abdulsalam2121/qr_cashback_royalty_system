@@ -93,31 +93,53 @@ router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(
 
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        console.log(`[WEBHOOK] Payment intent succeeded: ${paymentIntent.id}`, {
-          amount: paymentIntent.amount,
-          currency: paymentIntent.currency,
-          metadata: paymentIntent.metadata,
-          status: paymentIntent.status
-        });
+        console.log(`✅ payment_intent.succeeded: ${paymentIntent.id}`);
+        console.log('�🚨🚨 WEBHOOK PROCESSING - CHECKING METADATA 🚨🚨🚨');
+        console.log('�📋 Payment Intent Metadata:', JSON.stringify(paymentIntent.metadata, null, 2));
+        console.log('📋 Metadata keys:', Object.keys(paymentIntent.metadata || {}));
+        console.log('📋 Type value:', paymentIntent.metadata?.type);
+        console.log('📋 CustomerId value:', paymentIntent.metadata?.customerId);
+        
+        // Get fresh payment intent from Stripe to ensure we have latest metadata
+        let freshPaymentIntent = paymentIntent;
+        try {
+          console.log('Fetching fresh payment intent from Stripe...');
+          freshPaymentIntent = await stripe.paymentIntents.retrieve(paymentIntent.id);
+          console.log('Fresh Payment Intent Metadata:', JSON.stringify(freshPaymentIntent.metadata, null, 2));
+        } catch (error) {
+          console.error('Failed to fetch fresh payment intent:', error);
+        }
         
         // Handle one-time payments (like card orders)
-        if (paymentIntent.metadata?.orderId) {
-          console.log(`[WEBHOOK] Processing card order payment: ${paymentIntent.metadata.orderId}`);
-          await handleCardOrderPaymentIntent(paymentIntent);
+        if (freshPaymentIntent.metadata?.orderId) {
+          console.log('🛒 Processing card order payment...');
+          await handleCardOrderPaymentIntent(freshPaymentIntent);
         }
         // Handle QR payment transactions
-        else if (paymentIntent.metadata?.paymentLinkId) {
-          console.log(`[WEBHOOK] Processing QR payment transaction: ${paymentIntent.metadata.paymentLinkId}`);
-          await handlePurchaseTransactionPaymentIntent(paymentIntent);
+        else if (freshPaymentIntent.metadata?.paymentLinkId) {
+          console.log('🏪 Processing QR purchase transaction...');
+          await handlePurchaseTransactionPaymentIntent(freshPaymentIntent);
         }
         // Handle customer fund additions
-        else if (paymentIntent.metadata?.type === 'customer_funds') {
-          console.log(`[WEBHOOK] Processing customer funds addition for customer: ${paymentIntent.metadata.customerId}`);
-          await handleCustomerFundsPaymentIntent(paymentIntent);
+        else if (freshPaymentIntent.metadata?.type === 'customer_funds') {
+          console.log('💰 Processing customer fund addition...');
+          await handleCustomerFundsPaymentIntent(freshPaymentIntent);
         }
         else {
-          console.log(`[WEBHOOK] Unhandled payment intent metadata:`, paymentIntent.metadata);
+          console.log('⚠️ Unknown payment type or missing metadata; skipping transaction creation');
+          console.log('Available metadata keys:', Object.keys(freshPaymentIntent.metadata || {}));
+          
+          // Fallback: check if description contains "loyalty card"
+          if (freshPaymentIntent.description?.includes('loyalty card')) {
+            console.log('Detected customer fund payment by description, attempting manual processing...');
+            try {
+              await handleCustomerFundsPaymentIntent(freshPaymentIntent);
+            } catch (error) {
+              console.error('Manual customer funds processing failed:', error);
+            }
+          }
         }
+        console.log('🚨🚨🚨 END WEBHOOK PROCESSING 🚨🚨🚨');
         break;
       }
 
@@ -506,6 +528,9 @@ async function handleCustomerFundsPaymentIntent(paymentIntent: Stripe.PaymentInt
           note: `Funds added via credit card payment - Payment Intent: ${paymentIntent.id}`,
         }
       });
+
+      console.log(`[WEBHOOK] Transaction created successfully. Card balance updated to $${(afterBalance / 100).toFixed(2)}`);
+      return transaction;
     });
 
     // Send email notification

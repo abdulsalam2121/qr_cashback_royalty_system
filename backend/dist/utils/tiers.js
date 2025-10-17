@@ -1,16 +1,12 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateCustomerTier = updateCustomerTier;
-exports.calculateTierProgress = calculateTierProgress;
-const decimal_js_1 = require("decimal.js");
-async function updateCustomerTier(customerId, tenantId, tx) {
+import { Decimal } from 'decimal.js';
+export async function updateCustomerTier(customerId, tenantId, tx) {
     const customer = await tx.customer.findUnique({
         where: { id: customerId }
     });
     if (!customer) {
         throw new Error('Customer not found');
     }
-    const totalSpendCents = new decimal_js_1.Decimal(customer.totalSpend).mul(100).toNumber();
+    const totalSpendCents = new Decimal(customer.totalSpend).mul(100).toNumber();
     // Get tier rules sorted by spending threshold
     const tierRules = await tx.tierRule.findMany({
         where: { tenantId, isActive: true },
@@ -32,8 +28,8 @@ async function updateCustomerTier(customerId, tenantId, tx) {
     }
     return customer;
 }
-async function calculateTierProgress(customer, tenantId, tx) {
-    const currentSpendCents = new decimal_js_1.Decimal(customer.totalSpend).mul(100).toNumber();
+export async function calculateTierProgress(customer, tenantId, tx) {
+    const currentSpendCents = new Decimal(customer.totalSpend).mul(100).toNumber();
     const tierRules = await tx.tierRule.findMany({
         where: { tenantId, isActive: true },
         orderBy: { minTotalSpendCents: 'asc' }

@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.rbac = void 0;
-const rbac = (allowedRoles) => {
+export const rbac = (allowedRoles) => {
     return (req, res, next) => {
         if (!req.user) {
             return res.status(401).json({ error: 'Authentication required' });
@@ -20,5 +17,4 @@ const rbac = (allowedRoles) => {
         next();
     };
 };
-exports.rbac = rbac;
 //# sourceMappingURL=rbac.js.map

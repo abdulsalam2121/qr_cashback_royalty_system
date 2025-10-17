@@ -1,12 +1,6 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.errorHandler = void 0;
-const pino_1 = __importDefault(require("pino"));
-const logger = (0, pino_1.default)();
-const errorHandler = (error, req, res, next) => {
+import pino from 'pino';
+const logger = pino();
+export const errorHandler = (error, req, res, next) => {
     logger.error({
         error: error.message,
         stack: error.stack,
@@ -30,5 +24,4 @@ const errorHandler = (error, req, res, next) => {
     res.status(500).json({ error: 'Internal server error' });
     return;
 };
-exports.errorHandler = errorHandler;
 //# sourceMappingURL=errorHandler.js.map

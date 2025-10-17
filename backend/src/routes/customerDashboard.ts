@@ -210,7 +210,7 @@ router.get('/transactions', customerAuth, asyncHandler(async (req: Request & { c
   }
 }));
 
-// Create payment intent for adding funds
+// Create payment intent for adding funds (using payment link approach like POS Terminal)
 router.post('/add-funds/create-payment-intent', customerAuth, validate(addFundsSchema), 
 asyncHandler(async (req: Request & { customer?: any }, res: Response) => {
   const { customerId, cardUid, tenantId } = req.customer;
@@ -232,30 +232,67 @@ asyncHandler(async (req: Request & { customer?: any }, res: Response) => {
       return;
     }
 
-    // Create Stripe customer if doesn't exist
-    let stripeCustomerId = customer.email ? 
-      await findOrCreateStripeCustomer(customer.email, customer.firstName, customer.lastName) : 
-      null;
+    // Create a payment link first (similar to POS Terminal approach)
+    const result = await prisma.$transaction(async (tx) => {
+      // Generate payment link token
+      const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24); // 24 hour expiry
 
-    // Create payment intent
+      const paymentLink = await tx.paymentLink.create({
+        data: {
+          tenantId,
+          token,
+          amountCents,
+          description: `Add $${(amountCents / 100).toFixed(2)} to ${tenant.name} loyalty card`,
+          expiresAt,
+        }
+      });
+
+      // Create a temporary purchase transaction for this fund addition
+      const purchaseTransaction = await tx.purchaseTransaction.create({
+        data: {
+          tenantId,
+          storeId: tenantId, // Use tenant ID as default store
+          customerId,
+          cashierId: customerId, // Customer is adding their own funds
+          cardUid,
+          paymentMethod: 'QR_PAYMENT', // This will be processed as card payment via webhook
+          paymentStatus: 'PENDING',
+          amountCents,
+          cashbackCents: 0, // No cashback for fund additions
+          category: 'OTHER',
+          description: `STORE_CREDIT: Customer fund addition - $${(amountCents / 100).toFixed(2)}`,
+          paymentLinkId: paymentLink.id,
+          paymentLinkExpiry: expiresAt,
+        }
+      });
+
+      return { paymentLink, purchaseTransaction };
+    });
+
+    // Create payment intent using the payment link (same as POS Terminal)
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountCents,
       currency: 'usd',
-      ...(stripeCustomerId && { customer: stripeCustomerId }),
-      ...(savePaymentMethod && { setup_future_usage: 'off_session' }),
       metadata: {
-        type: 'customer_funds',
-        customerId: customerId,
-        cardUid: cardUid,
-        tenantId: tenantId,
-        tenantSlug: tenant.slug
+        paymentLinkId: result.paymentLink.id, // This will be recognized by the webhook
       },
       description: `Add $${(amountCents / 100).toFixed(2)} to ${tenant.name} loyalty card`
     });
 
+    console.log('💳 Customer Fund Payment Intent Created:', {
+      id: paymentIntent.id,
+      amount: paymentIntent.amount,
+      metadata: paymentIntent.metadata,
+      status: paymentIntent.status,
+      paymentLinkId: result.paymentLink.id
+    });
+
     res.json({
       clientSecret: paymentIntent.client_secret,
-      paymentIntentId: paymentIntent.id
+      paymentIntentId: paymentIntent.id,
+      paymentLinkId: result.paymentLink.id
     });
   } catch (error) {
     console.error('Create payment intent error:', error);
@@ -282,18 +319,10 @@ router.post('/add-funds/confirm', customerAuth, asyncHandler(async (req: Request
       return;
     }
 
-    // Verify metadata matches
-    if (paymentIntent.metadata.customerId !== customerId || 
-        paymentIntent.metadata.cardUid !== cardUid ||
-        paymentIntent.metadata.tenantId !== tenantId) {
-      res.status(400).json({ error: 'Payment verification failed' });
-      return;
-    }
-
     // Wait a moment for webhook processing (if needed)
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Get updated card balance and find the transaction
+    // Get updated card balance
     const card = await prisma.card.findUnique({
       where: { cardUid },
       select: { id: true, balanceCents: true }
@@ -304,13 +333,15 @@ router.post('/add-funds/confirm', customerAuth, asyncHandler(async (req: Request
       return;
     }
 
-    // Find the most recent transaction for this payment intent
+    // Find the most recent transaction for this payment
     const transaction = await prisma.transaction.findFirst({
       where: {
         customerId,
         cardId: card.id,
+        type: 'ADJUST',
+        category: 'OTHER',
         note: {
-          contains: paymentIntentId
+          contains: paymentIntent.metadata.paymentLinkId || paymentIntentId
         }
       },
       orderBy: { createdAt: 'desc' }

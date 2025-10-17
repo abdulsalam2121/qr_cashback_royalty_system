@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.calculateCashback = calculateCashback;
-async function calculateCashback(amountCents, category, customerTier, tenantId, tx) {
+export async function calculateCashback(amountCents, category, customerTier, tenantId, tx) {
     // Get base cashback rate for category
     const cashbackRule = await tx.cashbackRule.findFirst({
         where: {

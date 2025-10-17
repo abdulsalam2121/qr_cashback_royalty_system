@@ -1,84 +1,46 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
+import express from 'express';
+import { z } from 'zod';
+import { PrismaClient } from '@prisma/client';
+import QRCode from 'qrcode';
+import { nanoid } from 'nanoid';
+import JSZip from 'jszip';
+import sharp from 'sharp';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { validate } from '../middleware/validate.js';
+import { auth } from '../middleware/auth.js';
+import { rbac } from '../middleware/rbac.js';
+import { trackCardActivation } from '../services/trialService.js';
+const router = express.Router();
+const prisma = new PrismaClient();
+const createBatchSchema = z.object({
+    count: z.number().int().min(1).max(1000), // Hard limit of 1000 cards per batch
+    storeId: z.string().optional(),
 });
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const zod_1 = require("zod");
-const client_1 = require("@prisma/client");
-const qrcode_1 = __importDefault(require("qrcode"));
-const nanoid_1 = require("nanoid");
-const jszip_1 = __importDefault(require("jszip"));
-const sharp_1 = __importDefault(require("sharp"));
-const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
-const validate_js_1 = require("../middleware/validate.js");
-const auth_js_1 = require("../middleware/auth.js");
-const rbac_js_1 = require("../middleware/rbac.js");
-const trialService_js_1 = require("../services/trialService.js");
-const router = express_1.default.Router();
-const prisma = new client_1.PrismaClient();
-const createBatchSchema = zod_1.z.object({
-    count: zod_1.z.number().int().min(1).max(1000), // Hard limit of 1000 cards per batch
-    storeId: zod_1.z.string().optional(),
-});
-const activateSchema = zod_1.z.object({
-    cardUid: zod_1.z.string(),
-    storeId: zod_1.z.string(),
-    customer: zod_1.z.object({
-        firstName: zod_1.z.string().min(1),
-        lastName: zod_1.z.string().min(1),
-        phone: zod_1.z.string().optional(),
-        email: zod_1.z.string().email().optional(),
+const activateSchema = z.object({
+    cardUid: z.string(),
+    storeId: z.string(),
+    customer: z.object({
+        firstName: z.string().min(1),
+        lastName: z.string().min(1),
+        phone: z.string().optional(),
+        email: z.string().email().optional(),
     }).optional(),
-    customerId: zod_1.z.string().optional(),
+    customerId: z.string().optional(),
 }).refine(data => data.customer || data.customerId, {
     message: "Either customer data or customerId must be provided"
 });
-const blockSchema = zod_1.z.object({
-    reason: zod_1.z.string().optional(),
+const blockSchema = z.object({
+    reason: z.string().optional(),
 });
-const updateStoreSchema = zod_1.z.object({
-    storeId: zod_1.z.string(),
+const updateStoreSchema = z.object({
+    storeId: z.string(),
 });
 // Create batch of cards
-router.post('/batch', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(createBatchSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema), asyncHandler(async (req, res) => {
     const { count, storeId } = req.body;
     const { tenantId } = req.user;
     // Import CardLimitService
-    const { CardLimitService } = await Promise.resolve().then(() => __importStar(require('../services/cardLimitService.js')));
+    const { CardLimitService } = await import('../services/cardLimitService.js');
     // Enforce maximum batch size regardless of subscription
     if (count > 1000) {
         res.status(400).json({
@@ -160,11 +122,11 @@ router.post('/batch', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0,
     }
     const cards = [];
     for (let i = 0; i < count; i++) {
-        const cardUid = (0, nanoid_1.nanoid)(12).toUpperCase();
+        const cardUid = nanoid(12).toUpperCase();
         // Generate QR code URL
         const qrData = `${process.env.APP_BASE_URL}/c/${cardUid}`;
         try {
-            const qrUrl = await qrcode_1.default.toDataURL(qrData, {
+            const qrUrl = await QRCode.toDataURL(qrData, {
                 width: 200,
                 margin: 2,
                 color: {
@@ -309,7 +271,7 @@ router.post('/batch', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0,
     return;
 }));
 // Get all cards
-router.get('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req, res) => {
     const { tenantId, storeId, role } = req.user;
     const { status, search, page = 1, limit = 50 } = req.query;
     const where = { tenantId };
@@ -361,7 +323,7 @@ router.get('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier'])
     });
 }));
 // Special endpoint for POS terminal card lookup - requires only cashier auth
-router.get('/lookup/:cardUid', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/lookup/:cardUid', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req, res) => {
     const { cardUid } = req.params;
     const { tenantId } = req.user;
     console.log('🔍 POS Card Lookup:', { cardUid, tenantId, userRole: req.user.role });
@@ -410,7 +372,7 @@ router.get('/lookup/:cardUid', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admi
     });
 }));
 // Get card by UID
-router.get('/:cardUid', auth_js_1.auth, (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/:cardUid', auth, asyncHandler(async (req, res) => {
     const { cardUid } = req.params;
     console.log('🔍 GET /cards/:cardUid called');
     console.log('Card UID:', cardUid);
@@ -536,11 +498,11 @@ router.get('/:cardUid', auth_js_1.auth, (0, asyncHandler_js_1.asyncHandler)(asyn
     }
 }));
 // Activate card
-router.post('/activate', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier']), (0, validate_js_1.validate)(activateSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res, next) => {
+router.post('/activate', auth, rbac(['tenant_admin', 'cashier']), validate(activateSchema), asyncHandler(async (req, res, next) => {
     const { cardUid, storeId, customer, customerId } = req.body;
     const { tenantId } = req.user;
     // Check trial limits first
-    const trialResult = await (0, trialService_js_1.trackCardActivation)(tenantId, cardUid);
+    const trialResult = await trackCardActivation(tenantId, cardUid);
     if (!trialResult.success) {
         res.status(403).json({
             error: 'Activation limit reached',
@@ -639,7 +601,7 @@ router.post('/activate', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'c
     }
 }));
 // Update card store assignment
-router.put('/:cardUid/store', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(updateStoreSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.put('/:cardUid/store', auth, rbac(['tenant_admin']), validate(updateStoreSchema), asyncHandler(async (req, res) => {
     const { cardUid } = req.params;
     const { storeId } = req.body;
     const { tenantId } = req.user;
@@ -686,7 +648,7 @@ router.put('/:cardUid/store', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin
     });
 }));
 // Block/unblock card
-router.post('/:cardUid/block', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(blockSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/:cardUid/block', auth, rbac(['tenant_admin']), validate(blockSchema), asyncHandler(async (req, res) => {
     const { cardUid } = req.params;
     const { reason } = req.body;
     const { tenantId } = req.user;
@@ -717,7 +679,7 @@ router.post('/:cardUid/block', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admi
     });
 }));
 // Download individual QR code as image
-router.get('/:cardUid/qr/download', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/:cardUid/qr/download', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req, res) => {
     const { cardUid } = req.params;
     const { tenantId } = req.user;
     const { format = 'png', size = '300' } = req.query;
@@ -736,7 +698,7 @@ router.get('/:cardUid/qr/download', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant
         const qrData = `${process.env.APP_BASE_URL}/c/${cardUid}`;
         const qrSize = parseInt(size) || 300;
         // Generate QR code
-        const qrBuffer = await qrcode_1.default.toBuffer(qrData, {
+        const qrBuffer = await QRCode.toBuffer(qrData, {
             width: qrSize,
             margin: 2,
             color: {
@@ -750,14 +712,14 @@ router.get('/:cardUid/qr/download', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant
         let extension = 'png';
         // Convert to different formats if requested
         if (format === 'jpg' || format === 'jpeg') {
-            responseBuffer = await (0, sharp_1.default)(qrBuffer)
+            responseBuffer = await sharp(qrBuffer)
                 .jpeg({ quality: 95 })
                 .toBuffer();
             contentType = 'image/jpeg';
             extension = 'jpg';
         }
         else if (format === 'svg') {
-            const svgString = await qrcode_1.default.toString(qrData, {
+            const svgString = await QRCode.toString(qrData, {
                 type: 'svg',
                 width: qrSize,
                 margin: 2,
@@ -781,7 +743,7 @@ router.get('/:cardUid/qr/download', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant
     }
 }));
 // Download bulk QR codes as ZIP
-router.post('/qr/bulk-download', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/qr/bulk-download', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { tenantId } = req.user;
     const { cardUids, format = 'png', size = '300', includeLabels = true } = req.body;
     if (!cardUids || !Array.isArray(cardUids) || cardUids.length === 0) {
@@ -807,12 +769,12 @@ router.post('/qr/bulk-download', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_ad
             res.status(404).json({ error: 'No cards found' });
             return;
         }
-        const zip = new jszip_1.default();
+        const zip = new JSZip();
         const qrSize = parseInt(size) || 300;
         for (const card of cards) {
             const qrData = `${process.env.APP_BASE_URL}/c/${card.cardUid}`;
             // Generate QR code
-            const qrBuffer = await qrcode_1.default.toBuffer(qrData, {
+            const qrBuffer = await QRCode.toBuffer(qrData, {
                 width: qrSize,
                 margin: 2,
                 color: {
@@ -825,13 +787,13 @@ router.post('/qr/bulk-download', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_ad
             let extension = 'png';
             // Convert to different formats if requested
             if (format === 'jpg' || format === 'jpeg') {
-                fileBuffer = await (0, sharp_1.default)(qrBuffer)
+                fileBuffer = await sharp(qrBuffer)
                     .jpeg({ quality: 95 })
                     .toBuffer();
                 extension = 'jpg';
             }
             else if (format === 'svg') {
-                const svgString = await qrcode_1.default.toString(qrData, {
+                const svgString = await QRCode.toString(qrData, {
                     type: 'svg',
                     width: qrSize,
                     margin: 2,
@@ -880,7 +842,7 @@ router.post('/qr/bulk-download', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_ad
     }
 }));
 // Generate print-ready QR codes for card printing
-router.post('/qr/print-ready', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/qr/print-ready', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { tenantId } = req.user;
     const { cardUids, printFormat = 'standard', cardsPerPage = 8 } = req.body;
     if (!cardUids || !Array.isArray(cardUids) || cardUids.length === 0) {
@@ -902,7 +864,7 @@ router.post('/qr/print-ready', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admi
         return;
     }
     try {
-        const zip = new jszip_1.default();
+        const zip = new JSZip();
         // Standard card size: 85.6mm x 53.98mm (credit card size)
         // Print resolution: 300 DPI
         const cardWidthPx = Math.round(85.6 * 300 / 25.4); // 1012px
@@ -911,7 +873,7 @@ router.post('/qr/print-ready', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admi
         for (const card of cards) {
             const qrData = `${process.env.APP_BASE_URL}/c/${card.cardUid}`;
             // Generate QR code
-            const qrBuffer = await qrcode_1.default.toBuffer(qrData, {
+            const qrBuffer = await QRCode.toBuffer(qrData, {
                 width: qrSize,
                 margin: 1,
                 color: {
@@ -926,7 +888,7 @@ router.post('/qr/print-ready', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admi
             }
             else if (printFormat === 'card-template') {
                 // Create a card-sized template with QR code positioned for printing
-                const cardCanvas = (0, sharp_1.default)({
+                const cardCanvas = sharp({
                     create: {
                         width: cardWidthPx,
                         height: cardHeightPx,
@@ -960,5 +922,5 @@ router.post('/qr/print-ready', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admi
         res.status(500).json({ error: 'Failed to generate print-ready QR codes' });
     }
 }));
-exports.default = router;
+export default router;
 //# sourceMappingURL=cards.js.map

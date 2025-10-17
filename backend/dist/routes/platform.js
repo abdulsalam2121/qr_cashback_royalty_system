@@ -1,28 +1,23 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const bcryptjs_1 = __importDefault(require("bcryptjs"));
-const zod_1 = require("zod");
-const client_1 = require("@prisma/client");
-const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
-const validate_js_1 = require("../middleware/validate.js");
-const auth_js_1 = require("../middleware/auth.js");
-const rbac_js_1 = require("../middleware/rbac.js");
-const router = express_1.default.Router();
-const prisma = new client_1.PrismaClient();
-const createTenantSchema = zod_1.z.object({
-    name: zod_1.z.string().min(1),
-    slug: zod_1.z.string().min(1).regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens'),
-    ownerEmail: zod_1.z.string().email(),
-    ownerPassword: zod_1.z.string().min(6),
-    ownerFirstName: zod_1.z.string().min(1),
-    ownerLastName: zod_1.z.string().min(1),
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import { z } from 'zod';
+import { PrismaClient } from '@prisma/client';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { validate } from '../middleware/validate.js';
+import { auth } from '../middleware/auth.js';
+import { rbac } from '../middleware/rbac.js';
+const router = express.Router();
+const prisma = new PrismaClient();
+const createTenantSchema = z.object({
+    name: z.string().min(1),
+    slug: z.string().min(1).regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens'),
+    ownerEmail: z.string().email(),
+    ownerPassword: z.string().min(6),
+    ownerFirstName: z.string().min(1),
+    ownerLastName: z.string().min(1),
 });
 // Get platform statistics
-router.get('/stats', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/stats', auth, rbac(['platform_admin']), asyncHandler(async (req, res) => {
     const [totalTenants, activeTenants, totalStores, totalCustomers, 
     // Mock revenue data - in real app, calculate from Stripe
     totalRevenue, monthlyRevenue,] = await Promise.all([
@@ -46,7 +41,7 @@ router.get('/stats', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0
     return;
 }));
 // Get pending print orders count for badge
-router.get('/card-print-orders/count', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/card-print-orders/count', auth, rbac(['platform_admin']), asyncHandler(async (req, res) => {
     const pendingCount = await prisma.cardPrintOrder.count({
         where: {
             status: {
@@ -57,7 +52,7 @@ router.get('/card-print-orders/count', auth_js_1.auth, (0, rbac_js_1.rbac)(['pla
     res.json({ count: pendingCount });
 }));
 // Get all tenants
-router.get('/tenants', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/tenants', auth, rbac(['platform_admin']), asyncHandler(async (req, res) => {
     const { status, search, page = 1, limit = 50 } = req.query;
     const where = {};
     if (status) {
@@ -99,7 +94,7 @@ router.get('/tenants', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), 
     return;
 }));
 // Create new tenant
-router.post('/tenants', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0, validate_js_1.validate)(createTenantSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/tenants', auth, rbac(['platform_admin']), validate(createTenantSchema), asyncHandler(async (req, res) => {
     const { name, slug, ownerEmail, ownerPassword, ownerFirstName, ownerLastName } = req.body;
     // Check if slug is already taken
     const existingTenant = await prisma.tenant.findUnique({
@@ -127,7 +122,7 @@ router.post('/tenants', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']),
             },
         });
         // Create owner user
-        const passwordHash = await bcryptjs_1.default.hash(ownerPassword, 12);
+        const passwordHash = await bcrypt.hash(ownerPassword, 12);
         const user = await tx.user.create({
             data: {
                 tenantId: tenant.id,
@@ -186,7 +181,7 @@ router.post('/tenants', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']),
     return;
 }));
 // Update tenant
-router.put('/tenants/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.put('/tenants/:id', auth, rbac(['platform_admin']), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
     const tenant = await prisma.tenant.update({
@@ -207,7 +202,7 @@ router.put('/tenants/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin'
     return;
 }));
 // Get plans (accessible to both platform admins and tenant admins)
-router.get('/plans', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin', 'tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/plans', auth, rbac(['platform_admin', 'tenant_admin']), asyncHandler(async (req, res) => {
     const plans = await prisma.plan.findMany({
         where: {
             isActive: true
@@ -239,7 +234,7 @@ router.get('/plans', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin', 'ten
     return;
 }));
 // Create plan (platform admin only)
-router.post('/plans', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/plans', auth, rbac(['platform_admin']), asyncHandler(async (req, res) => {
     const { name, description, priceMonthly, billingPeriod, stripePriceId, features, limits, cardAllowance = 0, allowCardOrdering = true } = req.body;
     // Convert frontend billingPeriod to database format
     const dbBillingPeriod = billingPeriod === '3months' ? 'THREE_MONTHS' :
@@ -290,7 +285,7 @@ router.post('/plans', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (
     return;
 }));
 // Update plan (platform admin only)
-router.put('/plans/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.put('/plans/:id', auth, rbac(['platform_admin']), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { name, description, priceMonthly, billingPeriod, stripePriceId, features, limits } = req.body;
     if (!id) {
@@ -347,7 +342,7 @@ router.put('/plans/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin'])
     return;
 }));
 // Delete plan (platform admin only)
-router.delete('/plans/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.delete('/plans/:id', auth, rbac(['platform_admin']), asyncHandler(async (req, res) => {
     const { id } = req.params;
     if (!id) {
         res.status(400).json({ error: 'Plan ID is required' });
@@ -361,7 +356,7 @@ router.delete('/plans/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin
     return;
 }));
 // Get platform card print orders (for printing management)
-router.get('/card-print-orders', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/card-print-orders', auth, rbac(['platform_admin']), asyncHandler(async (req, res) => {
     console.log('Platform Admin Print Orders API called');
     console.log('User:', req.user);
     console.log('Query params:', req.query);
@@ -418,7 +413,7 @@ router.get('/card-print-orders', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_
     });
 }));
 // Get single card print order (platform admin)
-router.get('/card-print-orders/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/card-print-orders/:id', auth, rbac(['platform_admin']), asyncHandler(async (req, res) => {
     const { id } = req.params;
     if (!id) {
         res.status(400).json({ error: 'Order ID is required' });
@@ -451,8 +446,8 @@ router.get('/card-print-orders/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['platf
     res.json({ order });
 }));
 // Update card print order status (platform admin)
-const updatePrintOrderSchema = zod_1.z.object({
-    status: zod_1.z.enum([
+const updatePrintOrderSchema = z.object({
+    status: z.enum([
         'CREATED',
         'PRINTING_ACCEPTED',
         'PRINTING_IN_PROGRESS',
@@ -463,10 +458,10 @@ const updatePrintOrderSchema = zod_1.z.object({
         'COLLECTED',
         'CANCELLED'
     ]).optional(),
-    notes: zod_1.z.string().optional(),
-    trackingInfo: zod_1.z.string().optional()
+    notes: z.string().optional(),
+    trackingInfo: z.string().optional()
 });
-router.put('/card-print-orders/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['platform_admin']), (0, validate_js_1.validate)(updatePrintOrderSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.put('/card-print-orders/:id', auth, rbac(['platform_admin']), validate(updatePrintOrderSchema), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { status, notes, trackingInfo } = req.body;
     const { id: adminId } = req.user;
@@ -526,5 +521,5 @@ router.put('/card-print-orders/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['platf
         message: 'Print order updated successfully'
     });
 }));
-exports.default = router;
+export default router;
 //# sourceMappingURL=platform.js.map

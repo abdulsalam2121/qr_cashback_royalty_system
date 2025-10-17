@@ -1,25 +1,20 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const zod_1 = require("zod");
-const client_1 = require("@prisma/client");
-const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
-const validate_js_1 = require("../middleware/validate.js");
-const auth_js_1 = require("../middleware/auth.js");
-const rbac_js_1 = require("../middleware/rbac.js");
-const notification_js_1 = require("../services/notification.js");
-const router = express_1.default.Router();
-const prisma = new client_1.PrismaClient();
-const testNotificationSchema = zod_1.z.object({
-    customerId: zod_1.z.string(),
-    template: zod_1.z.enum(['CASHBACK_EARNED', 'CASHBACK_REDEEMED', 'TIER_UPGRADED', 'WELCOME']),
-    variables: zod_1.z.record(zod_1.z.string()).optional(),
+import express from 'express';
+import { z } from 'zod';
+import { PrismaClient } from '@prisma/client';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { validate } from '../middleware/validate.js';
+import { auth } from '../middleware/auth.js';
+import { rbac } from '../middleware/rbac.js';
+import { sendNotification } from '../services/notification.js';
+const router = express.Router();
+const prisma = new PrismaClient();
+const testNotificationSchema = z.object({
+    customerId: z.string(),
+    template: z.enum(['CASHBACK_EARNED', 'CASHBACK_REDEEMED', 'TIER_UPGRADED', 'WELCOME']),
+    variables: z.record(z.string()).optional(),
 });
 // Send test notification
-router.post('/test', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(testNotificationSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/test', auth, rbac(['tenant_admin']), validate(testNotificationSchema), asyncHandler(async (req, res) => {
     const { customerId, template, variables = {} } = req.body;
     const { tenantId } = req.user;
     // Verify customer exists
@@ -41,7 +36,7 @@ router.post('/test', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, 
         ...variables
     };
     try {
-        await (0, notification_js_1.sendNotification)(customerId, template, defaultVariables, tenantId);
+        await sendNotification(customerId, template, defaultVariables, tenantId);
         res.json({ message: 'Test notification sent successfully' });
         return;
     }
@@ -52,7 +47,7 @@ router.post('/test', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, 
     }
 }));
 // Get notification history
-router.get('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { tenantId } = req.user;
     const { customerId, status, page = 1, limit = 50 } = req.query;
     const where = { tenantId };
@@ -87,7 +82,7 @@ router.get('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, async
     return;
 }));
 // Get notification statistics
-router.get('/stats', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/stats', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { tenantId } = req.user;
     const [totalNotifications, sentNotifications, failedNotifications, pendingNotifications] = await Promise.all([
         prisma.notification.count({ where: { tenantId } }),
@@ -122,7 +117,7 @@ router.get('/stats', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, 
     return;
 }));
 // Retry failed notifications
-router.post('/retry-failed', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/retry-failed', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { tenantId } = req.user;
     const failedNotifications = await prisma.notification.findMany({
         where: {
@@ -137,7 +132,7 @@ router.post('/retry-failed', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin'
     let retriedCount = 0;
     for (const notification of failedNotifications) {
         try {
-            await (0, notification_js_1.sendNotification)(notification.customerId, notification.template, notification.payload, tenantId, notification.channel);
+            await sendNotification(notification.customerId, notification.template, notification.payload, tenantId, notification.channel);
             retriedCount++;
         }
         catch (error) {
@@ -149,5 +144,5 @@ router.post('/retry-failed', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin'
     });
     return;
 }));
-exports.default = router;
+export default router;
 //# sourceMappingURL=notifications.js.map

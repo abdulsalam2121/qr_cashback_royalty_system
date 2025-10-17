@@ -1,25 +1,22 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const client_1 = require("@prisma/client");
-const stripe_1 = __importDefault(require("stripe"));
-const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
-const decimal_js_1 = require("decimal.js");
-const tiers_js_1 = require("../utils/tiers.js");
-const customerEmailService_js_1 = require("../services/customerEmailService.js");
-const router = express_1.default.Router();
-const prisma = new client_1.PrismaClient();
-const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
+import express from 'express';
+import { PrismaClient } from '@prisma/client';
+import Stripe from 'stripe';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { Decimal } from 'decimal.js';
+import { updateCustomerTier } from '../utils/tiers.js';
+import { CustomerEmailService } from '../services/customerEmailService.js';
+const router = express.Router();
+const prisma = new PrismaClient();
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
 // Stripe webhook handler
-router.post('/webhook', express_1.default.raw({ type: 'application/json' }), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(async (req, res) => {
     const sig = req.headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    console.log(`[WEBHOOK] Received webhook request`);
     let event;
     try {
         event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+        console.log(`[WEBHOOK] Successfully verified event: ${event.type} (${event.id})`);
     }
     catch (err) {
         console.error('Webhook signature verification failed:', err.message);
@@ -80,18 +77,52 @@ router.post('/webhook', express_1.default.raw({ type: 'application/json' }), (0,
             }
             case 'payment_intent.succeeded': {
                 const paymentIntent = event.data.object;
+                console.log(`✅ payment_intent.succeeded: ${paymentIntent.id}`);
+                console.log('�🚨🚨 WEBHOOK PROCESSING - CHECKING METADATA 🚨🚨🚨');
+                console.log('�📋 Payment Intent Metadata:', JSON.stringify(paymentIntent.metadata, null, 2));
+                console.log('📋 Metadata keys:', Object.keys(paymentIntent.metadata || {}));
+                console.log('📋 Type value:', paymentIntent.metadata?.type);
+                console.log('📋 CustomerId value:', paymentIntent.metadata?.customerId);
+                // Get fresh payment intent from Stripe to ensure we have latest metadata
+                let freshPaymentIntent = paymentIntent;
+                try {
+                    console.log('Fetching fresh payment intent from Stripe...');
+                    freshPaymentIntent = await stripe.paymentIntents.retrieve(paymentIntent.id);
+                    console.log('Fresh Payment Intent Metadata:', JSON.stringify(freshPaymentIntent.metadata, null, 2));
+                }
+                catch (error) {
+                    console.error('Failed to fetch fresh payment intent:', error);
+                }
                 // Handle one-time payments (like card orders)
-                if (paymentIntent.metadata?.orderId) {
-                    await handleCardOrderPaymentIntent(paymentIntent);
+                if (freshPaymentIntent.metadata?.orderId) {
+                    console.log('🛒 Processing card order payment...');
+                    await handleCardOrderPaymentIntent(freshPaymentIntent);
                 }
                 // Handle QR payment transactions
-                else if (paymentIntent.metadata?.paymentLinkId) {
-                    await handlePurchaseTransactionPaymentIntent(paymentIntent);
+                else if (freshPaymentIntent.metadata?.paymentLinkId) {
+                    console.log('🏪 Processing QR purchase transaction...');
+                    await handlePurchaseTransactionPaymentIntent(freshPaymentIntent);
                 }
                 // Handle customer fund additions
-                else if (paymentIntent.metadata?.type === 'customer_funds') {
-                    await handleCustomerFundsPaymentIntent(paymentIntent);
+                else if (freshPaymentIntent.metadata?.type === 'customer_funds') {
+                    console.log('💰 Processing customer fund addition...');
+                    await handleCustomerFundsPaymentIntent(freshPaymentIntent);
                 }
+                else {
+                    console.log('⚠️ Unknown payment type or missing metadata; skipping transaction creation');
+                    console.log('Available metadata keys:', Object.keys(freshPaymentIntent.metadata || {}));
+                    // Fallback: check if description contains "loyalty card"
+                    if (freshPaymentIntent.description?.includes('loyalty card')) {
+                        console.log('Detected customer fund payment by description, attempting manual processing...');
+                        try {
+                            await handleCustomerFundsPaymentIntent(freshPaymentIntent);
+                        }
+                        catch (error) {
+                            console.error('Manual customer funds processing failed:', error);
+                        }
+                    }
+                }
+                console.log('🚨🚨🚨 END WEBHOOK PROCESSING 🚨🚨🚨');
                 break;
             }
             default:
@@ -246,7 +277,7 @@ async function handlePurchaseTransactionPaymentIntent(paymentIntent) {
                             data: { balanceCents: newBalance }
                         });
                         // Update customer total spend
-                        const newTotalSpend = new decimal_js_1.Decimal(card.customer.totalSpend).add(new decimal_js_1.Decimal(purchaseTransaction.amountCents).div(100));
+                        const newTotalSpend = new Decimal(card.customer.totalSpend).add(new Decimal(purchaseTransaction.amountCents).div(100));
                         await tx.customer.update({
                             where: { id: card.customer.id },
                             data: { totalSpend: newTotalSpend }
@@ -269,7 +300,7 @@ async function handlePurchaseTransactionPaymentIntent(paymentIntent) {
                             }
                         });
                         // Check for tier upgrade
-                        await (0, tiers_js_1.updateCustomerTier)(card.customer.id, purchaseTransaction.tenantId, tx);
+                        await updateCustomerTier(card.customer.id, purchaseTransaction.tenantId, tx);
                     }
                 }
             }
@@ -383,31 +414,39 @@ async function updateTenantSubscription(subscription) {
 }
 // Handle customer funds payment intent
 async function handleCustomerFundsPaymentIntent(paymentIntent) {
+    console.log(`[WEBHOOK] Starting customer funds processing for payment intent: ${paymentIntent.id}`);
     const { customerId, cardUid, tenantId } = paymentIntent.metadata;
+    console.log(`[WEBHOOK] Metadata:`, { customerId, cardUid, tenantId });
     if (!customerId || !cardUid || !tenantId) {
-        console.error('Missing required metadata for customer funds payment');
+        console.error('[WEBHOOK] Missing required metadata for customer funds payment:', paymentIntent.metadata);
         return;
     }
     try {
         const amountCents = paymentIntent.amount;
+        console.log(`[WEBHOOK] Processing $${(amountCents / 100).toFixed(2)} addition to card ${cardUid}`);
         await prisma.$transaction(async (tx) => {
             // Get current card balance
+            console.log(`[WEBHOOK] Finding card with UID: ${cardUid}`);
             const card = await tx.card.findUnique({
                 where: { cardUid },
                 select: { id: true, balanceCents: true }
             });
             if (!card) {
+                console.error(`[WEBHOOK] Card not found for UID: ${cardUid}`);
                 throw new Error('Card not found');
             }
+            console.log(`[WEBHOOK] Found card ${card.id} with balance: $${(card.balanceCents / 100).toFixed(2)}`);
             const beforeBalance = card.balanceCents;
             const afterBalance = beforeBalance + amountCents;
             // Update card balance
+            console.log(`[WEBHOOK] Updating card balance from $${(beforeBalance / 100).toFixed(2)} to $${(afterBalance / 100).toFixed(2)}`);
             await tx.card.update({
                 where: { cardUid },
                 data: { balanceCents: afterBalance }
             });
             // Create transaction record
-            await tx.transaction.create({
+            console.log(`[WEBHOOK] Creating transaction record`);
+            const transaction = await tx.transaction.create({
                 data: {
                     tenantId,
                     storeId: card.id, // Use card ID as placeholder
@@ -423,6 +462,8 @@ async function handleCustomerFundsPaymentIntent(paymentIntent) {
                     note: `Funds added via credit card payment - Payment Intent: ${paymentIntent.id}`,
                 }
             });
+            console.log(`[WEBHOOK] Transaction created successfully. Card balance updated to $${(afterBalance / 100).toFixed(2)}`);
+            return transaction;
         });
         // Send email notification
         try {
@@ -436,7 +477,7 @@ async function handleCustomerFundsPaymentIntent(paymentIntent) {
                     select: { balanceCents: true }
                 });
                 if (updatedCard) {
-                    await customerEmailService_js_1.CustomerEmailService.sendFundsAddedNotification(tenantId, customerId, {
+                    await CustomerEmailService.sendFundsAddedNotification(tenantId, customerId, {
                         customerName: `${customer.firstName} ${customer.lastName}`,
                         amountAdded: `$${(amountCents / 100).toFixed(2)}`,
                         newBalance: `$${(updatedCard.balanceCents / 100).toFixed(2)}`,
@@ -472,5 +513,5 @@ function mapStripeStatus(stripeStatus) {
             return 'CANCELED';
     }
 }
-exports.default = router;
+export default router;
 //# sourceMappingURL=stripe.js.map

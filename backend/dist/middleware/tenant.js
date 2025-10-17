@@ -1,9 +1,6 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.requireActiveSubscription = exports.resolveTenant = void 0;
-const client_1 = require("@prisma/client");
-const prisma = new client_1.PrismaClient();
-const resolveTenant = async (req, res, next) => {
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+export const resolveTenant = async (req, res, next) => {
     try {
         const tenantSlug = req.params.tenantSlug;
         if (!tenantSlug) {
@@ -27,8 +24,7 @@ const resolveTenant = async (req, res, next) => {
         return res.status(500).json({ error: 'Failed to resolve tenant' });
     }
 };
-exports.resolveTenant = resolveTenant;
-const requireActiveSubscription = (req, res, next) => {
+export const requireActiveSubscription = (req, res, next) => {
     const tenant = req.tenant;
     if (!tenant) {
         return res.status(400).json({ error: 'Tenant required' });
@@ -47,5 +43,4 @@ const requireActiveSubscription = (req, res, next) => {
     next();
     return;
 };
-exports.requireActiveSubscription = requireActiveSubscription;
 //# sourceMappingURL=tenant.js.map

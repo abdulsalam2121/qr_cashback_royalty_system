@@ -1,31 +1,26 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const zod_1 = require("zod");
-const client_1 = require("@prisma/client");
-const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
-const validate_js_1 = require("../middleware/validate.js");
-const auth_js_1 = require("../middleware/auth.js");
-const rbac_js_1 = require("../middleware/rbac.js");
-const router = express_1.default.Router();
-const prisma = new client_1.PrismaClient();
-const createCustomerSchema = zod_1.z.object({
-    firstName: zod_1.z.string().min(1),
-    lastName: zod_1.z.string().min(1),
-    email: zod_1.z.string().email().optional(),
-    phone: zod_1.z.string().optional(),
+import express from 'express';
+import { z } from 'zod';
+import { PrismaClient } from '@prisma/client';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { validate } from '../middleware/validate.js';
+import { auth } from '../middleware/auth.js';
+import { rbac } from '../middleware/rbac.js';
+const router = express.Router();
+const prisma = new PrismaClient();
+const createCustomerSchema = z.object({
+    firstName: z.string().min(1),
+    lastName: z.string().min(1),
+    email: z.string().email().optional(),
+    phone: z.string().optional(),
 });
-const updateCustomerSchema = zod_1.z.object({
-    firstName: zod_1.z.string().min(1).optional(),
-    lastName: zod_1.z.string().min(1).optional(),
-    email: zod_1.z.string().email().optional(),
-    phone: zod_1.z.string().optional(),
+const updateCustomerSchema = z.object({
+    firstName: z.string().min(1).optional(),
+    lastName: z.string().min(1).optional(),
+    email: z.string().email().optional(),
+    phone: z.string().optional(),
 });
 // Get customer's own profile (for customer role)
-router.get('/me', auth_js_1.auth, (0, rbac_js_1.rbac)(['customer']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/me', auth, rbac(['customer']), asyncHandler(async (req, res) => {
     const { userId, tenantId } = req.user;
     // For customers, find their customer record by linking through user email
     const user = await prisma.user.findUnique({
@@ -56,7 +51,7 @@ router.get('/me', auth_js_1.auth, (0, rbac_js_1.rbac)(['customer']), (0, asyncHa
     return;
 }));
 // Get customer's own cards (for customer role)
-router.get('/me/cards', auth_js_1.auth, (0, rbac_js_1.rbac)(['customer']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/me/cards', auth, rbac(['customer']), asyncHandler(async (req, res) => {
     const { userId, tenantId } = req.user;
     const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -85,7 +80,7 @@ router.get('/me/cards', auth_js_1.auth, (0, rbac_js_1.rbac)(['customer']), (0, a
     return;
 }));
 // Get customer's own transactions (for customer role)
-router.get('/me/transactions', auth_js_1.auth, (0, rbac_js_1.rbac)(['customer']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/me/transactions', auth, rbac(['customer']), asyncHandler(async (req, res) => {
     const { userId, tenantId } = req.user;
     const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -116,7 +111,7 @@ router.get('/me/transactions', auth_js_1.auth, (0, rbac_js_1.rbac)(['customer'])
     return;
 }));
 // Get all customers
-router.get('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { tenantId } = req.user;
     const { search, page = 1, limit = 50 } = req.query;
     const where = { tenantId };
@@ -155,7 +150,7 @@ router.get('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, async
     });
 }));
 // Get available customers (those without active cards or with blocked cards only)
-router.get('/available', auth_js_1.auth, (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/available', auth, asyncHandler(async (req, res) => {
     const { tenantId } = req.user;
     const { search } = req.query;
     const where = { tenantId };
@@ -213,7 +208,7 @@ router.get('/available', auth_js_1.auth, (0, asyncHandler_js_1.asyncHandler)(asy
     });
 }));
 // Get customer by ID
-router.get('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { tenantId } = req.user;
     const customer = await prisma.customer.findFirst({
@@ -242,7 +237,7 @@ router.get('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, as
     return;
 }));
 // Create customer
-router.post('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(createCustomerSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/', auth, rbac(['tenant_admin']), validate(createCustomerSchema), asyncHandler(async (req, res) => {
     const { firstName, lastName, email, phone } = req.body;
     const { tenantId } = req.user;
     // Check if customer with email already exists
@@ -273,7 +268,7 @@ router.post('/', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, vali
     return;
 }));
 // Update customer
-router.put('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(updateCustomerSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.put('/:id', auth, rbac(['tenant_admin']), validate(updateCustomerSchema), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { tenantId } = req.user;
     const updateData = req.body;
@@ -306,7 +301,7 @@ router.put('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, va
     return;
 }));
 // Delete customer
-router.delete('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.delete('/:id', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { tenantId } = req.user;
     // Check if customer exists and belongs to tenant
@@ -350,7 +345,7 @@ router.delete('/:id', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0,
     return;
 }));
 // Get customer transactions
-router.get('/:id/transactions', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/:id/transactions', auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { tenantId } = req.user;
     const { page = 1, limit = 50 } = req.query;
@@ -390,5 +385,5 @@ router.get('/:id/transactions', auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_adm
     });
     return;
 }));
-exports.default = router;
+export default router;
 //# sourceMappingURL=customers.js.map

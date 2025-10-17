@@ -1,15 +1,8 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendNotification = sendNotification;
-exports.retryFailedNotifications = retryFailedNotifications;
-const client_1 = require("@prisma/client");
-const twilio_1 = __importDefault(require("twilio"));
-const prisma = new client_1.PrismaClient();
+import { PrismaClient } from '@prisma/client';
+import twilio from 'twilio';
+const prisma = new PrismaClient();
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
-    ? (0, twilio_1.default)(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+    ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
     : null;
 const templates = {
     CASHBACK_EARNED: {
@@ -37,7 +30,7 @@ const templates = {
         WHATSAPP: "🚨 Free Trial Ended\n\nYou've used all {activationsUsed} free card activations.\n\nUpgrade to our $19.99/month subscription to:\n• Continue activating cards\n• Access all features\n• Get priority support\n\nUpgrade now to keep your business running smoothly!"
     }
 };
-async function sendNotification(customerId, templateName, variables, tenantId, preferredChannel = 'SMS') {
+export async function sendNotification(customerId, templateName, variables, tenantId, preferredChannel = 'SMS') {
     try {
         const customer = await prisma.customer.findUnique({
             where: { id: customerId }
@@ -131,7 +124,7 @@ async function sendNotification(customerId, templateName, variables, tenantId, p
         console.error('Notification service error:', error);
     }
 }
-async function retryFailedNotifications() {
+export async function retryFailedNotifications() {
     try {
         const failedNotifications = await prisma.notification.findMany({
             where: {

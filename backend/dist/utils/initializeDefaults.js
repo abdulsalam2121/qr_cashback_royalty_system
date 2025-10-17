@@ -1,9 +1,6 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.initializeDefaultRules = initializeDefaultRules;
-const client_1 = require("@prisma/client");
-const prisma = new client_1.PrismaClient();
-async function initializeDefaultRules(tenantId) {
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+export async function initializeDefaultRules(tenantId) {
     try {
         // Create default cashback rules
         const defaultCashbackRules = [

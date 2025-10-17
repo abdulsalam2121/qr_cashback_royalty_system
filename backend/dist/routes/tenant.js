@@ -1,63 +1,25 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
+import express from 'express';
+import { z } from 'zod';
+import { PrismaClient } from '@prisma/client';
+import Stripe from 'stripe';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { validate } from '../middleware/validate.js';
+import { auth } from '../middleware/auth.js';
+import { rbac } from '../middleware/rbac.js';
+import { resolveTenant } from '../middleware/tenant.js';
+const router = express.Router();
+const prisma = new PrismaClient();
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
+const subscribeSchema = z.object({
+    planId: z.string(),
+    paymentMethodId: z.string().optional()
 });
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const zod_1 = require("zod");
-const client_1 = require("@prisma/client");
-const stripe_1 = __importDefault(require("stripe"));
-const asyncHandler_js_1 = require("../middleware/asyncHandler.js");
-const validate_js_1 = require("../middleware/validate.js");
-const auth_js_1 = require("../middleware/auth.js");
-const rbac_js_1 = require("../middleware/rbac.js");
-const tenant_js_1 = require("../middleware/tenant.js");
-const router = express_1.default.Router();
-const prisma = new client_1.PrismaClient();
-const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
-const subscribeSchema = zod_1.z.object({
-    planId: zod_1.z.string(),
-    paymentMethodId: zod_1.z.string().optional()
-});
-const addFundsSchema = zod_1.z.object({
-    customerId: zod_1.z.string(),
-    amountCents: zod_1.z.number().int().min(100).max(100000), // $1 to $1000
+const addFundsSchema = z.object({
+    customerId: z.string(),
+    amountCents: z.number().int().min(100).max(100000), // $1 to $1000
 });
 // Get tenant info
-router.get('/:tenantSlug/tenant', tenant_js_1.resolveTenant, auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/:tenantSlug/tenant', resolveTenant, auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req, res) => {
     const { tenantSlug } = req.params;
     const tenant = await prisma.tenant.findUnique({
         where: { slug: tenantSlug },
@@ -81,7 +43,7 @@ router.get('/:tenantSlug/tenant', tenant_js_1.resolveTenant, auth_js_1.auth, (0,
     let cardBalance = null;
     let subscriptionInfo = null;
     try {
-        const { CardLimitService } = await Promise.resolve().then(() => __importStar(require('../services/cardLimitService.js')));
+        const { CardLimitService } = await import('../services/cardLimitService.js');
         cardBalance = await CardLimitService.getCardBalance(tenant.id);
         // Get current card count
         const currentCardCount = await prisma.card.count({
@@ -139,7 +101,7 @@ router.get('/:tenantSlug/tenant', tenant_js_1.resolveTenant, auth_js_1.auth, (0,
     return;
 }));
 // Subscribe to plan
-router.post('/:tenantSlug/billing/subscribe', tenant_js_1.resolveTenant, auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, validate_js_1.validate)(subscribeSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/:tenantSlug/billing/subscribe', resolveTenant, auth, rbac(['tenant_admin']), validate(subscribeSchema), asyncHandler(async (req, res) => {
     const { tenantSlug } = req.params;
     const { planId, paymentMethodId } = req.body;
     const { tenantId } = req.user;
@@ -460,7 +422,7 @@ router.post('/:tenantSlug/billing/subscribe', tenant_js_1.resolveTenant, auth_js
     }
 }));
 // Get billing portal
-router.get('/:tenantSlug/billing/portal', tenant_js_1.resolveTenant, auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/:tenantSlug/billing/portal', resolveTenant, auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { tenantSlug } = req.params;
     const { tenantId } = req.user;
     const tenant = await prisma.tenant.findUnique({
@@ -485,7 +447,7 @@ router.get('/:tenantSlug/billing/portal', tenant_js_1.resolveTenant, auth_js_1.a
     }
 }));
 // Get payment methods
-router.get('/:tenantSlug/billing/payment-methods', tenant_js_1.resolveTenant, auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/:tenantSlug/billing/payment-methods', resolveTenant, auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { tenantId } = req.user;
     const tenant = await prisma.tenant.findUnique({
         where: { id: tenantId }
@@ -514,7 +476,7 @@ router.get('/:tenantSlug/billing/payment-methods', tenant_js_1.resolveTenant, au
     }
 }));
 // Create setup intent for adding payment method
-router.post('/:tenantSlug/billing/setup-intent', tenant_js_1.resolveTenant, auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/:tenantSlug/billing/setup-intent', resolveTenant, auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { tenantSlug } = req.params;
     const { tenantId } = req.user;
     const tenant = await prisma.tenant.findUnique({
@@ -627,7 +589,7 @@ router.post('/:tenantSlug/billing/setup-intent', tenant_js_1.resolveTenant, auth
     }
 }));
 // Delete payment method
-router.delete('/:tenantSlug/billing/payment-methods/:paymentMethodId', tenant_js_1.resolveTenant, auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.delete('/:tenantSlug/billing/payment-methods/:paymentMethodId', resolveTenant, auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { paymentMethodId } = req.params;
     try {
         await stripe.paymentMethods.detach(paymentMethodId);
@@ -641,7 +603,7 @@ router.delete('/:tenantSlug/billing/payment-methods/:paymentMethodId', tenant_js
     }
 }));
 // Set default payment method
-router.post('/:tenantSlug/billing/payment-methods/:paymentMethodId/set-default', tenant_js_1.resolveTenant, auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/:tenantSlug/billing/payment-methods/:paymentMethodId/set-default', resolveTenant, auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { paymentMethodId } = req.params;
     const { tenantId } = req.user;
     const tenant = await prisma.tenant.findUnique({
@@ -667,7 +629,7 @@ router.post('/:tenantSlug/billing/payment-methods/:paymentMethodId/set-default',
     }
 }));
 // Get invoices
-router.get('/:tenantSlug/billing/invoices', tenant_js_1.resolveTenant, auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/:tenantSlug/billing/invoices', resolveTenant, auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { tenantId } = req.user;
     const tenant = await prisma.tenant.findUnique({
         where: { id: tenantId }
@@ -696,7 +658,7 @@ router.get('/:tenantSlug/billing/invoices', tenant_js_1.resolveTenant, auth_js_1
     }
 }));
 // Get usage statistics
-router.get('/:tenantSlug/billing/usage', tenant_js_1.resolveTenant, auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin']), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.get('/:tenantSlug/billing/usage', resolveTenant, auth, rbac(['tenant_admin']), asyncHandler(async (req, res) => {
     const { tenantId } = req.user;
     try {
         const tenant = await prisma.tenant.findUnique({
@@ -734,7 +696,7 @@ router.get('/:tenantSlug/billing/usage', tenant_js_1.resolveTenant, auth_js_1.au
         // Get card balance if subscription is active
         let cardBalance = null;
         if (tenant.subscriptionStatus === 'ACTIVE') {
-            const { CardLimitService } = await Promise.resolve().then(() => __importStar(require('../services/cardLimitService.js')));
+            const { CardLimitService } = await import('../services/cardLimitService.js');
             cardBalance = await CardLimitService.getCardBalance(tenantId);
         }
         const usageStats = {
@@ -763,7 +725,7 @@ router.get('/:tenantSlug/billing/usage', tenant_js_1.resolveTenant, auth_js_1.au
     }
 }));
 // Add funds to customer card
-router.post('/:tenantSlug/customers/:customerId/add-funds', tenant_js_1.resolveTenant, auth_js_1.auth, (0, rbac_js_1.rbac)(['tenant_admin', 'cashier']), (0, validate_js_1.validate)(addFundsSchema), (0, asyncHandler_js_1.asyncHandler)(async (req, res) => {
+router.post('/:tenantSlug/customers/:customerId/add-funds', resolveTenant, auth, rbac(['tenant_admin', 'cashier']), validate(addFundsSchema), asyncHandler(async (req, res) => {
     const { tenantSlug, customerId } = req.params;
     const { amountCents } = req.body;
     const { tenantId } = req.user;
@@ -855,5 +817,5 @@ router.post('/:tenantSlug/customers/:customerId/add-funds', tenant_js_1.resolveT
         return;
     }
 }));
-exports.default = router;
+export default router;
 //# sourceMappingURL=tenant.js.map
