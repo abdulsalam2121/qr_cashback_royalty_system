@@ -15,8 +15,6 @@ async function setAdminClaim(email: string) {
     const user = await admin.auth().getUserByEmail(email);
     await admin.auth().setCustomUserClaims(user.uid, { admin: true });
     
-    console.log(`✅ Admin claim set for ${email} (UID: ${user.uid})`);
-    console.log('The user will need to sign out and sign back in for the change to take effect.');
   } catch (error) {
     console.error('❌ Error setting admin claim:', error);
     process.exit(1);
@@ -33,8 +31,6 @@ async function removeAdminClaim(email: string) {
     const user = await admin.auth().getUserByEmail(email);
     await admin.auth().setCustomUserClaims(user.uid, { admin: false });
     
-    console.log(`✅ Admin claim removed for ${email} (UID: ${user.uid})`);
-    console.log('The user will need to sign out and sign back in for the change to take effect.');
   } catch (error) {
     console.error('❌ Error removing admin claim:', error);
     process.exit(1);
@@ -46,13 +42,6 @@ async function main() {
   const email = process.argv[3];
 
   if (!action || !email) {
-    console.log('Usage:');
-    console.log('  npm run set-admin-claim <email>     - Set admin claim');
-    console.log('  npm run remove-admin-claim <email>  - Remove admin claim');
-    console.log('');
-    console.log('Examples:');
-    console.log('  npm run set-admin-claim admin@example.com');
-    console.log('  npm run remove-admin-claim user@example.com');
     process.exit(1);
   }
 

@@ -43,7 +43,6 @@ router.post(
         // ✅ Payment Succeeded
         case 'payment_intent.succeeded': {
           const paymentIntent = event.data.object as Stripe.PaymentIntent;
-          console.log(`✅ payment_intent.succeeded: ${paymentIntent.id}`);
 
           try {
             const md = paymentIntent.metadata ?? {};
@@ -68,14 +67,12 @@ router.post(
                   paidAt: new Date(),
                 },
               });
-              console.log(`✅ Created POS transaction for payment ${paymentIntent.id}`);
             } 
             // Handle card order payments (orderId metadata)
             else if (md.orderId) {
               await handleCardOrderPayment(paymentIntent, md.orderId);
             }
             else {
-              console.log('⚠️ Unknown payment type or missing metadata; skipping transaction creation');
             }
           } catch (e) {
             console.error('💥 DB error (payment_intent.succeeded):', e);
@@ -86,7 +83,6 @@ router.post(
         // ❌ Payment Failed
         case 'payment_intent.payment_failed': {
           const paymentIntent = event.data.object as Stripe.PaymentIntent;
-          console.log(`❌ payment_intent.payment_failed: ${paymentIntent.id}`);
 
           try {
             const md = paymentIntent.metadata ?? {};
@@ -110,9 +106,7 @@ router.post(
                   customerId: md.customerId || null,
                 },
               });
-              console.log(`⚠️ Created failed POS transaction for payment ${paymentIntent.id}`);
             } else {
-              console.log('⚠️ Unknown payment type or missing metadata; skipping failed transaction creation');
             }
           } catch (e) {
             console.error('💥 DB error (payment_intent.payment_failed):', e);
@@ -123,7 +117,6 @@ router.post(
         // 💸 Refund
         case 'charge.refunded': {
           const charge = event.data.object as Stripe.Charge;
-          console.log(`💸 charge.refunded: ${charge.id}`);
 
           try {
             const md = charge.metadata ?? {};
@@ -142,7 +135,6 @@ router.post(
                 },
               });
             } else {
-              console.log('⚠️ Missing required metadata; skipping refund transaction creation');
             }
           } catch (e) {
             console.error('💥 DB error (charge.refunded):', e);
@@ -153,14 +145,12 @@ router.post(
         // 🧾 Checkout
         case 'checkout.session.completed': {
           const session = event.data.object as Stripe.Checkout.Session;
-          console.log(`🧾 checkout.session.completed: ${session.id}`);
           break;
         }
 
         // 🆕 Subscription Created
         case 'customer.subscription.created': {
           const subscription = event.data.object as Stripe.Subscription;
-          console.log(`🆕 customer.subscription.created: ${subscription.id}`);
           try {
             // Find tenant by customer ID or metadata
             let tenant = null;
@@ -215,9 +205,7 @@ router.post(
                 });
               }
 
-              console.log(`✅ Created subscription for tenant ${tenant.id}`);
             } else {
-              console.log(`⚠️ No tenant found for subscription ${subscription.id}`);
             }
           } catch (e) {
             console.error('💥 DB error (subscription.created):', e);
@@ -228,7 +216,6 @@ router.post(
         // 🔁 Subscription Updated
         case 'customer.subscription.updated': {
           const subscription = event.data.object as Stripe.Subscription;
-          console.log(`🔁 customer.subscription.updated: ${subscription.id}`);
           try {
             // Find tenant by Stripe subscription ID
             const tenant = await prisma.tenant.findFirst({
@@ -279,9 +266,7 @@ router.post(
                 });
               }
 
-              console.log(`✅ Updated subscription for tenant ${tenant.id}`);
             } else {
-              console.log(`⚠️ No tenant found for subscription ${subscription.id}`);
             }
           } catch (e) {
             console.error('💥 DB error (subscription.updated):', e);
@@ -292,7 +277,6 @@ router.post(
         // ❌ Subscription Deleted
         case 'customer.subscription.deleted': {
           const subscription = event.data.object as Stripe.Subscription;
-          console.log(`❌ customer.subscription.deleted: ${subscription.id}`);
           try {
             // Find tenant by Stripe subscription ID
             const tenant = await prisma.tenant.findFirst({
@@ -326,9 +310,7 @@ router.post(
                 });
               }
 
-              console.log(`✅ Cancelled subscription for tenant ${tenant.id}`);
             } else {
-              console.log(`⚠️ No tenant found for subscription ${subscription.id}`);
             }
           } catch (e) {
             console.error('💥 DB error (subscription.deleted):', e);
@@ -339,7 +321,6 @@ router.post(
         // 💰 Invoice Payment Succeeded
         case 'invoice.payment_succeeded': {
           const invoice = event.data.object as Stripe.Invoice;
-          console.log(`💰 invoice.payment_succeeded: ${invoice.id}`);
           try {
             // Find tenant by subscription ID or customer ID
             let tenant = null;
@@ -381,9 +362,7 @@ router.post(
                 });
               }
 
-              console.log(`✅ Processed invoice payment for tenant ${tenant.id}`);
             } else {
-              console.log(`⚠️ No tenant found for invoice ${invoice.id}`);
             }
           } catch (e) {
             console.error('💥 DB error (invoice.payment_succeeded):', e);
@@ -394,7 +373,6 @@ router.post(
         // 💳 Invoice Payment Failed
         case 'invoice.payment_failed': {
           const invoice = event.data.object as Stripe.Invoice;
-          console.log(`💳 invoice.payment_failed: ${invoice.id}`);
           try {
             // Find tenant by subscription ID or customer ID
             let tenant = null;
@@ -436,9 +414,7 @@ router.post(
                 });
               }
 
-              console.log(`⚠️ Processed failed invoice payment for tenant ${tenant.id}`);
             } else {
-              console.log(`⚠️ No tenant found for invoice ${invoice.id}`);
             }
           } catch (e) {
             console.error('💥 DB error (invoice.payment_failed):', e);
@@ -448,7 +424,6 @@ router.post(
 
         // ℹ️ Default fallback
         default: {
-          console.log(`ℹ️ Unhandled event type: ${event.type}`);
           break;
         }
       }
@@ -536,7 +511,6 @@ async function handleQRPaymentSuccess(paymentIntent: Stripe.PaymentIntent, payme
               }
             });
 
-            console.log(`✅ Store credit added: $${purchaseTransaction.amountCents / 100} to card ${card.cardUid}`);
           } else if (purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0 && card.customer) {
             // Handle regular purchase with cashback
             const beforeBalance = card.balanceCents;
@@ -581,7 +555,6 @@ async function handleQRPaymentSuccess(paymentIntent: Stripe.PaymentIntent, payme
         }
       }
 
-      console.log(`✅ Processed QR payment for transaction ${purchaseTransaction.id}`);
     });
   } catch (error) {
     console.error(`Failed to process QR payment for payment link ${paymentLinkId}:`, error);
@@ -608,9 +581,7 @@ async function handleQRPaymentFailure(paymentIntent: Stripe.PaymentIntent, payme
         }
       });
 
-      console.log(`⚠️ Marked QR payment as failed for transaction ${purchaseTransaction.id}`);
     } else {
-      console.log(`⚠️ No pending transaction found for failed payment link ${paymentLinkId}`);
     }
   } catch (error) {
     console.error(`Failed to process QR payment failure for payment link ${paymentLinkId}:`, error);
@@ -629,7 +600,6 @@ async function handleCardOrderPayment(paymentIntent: Stripe.PaymentIntent, order
       }
     });
 
-    console.log(`✅ Updated card order ${orderId} payment status`);
   } catch (error) {
     console.error(`Failed to update card order ${orderId}:`, error);
   }

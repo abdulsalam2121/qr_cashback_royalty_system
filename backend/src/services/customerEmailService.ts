@@ -63,7 +63,6 @@ export class CustomerEmailService {
         }
       });
 
-      console.log(`Funds added email notification queued for customer ${customerId}`);
     } catch (error) {
       console.error('Failed to queue funds added email:', error);
       throw error;
@@ -95,7 +94,6 @@ export class CustomerEmailService {
         }
       });
 
-      console.log(`Balance update email notification queued for customer ${customerId}`);
     } catch (error) {
       console.error('Failed to queue balance update email:', error);
       throw error;
@@ -157,7 +155,6 @@ export class CustomerEmailService {
         }
       });
 
-      console.log(`Welcome email notification queued for customer ${customerId}`);
     } catch (error) {
       console.error('Failed to queue welcome email:', error);
       throw error;

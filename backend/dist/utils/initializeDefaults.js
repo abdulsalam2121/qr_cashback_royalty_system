@@ -72,7 +72,7 @@ export async function initializeDefaultRules(tenantId) {
             create: rule,
             update: {}, // Don't update if already exists
         })));
-        console.log(`Default rules initialized for tenant ${tenantId}`);
+        
     }
     catch (error) {
         console.error('Failed to initialize default rules:', error);

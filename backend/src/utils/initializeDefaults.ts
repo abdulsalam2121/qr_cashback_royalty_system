@@ -86,7 +86,6 @@ export async function initializeDefaultRules(tenantId: string) {
       )
     );
 
-    console.log(`Default rules initialized for tenant ${tenantId}`);
   } catch (error) {
     console.error('Failed to initialize default rules:', error);
     throw error;

@@ -10,17 +10,14 @@ const AuthRedirectHandler: React.FC = () => {
 
   useEffect(() => {
     if (loading) {
-      console.log('🔄 AuthRedirectHandler: Still loading...');
       return;
     }
 
     if (!isAuthenticated || !user) {
-      console.log('❌ AuthRedirectHandler: Not authenticated, redirecting to login');
       navigate('/login', { replace: true });
       return;
     }
 
-    console.log('✅ AuthRedirectHandler: User authenticated, determining redirect...', {
       role,
       userId: user.id,
       tenantSlug: user.tenantSlug || tenant?.slug,
@@ -31,24 +28,18 @@ const AuthRedirectHandler: React.FC = () => {
 
     // Redirect based on role and tenant
     if (role === 'platform_admin') {
-      console.log('🏛️ Redirecting platform admin to platform dashboard');
       navigate('/platform/dashboard', { replace: true });
     } else if (role === 'tenant_admin' && (user.tenantSlug || tenant?.slug)) {
       const tenantSlug = user.tenantSlug || tenant?.slug;
-      console.log(`🏪 Redirecting tenant admin to tenant dashboard: ${tenantSlug}`);
       navigate(`/t/${tenantSlug}/dashboard`, { replace: true });
     } else if (role === 'cashier' && (user.tenantSlug || tenant?.slug)) {
       const tenantSlug = user.tenantSlug || tenant?.slug;
-      console.log(`💰 Redirecting cashier to POS: ${tenantSlug}`);
       navigate(`/t/${tenantSlug}/pos`, { replace: true });
     } else if (role === 'customer' && (user.tenantSlug || tenant?.slug)) {
       const tenantSlug = user.tenantSlug || tenant?.slug;
-      console.log(`👤 Redirecting customer to customer area: ${tenantSlug}`);
       navigate(`/t/${tenantSlug}/customer`, { replace: true });
     } else {
       // For users without proper tenant/role setup, try to refresh auth or redirect to login
-      console.log('⚠️ User authenticated but no proper role/tenant found');
-      console.log('Debug info:', { 
         role, 
         userTenantSlug: user.tenantSlug, 
         tenantSlug: tenant?.slug,

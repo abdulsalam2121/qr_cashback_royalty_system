@@ -20,7 +20,6 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   
   // Only log in development
   if (import.meta.env.DEV) {
-    console.log(`API Request: ${options.method || 'GET'} ${url}`);
   }
   
   const headers: Record<string, string> = {
@@ -34,13 +33,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     if (idToken) {
       headers['Authorization'] = `Bearer ${idToken}`;
       if (import.meta.env.DEV) {
-        console.log('🔑 Added Firebase ID token to request');
       }
     }
   } catch (error) {
     // If no user is logged in or token expired, continue without token
     if (import.meta.env.DEV) {
-      console.log('ℹ️ No Firebase token available for request');
     }
   }
   
@@ -54,7 +51,6 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     const response = await fetch(url, config);
     
     if (import.meta.env.DEV) {
-      console.log(`API Response: ${response.status} ${response.statusText}`);
     }
     
     if (!response.ok) {
@@ -71,14 +67,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     // Handle 204 No Content responses (typically from DELETE operations)
     if (response.status === 204) {
       if (import.meta.env.DEV) {
-        console.log('API Response: No content (204)');
       }
       return {} as T;
     }
 
     const data = await response.json();
     if (import.meta.env.DEV) {
-      console.log('API Response received');
     }
     return data;
   } catch (error) {

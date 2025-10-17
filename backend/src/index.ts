@@ -8,9 +8,6 @@ import { PrismaClient } from '@prisma/client';
 import pino from 'pino';
 
 // START DEBUG - This should show up in logs if deployed correctly
-console.log('🚀 SERVER STARTING - Index.ts loaded at:', new Date().toISOString());
-console.log('🔧 NODE_ENV:', process.env.NODE_ENV);
-console.log('🌍 Working directory:', process.cwd());
 
 import authRoutes from './routes/auth.js';
 import cardRoutes from './routes/cards.js';
@@ -38,7 +35,6 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 
 // Debug: Check if cardPrintOrderRoutes is loaded correctly
-console.log('📦 cardPrintOrderRoutes loaded:', !!cardPrintOrderRoutes, typeof cardPrintOrderRoutes);
 
 const app = express();
 const prisma = new PrismaClient();
@@ -111,7 +107,6 @@ app.use(requestLogger);
 
 // Debug middleware to log all requests
 app.use((req, res, next) => {
-  console.log(`🔍 ${req.method} ${req.url} - ${new Date().toISOString()}`);
   next();
 });
 
@@ -154,11 +149,9 @@ app.use('/api/customer-auth', customerAuthLimiter, customerAuthRoutes);
 app.use('/api/customer', customerAPILimiter, customerDashboardRoutes);
 
 // Tenant-scoped routes (must come before /api/t to avoid conflicts)
-console.log('🔧 Registering tenant-scoped routes...');
 app.use('/api/t/:tenantSlug/cards', cardRoutes);
 app.use('/api/t/:tenantSlug/customers', customerRoutes);
 app.use('/api/t/:tenantSlug/transactions', transactionRoutes);
-console.log('🔧 Registering purchase-transactions route...');
 app.use('/api/t/:tenantSlug/purchase-transactions', purchaseTransactionRoutes);
 app.use('/api/t/:tenantSlug/rules', rulesRoutes);
 app.use('/api/t/:tenantSlug/reports', reportRoutes);
@@ -167,7 +160,6 @@ app.use('/api/t/:tenantSlug/stores', storeRoutes);
 app.use('/api/t/:tenantSlug/users', userRoutes);
 app.use('/api/t/:tenantSlug/trial', trialRoutes);
 app.use('/api/t/:tenantSlug/card-orders', cardOrderRoutes);
-console.log('🖨️ Registering cardPrintOrderRoutes at /api/t/:tenantSlug/card-print-orders');
 app.use('/api/t/:tenantSlug/card-print-orders', cardPrintOrderRoutes);
 
 // General tenant routes (must come after specific tenant-scoped routes)
@@ -196,8 +188,6 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   logger.info(`🚀 Server running on port ${PORT}`);
   logger.info(`📊 Health check available at http://localhost:${PORT}/healthz`);
-  console.log('✅ SERVER FULLY STARTED - Routes should be registered now');
-  console.log('🖨️ Card Print Orders route should be available at: /api/t/:tenantSlug/card-print-orders');
 });
 
 export default app;

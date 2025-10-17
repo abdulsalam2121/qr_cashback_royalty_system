@@ -37,14 +37,14 @@ export async function sendNotification(customerId, templateName, variables, tena
         });
         if (!customer || !customer.phone) {
             if (process.env.NODE_ENV !== 'production') {
-                console.log('Customer not found or no phone number available');
+                
             }
             return;
         }
         const template = templates[templateName][preferredChannel];
         if (!template) {
             if (process.env.NODE_ENV !== 'production') {
-                console.log(`Template ${templateName} not found for channel ${preferredChannel}`);
+                
             }
             return;
         }
@@ -91,7 +91,7 @@ export async function sendNotification(customerId, templateName, variables, tena
                     }
                 });
                 if (process.env.NODE_ENV !== 'production') {
-                    console.log(`Notification sent successfully`);
+                    
                 }
             }
             catch (twilioError) {
@@ -109,7 +109,7 @@ export async function sendNotification(customerId, templateName, variables, tena
         else {
             // Mock sending for development
             if (process.env.NODE_ENV !== 'production') {
-                console.log(`MOCK ${preferredChannel} notification sent`);
+                
             }
             await prisma.notification.update({
                 where: { id: notification.id },

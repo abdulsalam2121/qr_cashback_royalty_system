@@ -12,7 +12,6 @@ if (!admin.apps.length) {
     try {
       const serviceAccountFile = readFileSync(serviceAccountPath, 'utf8');
       serviceAccount = JSON.parse(serviceAccountFile);
-      console.log('Firebase Admin: Using service account JSON file');
     } catch (fileError) {
       // Fallback to environment variables if JSON file doesn't exist
       const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
@@ -28,7 +27,6 @@ if (!admin.apps.length) {
           clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
           privateKey: privateKey,
         };
-        console.log('Firebase Admin: Using environment variables');
       }
     }
 
@@ -37,7 +35,6 @@ if (!admin.apps.length) {
         credential: admin.credential.cert(serviceAccount),
       });
       
-      console.log('Firebase Admin initialized successfully');
     }
   } catch (error) {
     console.error('Firebase Admin initialization error:', error);

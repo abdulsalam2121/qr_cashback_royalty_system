@@ -271,8 +271,6 @@ router.post('/:tenantSlug/billing/subscribe', resolveTenant, auth, rbac(['tenant
       let transitionDescription = '';
 
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`Subscription transition: type=${isFirstSubscription ? 'NEW' : isReactivation ? 'REACTIVATION' : isUpgrade ? 'UPGRADE' : isDowngrade ? 'DOWNGRADE' : 'RENEWAL'}`);
-        console.log(`Plan allowance: ${planCardAllowance}, current cards: ${currentCardCount}`);
       }
 
       if (isFirstSubscription) {
@@ -545,7 +543,6 @@ router.post('/:tenantSlug/billing/setup-intent', resolveTenant, auth, rbac(['ten
   
   if (!hasStripeConfig || !isValidStripeKey) {
     if (process.env.NODE_ENV !== 'production') {
-      console.log('Demo mode: Stripe not properly configured, returning demo setup intent');
     }
     
     // Return a demo setup intent for testing
@@ -564,7 +561,6 @@ router.post('/:tenantSlug/billing/setup-intent', resolveTenant, auth, rbac(['ten
     // Check if this is a demo customer ID that doesn't exist in Stripe
     if (customerId && customerId.startsWith('demo_customer_')) {
       if (process.env.NODE_ENV !== 'production') {
-        console.log('Demo customer ID detected, clearing it to create a real Stripe customer');
       }
       customerId = null;
       

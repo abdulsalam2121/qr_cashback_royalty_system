@@ -4,10 +4,8 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Starting database seed...');
 
   // Create default plans - Only 2 tiers as requested
-  console.log('📋 Creating subscription plans...');
   const plans = [
     {
       name: 'Free Trial',
@@ -66,14 +64,11 @@ async function main() {
       await prisma.plan.create({
         data: planData
       });
-      console.log(`✅ Created plan: ${planData.name}`);
     } else {
-      console.log(`ℹ️  Plan already exists: ${planData.name}`);
     }
   }
 
   // Create demo tenant first
-  console.log('🏢 Creating demo tenant...');
   const demoTenantSlug = 'demo';
   const existingTenant = await prisma.tenant.findUnique({
     where: { slug: demoTenantSlug }
@@ -95,14 +90,11 @@ async function main() {
         freeTrialLimit: 40
       }
     });
-    console.log(`✅ Created demo tenant: ${demoTenant.name}`);
   } else {
     demoTenant = existingTenant;
-    console.log(`ℹ️  Demo tenant already exists: ${demoTenant.name}`);
   }
 
   // Create platform admin user
-  console.log('👤 Creating platform admin user...');
   const platformAdminEmail = 'admin@platform.com';
   const existingPlatformAdmin = await prisma.user.findUnique({
     where: { email: platformAdminEmail }
@@ -120,13 +112,10 @@ async function main() {
         tenantId: demoTenant.id
       }
     });
-    console.log(`✅ Created platform admin: ${platformAdminEmail}`);
   } else {
-    console.log(`ℹ️  Platform admin already exists: ${platformAdminEmail}`);
   }
 
   // Create demo store
-  console.log('🏪 Creating demo store...');
   const existingStore = await prisma.store.findFirst({
     where: { 
       tenantId: demoTenant.id,
@@ -144,14 +133,11 @@ async function main() {
         active: true
       }
     });
-    console.log(`✅ Created demo store: ${demoStore.name}`);
   } else {
     demoStore = existingStore;
-    console.log(`ℹ️  Demo store already exists: ${demoStore.name}`);
   }
 
   // Create demo users
-  console.log('👥 Creating demo users...');
   
   // Tenant Admin
   const tenantAdminEmail = 'admin@demo.com';
@@ -171,9 +157,7 @@ async function main() {
         tenantId: demoTenant.id
       }
     });
-    console.log(`✅ Created tenant admin: ${tenantAdminEmail}`);
   } else {
-    console.log(`ℹ️  Tenant admin already exists: ${tenantAdminEmail}`);
   }
 
   // Cashier
@@ -195,13 +179,10 @@ async function main() {
         storeId: demoStore.id
       }
     });
-    console.log(`✅ Created cashier: ${cashierEmail}`);
   } else {
-    console.log(`ℹ️  Cashier already exists: ${cashierEmail}`);
   }
 
   // Create tier rules
-  console.log('🏆 Creating tier rules...');
   const tierRules = [
     {
       tenantId: demoTenant.id,
@@ -238,14 +219,11 @@ async function main() {
       await prisma.tierRule.create({
         data: tierRule
       });
-      console.log(`✅ Created tier rule: ${tierRule.name}`);
     } else {
-      console.log(`ℹ️  Tier rule already exists: ${tierRule.name}`);
     }
   }
 
   // Create cashback rules
-  console.log('💰 Creating cashback rules...');
   const cashbackRules = [
     {
       tenantId: demoTenant.id,
@@ -276,14 +254,11 @@ async function main() {
       await prisma.cashbackRule.create({
         data: ruleData
       });
-      console.log(`✅ Created cashback rule: ${ruleData.category}`);
     } else {
-      console.log(`ℹ️  Cashback rule already exists: ${ruleData.category}`);
     }
   }
 
   // Create sample customers and cards
-  console.log('👨‍👩‍👧‍👦 Creating sample customers and cards...');
   const sampleCustomers = [
     {
       firstName: 'John',
@@ -345,22 +320,10 @@ async function main() {
         }
       });
 
-      console.log(`✅ Created customer: ${customerData.firstName} ${customerData.lastName} with card: ${cardUid}`);
     } else {
-      console.log(`ℹ️  Customer already exists: ${customerData.firstName} ${customerData.lastName}`);
     }
   }
 
-  console.log('🎉 Database seed completed successfully!');
-  console.log('');
-  console.log('📝 Demo Accounts Created:');
-  console.log('  Platform Admin: admin@platform.com / AdminSecure123!');
-  console.log('  Store Admin: admin@demo.com / DemoAdmin123!');
-  console.log('  Cashier: cashier@demo.com / DemoCashier123!');
-  console.log('');
-  console.log('🏢 Demo Tenant: demo (slug)');
-  console.log('💳 Sample cards have been created for testing');
-  console.log('💰 Cashback rules configured for all categories');
 }
 
 main()

@@ -12,23 +12,15 @@ async function listUsers() {
       process.exit(1);
     }
 
-    console.log('Listing all users in Firebase Auth...\n');
     
     const listUsersResult = await admin.auth().listUsers(1000);
     
     if (listUsersResult.users.length === 0) {
-      console.log('No users found in Firebase Auth.');
       return;
     }
 
-    console.log(`Found ${listUsersResult.users.length} users:\n`);
     
     listUsersResult.users.forEach((userRecord, index) => {
-      console.log(`${index + 1}. Email: ${userRecord.email || 'No email'}`);
-      console.log(`   UID: ${userRecord.uid}`);
-      console.log(`   Custom Claims: ${JSON.stringify(userRecord.customClaims || {})}`);
-      console.log(`   Created: ${userRecord.metadata.creationTime}`);
-      console.log('   ---');
     });
     
   } catch (error) {

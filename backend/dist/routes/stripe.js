@@ -12,11 +12,11 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-
 router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(async (req, res) => {
     const sig = req.headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    console.log(`[WEBHOOK] Received webhook request`);
+    
     let event;
     try {
         event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-        console.log(`[WEBHOOK] Successfully verified event: ${event.type} (${event.id})`);
+        
     }
     catch (err) {
         console.error('Webhook signature verification failed:', err.message);
@@ -77,43 +77,43 @@ router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(
             }
             case 'payment_intent.succeeded': {
                 const paymentIntent = event.data.object;
-                console.log(`✅ payment_intent.succeeded: ${paymentIntent.id}`);
-                console.log('�🚨🚨 WEBHOOK PROCESSING - CHECKING METADATA 🚨🚨🚨');
-                console.log('�📋 Payment Intent Metadata:', JSON.stringify(paymentIntent.metadata, null, 2));
-                console.log('📋 Metadata keys:', Object.keys(paymentIntent.metadata || {}));
-                console.log('📋 Type value:', paymentIntent.metadata?.type);
-                console.log('📋 CustomerId value:', paymentIntent.metadata?.customerId);
+                
+                
+                
+                
+                
+                
                 // Get fresh payment intent from Stripe to ensure we have latest metadata
                 let freshPaymentIntent = paymentIntent;
                 try {
-                    console.log('Fetching fresh payment intent from Stripe...');
+                    
                     freshPaymentIntent = await stripe.paymentIntents.retrieve(paymentIntent.id);
-                    console.log('Fresh Payment Intent Metadata:', JSON.stringify(freshPaymentIntent.metadata, null, 2));
+                    
                 }
                 catch (error) {
                     console.error('Failed to fetch fresh payment intent:', error);
                 }
                 // Handle one-time payments (like card orders)
                 if (freshPaymentIntent.metadata?.orderId) {
-                    console.log('🛒 Processing card order payment...');
+                    
                     await handleCardOrderPaymentIntent(freshPaymentIntent);
                 }
                 // Handle QR payment transactions
                 else if (freshPaymentIntent.metadata?.paymentLinkId) {
-                    console.log('🏪 Processing QR purchase transaction...');
+                    
                     await handlePurchaseTransactionPaymentIntent(freshPaymentIntent);
                 }
                 // Handle customer fund additions
                 else if (freshPaymentIntent.metadata?.type === 'customer_funds') {
-                    console.log('💰 Processing customer fund addition...');
+                    
                     await handleCustomerFundsPaymentIntent(freshPaymentIntent);
                 }
                 else {
                     console.log('⚠️ Unknown payment type or missing metadata; skipping transaction creation');
-                    console.log('Available metadata keys:', Object.keys(freshPaymentIntent.metadata || {}));
+                    
                     // Fallback: check if description contains "loyalty card"
                     if (freshPaymentIntent.description?.includes('loyalty card')) {
-                        console.log('Detected customer fund payment by description, attempting manual processing...');
+                        
                         try {
                             await handleCustomerFundsPaymentIntent(freshPaymentIntent);
                         }
@@ -122,12 +122,12 @@ router.post('/webhook', express.raw({ type: 'application/json' }), asyncHandler(
                         }
                     }
                 }
-                console.log('🚨🚨🚨 END WEBHOOK PROCESSING 🚨🚨🚨');
+                
                 break;
             }
             default:
                 if (process.env.NODE_ENV !== 'production') {
-                    console.log(`Unhandled event type: ${event.type}`);
+                    
                 }
         }
         res.json({ received: true });
@@ -157,7 +157,7 @@ async function handleCardOrderPayment(session) {
             }
         });
         if (process.env.NODE_ENV !== 'production') {
-            console.log(`Card order payment confirmed`);
+            
         }
     }
     catch (error) {
@@ -181,7 +181,7 @@ async function handleCardOrderPaymentIntent(paymentIntent) {
             }
         });
         if (process.env.NODE_ENV !== 'production') {
-            console.log(`Card order payment intent succeeded`);
+            
         }
     }
     catch (error) {
@@ -258,7 +258,7 @@ async function handlePurchaseTransactionPaymentIntent(paymentIntent) {
                                 note: `Store Credit via ${updatedTransaction.paymentMethod}: ${purchaseTransaction.id} (Stripe)`,
                             }
                         });
-                        console.log(`Store credit added via Stripe: $${updatedTransaction.amountCents / 100} to card ${card.cardUid}`);
+                        
                     }
                 }
             }
@@ -305,7 +305,7 @@ async function handlePurchaseTransactionPaymentIntent(paymentIntent) {
                 }
             }
             if (process.env.NODE_ENV !== 'production') {
-                console.log(`Purchase transaction payment intent succeeded for transaction ${purchaseTransaction.id}`);
+                
             }
         });
     }
@@ -358,7 +358,7 @@ async function handleCustomerFundsPayment(session) {
             });
         });
         if (process.env.NODE_ENV !== 'production') {
-            console.log(`Successfully added $${(amountCents / 100).toFixed(2)} to card`);
+            
         }
     }
     catch (error) {
@@ -405,7 +405,7 @@ async function updateTenantSubscription(subscription) {
             data: updateData
         });
         if (process.env.NODE_ENV !== 'production') {
-            console.log(`Updated tenant subscription status to ${status}${planId ? ` with plan` : ''}`);
+            
         }
     }
     else {
@@ -414,19 +414,19 @@ async function updateTenantSubscription(subscription) {
 }
 // Handle customer funds payment intent
 async function handleCustomerFundsPaymentIntent(paymentIntent) {
-    console.log(`[WEBHOOK] Starting customer funds processing for payment intent: ${paymentIntent.id}`);
+    
     const { customerId, cardUid, tenantId } = paymentIntent.metadata;
-    console.log(`[WEBHOOK] Metadata:`, { customerId, cardUid, tenantId });
+    
     if (!customerId || !cardUid || !tenantId) {
         console.error('[WEBHOOK] Missing required metadata for customer funds payment:', paymentIntent.metadata);
         return;
     }
     try {
         const amountCents = paymentIntent.amount;
-        console.log(`[WEBHOOK] Processing $${(amountCents / 100).toFixed(2)} addition to card ${cardUid}`);
+        
         await prisma.$transaction(async (tx) => {
             // Get current card balance
-            console.log(`[WEBHOOK] Finding card with UID: ${cardUid}`);
+            
             const card = await tx.card.findUnique({
                 where: { cardUid },
                 select: { id: true, balanceCents: true }
@@ -435,17 +435,17 @@ async function handleCustomerFundsPaymentIntent(paymentIntent) {
                 console.error(`[WEBHOOK] Card not found for UID: ${cardUid}`);
                 throw new Error('Card not found');
             }
-            console.log(`[WEBHOOK] Found card ${card.id} with balance: $${(card.balanceCents / 100).toFixed(2)}`);
+            
             const beforeBalance = card.balanceCents;
             const afterBalance = beforeBalance + amountCents;
             // Update card balance
-            console.log(`[WEBHOOK] Updating card balance from $${(beforeBalance / 100).toFixed(2)} to $${(afterBalance / 100).toFixed(2)}`);
+            
             await tx.card.update({
                 where: { cardUid },
                 data: { balanceCents: afterBalance }
             });
             // Create transaction record
-            console.log(`[WEBHOOK] Creating transaction record`);
+            
             const transaction = await tx.transaction.create({
                 data: {
                     tenantId,
@@ -462,7 +462,7 @@ async function handleCustomerFundsPaymentIntent(paymentIntent) {
                     note: `Funds added via credit card payment - Payment Intent: ${paymentIntent.id}`,
                 }
             });
-            console.log(`[WEBHOOK] Transaction created successfully. Card balance updated to $${(afterBalance / 100).toFixed(2)}`);
+            
             return transaction;
         });
         // Send email notification
@@ -491,7 +491,7 @@ async function handleCustomerFundsPaymentIntent(paymentIntent) {
             console.error('Email notification error:', emailError);
         }
         if (process.env.NODE_ENV !== 'production') {
-            console.log(`Customer funds added: $${(amountCents / 100).toFixed(2)} to card ${cardUid}`);
+            
         }
     }
     catch (error) {

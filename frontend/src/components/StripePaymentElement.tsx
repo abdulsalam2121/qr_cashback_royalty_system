@@ -35,15 +35,11 @@ const StripeCheckoutForm: React.FC<StripeCheckoutFormProps> = ({
 
   // Debug: Log stripe and elements status
   useEffect(() => {
-    console.log('Stripe loaded:', !!stripe);
-    console.log('Elements loaded:', !!elements);
-    console.log('Client secret:', clientSecret);
   }, [stripe, elements, clientSecret]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!stripe || !elements || disabled) {
-      console.log('Form submission blocked:', { stripe: !!stripe, elements: !!elements, disabled });
       return;
     }
 
@@ -61,7 +57,6 @@ const StripeCheckoutForm: React.FC<StripeCheckoutFormProps> = ({
         console.error('Payment error:', error);
         onError(error.message || 'Payment failed');
       } else if (paymentIntent) {
-        console.log('Payment successful:', paymentIntent);
         onSuccess();
       }
     } catch (err: any) {
@@ -95,11 +90,10 @@ const StripeCheckoutForm: React.FC<StripeCheckoutFormProps> = ({
               },
             },
           }}
-          onReady={() => console.log('PaymentElement is ready')}
-          onFocus={() => console.log('PaymentElement focused')}
-          onBlur={() => console.log('PaymentElement blurred')}
+          onReady={() => void 0}
+          onFocus={() => void 0}
+          onBlur={() => void 0}
           onChange={(e) => {
-            console.log('PaymentElement changed:', e);
           }}
         />
       </div>

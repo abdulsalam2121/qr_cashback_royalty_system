@@ -41,7 +41,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Debug logging (only in development and without sensitive data)
   if (import.meta.env.DEV) {
-    console.log('🔒 ProtectedRoute check:', {
       loading,
       authenticated,
       hasUser: !!currentUser,
@@ -56,7 +55,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Show loading spinner while auth state is being determined
   if (loading) {
     if (import.meta.env.DEV) {
-      console.log('🔒 ProtectedRoute: Still loading...');
     }
     return <LoadingSpinner />;
   }
@@ -64,7 +62,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // If not authenticated, redirect to login
   if (!authenticated || !currentUser) {
     if (import.meta.env.DEV) {
-      console.log('🔒 ProtectedRoute: Not authenticated, redirecting to login');
     }
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
@@ -74,12 +71,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     // If we have a user but no tenant yet, check if user has tenantSlug
     if (currentUser?.tenantSlug) {
       if (import.meta.env.DEV) {
-        console.log('🔒 ProtectedRoute: User has tenantSlug but no tenant object loaded yet, allowing access');
       }
       // Allow access - tenant data may still be loading
     } else {
       if (import.meta.env.DEV) {
-        console.log('🔒 ProtectedRoute: No tenant and user has no tenantSlug, redirecting to login');
       }
       return <Navigate to="/login" replace />;
     }

@@ -45,7 +45,6 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
   const { cardUid, customerId, amountCents, category, description, paymentMethod, customerInfo, storeId: requestedStoreId } = req.body;
   const { tenantId, userId: cashierId, storeId: userStoreId, role } = req.user;
 
-  console.log('?? Purchase Transaction Data:', {
     amountCents,
     category,
     paymentMethod,

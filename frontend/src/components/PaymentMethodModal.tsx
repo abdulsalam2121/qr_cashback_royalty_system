@@ -45,7 +45,6 @@ const PaymentMethodForm: React.FC<{
       // Check if we're in demo mode
       if (response.demo) {
         // Simulate successful card addition in demo mode
-        console.log('Demo mode: Simulating successful card addition');
         onSuccess();
         onClose();
         return;

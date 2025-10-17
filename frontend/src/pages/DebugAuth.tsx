@@ -15,13 +15,11 @@ export default function DebugAuth() {
       const healthResponse = await fetch('http://localhost:3002/healthz');
       const healthData = await healthResponse.json();
       if (import.meta.env.DEV) {
-        console.log('Health check completed');
       }
       
       if (currentUser) {
         // Test auth endpoint
         const token = await getCurrentUserToken();
-        console.log('Got token:', token?.substring(0, 50) + '...');
         
         const authResponse = await fetch('http://localhost:3002/api/auth/me', {
           headers: {
@@ -31,10 +29,8 @@ export default function DebugAuth() {
           credentials: 'include'
         });
         
-        console.log('Auth response status:', authResponse.status);
         const authData = await authResponse.text();
         if (import.meta.env.DEV) {
-          console.log('Auth response received');
         }
         
         setTestResult(`Health: OK\nAuth Status: ${authResponse.status}\nAuth Response: [Response received]`);

@@ -83,7 +83,7 @@ async function handleTrialExpired(tenantId) {
         });
         // In a real implementation, you would send email notifications here
         // For now, we'll log it
-        console.log(`Trial expired for tenant ${tenantId} (${tenant.name}). Used ${tenant.freeTrialActivations}/${tenant.freeTrialLimit} activations.`);
+        
         // You could integrate with an email service here
         // Example: await sendEmail(tenant.users[0]?.email, 'trial-expired', { ... });
     }
@@ -102,7 +102,7 @@ async function sendTrialWarning(tenantId, activationsRemaining) {
         });
         if (!tenant)
             return;
-        console.log(`Trial warning for tenant ${tenantId} (${tenant.name}): ${activationsRemaining} activations remaining`);
+        
         // In a real implementation, you would send email notifications here
         // Example: await sendEmail(tenant.users[0]?.email, 'trial-warning', { activationsRemaining });
     }

@@ -14,14 +14,9 @@ async function findPlatformTenant() {
     });
     
     if (!platformTenant) {
-      console.log('❌ Platform tenant not found. Run seed script first.');
       return null;
     }
     
-    console.log('📊 Platform tenant details:');
-    console.log(`   ID: ${platformTenant.id}`);
-    console.log(`   Slug: ${platformTenant.slug}`);
-    console.log(`   Name: ${platformTenant.name}`);
     
     return platformTenant;
     

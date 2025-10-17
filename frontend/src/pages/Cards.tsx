@@ -62,7 +62,6 @@ const Cards: React.FC = () => {
   // Always refetch subscription info if missing or stale for active subscriptions
   useEffect(() => {
     if (tenant?.subscriptionStatus === 'ACTIVE' && (!subscriptionInfo || !subscriptionInfo.planId)) {
-      console.log('Active subscription detected but missing subscription info, refetching...');
       fetchTenantInfo();
     }
   }, [tenant?.subscriptionStatus, subscriptionInfo?.planId]);
@@ -73,7 +72,6 @@ const Cards: React.FC = () => {
     limitType = 'subscription';
     isLimitReached = remainingCards <= 0;
     
-    console.log('Subscription mode:', {
       used: subscriptionInfo.cardsUsed,
       limit: subscriptionInfo.cardLimit,
       remaining: remainingCards,
@@ -86,7 +84,6 @@ const Cards: React.FC = () => {
       currentCardCount >= tenant.freeTrialLimit &&
       tenant.subscriptionStatus !== 'ACTIVE';
       
-    console.log('Trial mode:', {
       currentCards: currentCardCount,
       trialLimit,
       remaining: remainingCards
@@ -106,7 +103,6 @@ const Cards: React.FC = () => {
     if (urlParams.get('subscription_success') === 'true') {
       // User just completed subscription, force refresh tenant info after a short delay
       setTimeout(async () => {
-        console.log('Subscription success detected, refreshing tenant info...');
         await fetchTenantInfo();
         // Remove the parameter from URL
         urlParams.delete('subscription_success');
@@ -118,7 +114,6 @@ const Cards: React.FC = () => {
 
   useEffect(() => {
     if (import.meta.env.DEV) {
-      console.log('Stores data length:', stores.length);
     }
   }, [stores]);
 
@@ -128,7 +123,6 @@ const Cards: React.FC = () => {
     try {
       const { tenant: latestTenant } = await api.tenant.getTenant(tenantSlug);
       if (import.meta.env.DEV) {
-        console.log('Fetched latest tenant info:', {
           subscriptionStatus: latestTenant.subscriptionStatus,
           cardCounts: {
             total: latestTenant._count?.cards
@@ -156,7 +150,6 @@ const Cards: React.FC = () => {
 
       const data = await api.tenant.getCards(tenantSlug, params.toString());
       if (import.meta.env.DEV) {
-        console.log('Cards data received, count:', data.cards?.length || 0);
       }
       setCards(data.cards || []);
     } catch (error) {
@@ -173,17 +166,14 @@ const Cards: React.FC = () => {
       // Fetch all customers for general use
       const allCustomersData = await api.tenant.getCustomers(tenantSlug);
       if (import.meta.env.DEV) {
-        console.log('All customers data received, count:', allCustomersData.customers?.length || 0);
       }
       setCustomers(allCustomersData.customers || []);
       
       // Fetch available customers for card assignment
       if (import.meta.env.DEV) {
-        console.log('Fetching available customers...');
       }
       const availableCustomersData = await api.tenant.getAvailableCustomers(tenantSlug);
       if (import.meta.env.DEV) {
-        console.log('Available customers data received, count:', availableCustomersData.customers?.length || 0);
       }
       setAvailableCustomers(availableCustomersData.customers || []);
     } catch (error) {

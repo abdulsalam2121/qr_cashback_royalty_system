@@ -36,7 +36,6 @@ export const sessionCleanup = (req: any, res: any, next: any) => {
   if (Math.random() < 0.01) { // 1% chance to run cleanup
     setTimeout(() => {
       // Cleanup logic would go here
-      console.log('Session cleanup triggered');
     }, 0);
   }
   

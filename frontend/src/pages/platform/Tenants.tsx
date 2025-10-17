@@ -144,7 +144,6 @@ const Tenants: React.FC = () => {
     try {
       // Note: We'd need to add a delete endpoint to the backend
       if (import.meta.env.DEV) {
-        console.log('Delete tenant requested');
       }
       alert('Delete functionality needs to be implemented in the backend.');
     } catch (error) {

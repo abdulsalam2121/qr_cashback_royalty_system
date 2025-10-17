@@ -56,10 +56,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const syncUserWithBackend = async (idToken: string) => {
     try {
-      if (import.meta.env.DEV) {
-        console.log('🔄 Syncing user with backend...');
-        console.log('Using API URL configured');
-      }
       
       const response = await fetchWithIdToken('/auth/sync', idToken, { 
         method: 'POST', 
@@ -67,27 +63,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
       
       if (import.meta.env.DEV) {
-        console.log('📡 Backend sync response status:', response.status);
       }
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Backend sync failed - raw response:', errorText);
         
         try {
           const errorData = JSON.parse(errorText);
-          console.error('❌ Backend sync failed - parsed error:', errorData);
           throw new Error(errorData.error || 'Failed to sync user with backend');
         } catch (parseError) {
-          console.error('❌ Could not parse error response:', parseError);
           throw new Error(`Backend sync failed with status ${response.status}: ${errorText}`);
         }
       }
       
       const data = await response.json();
-      if (import.meta.env.DEV) {
-        console.log('✅ Backend sync successful for user with role:', data.role);
-      }
       
       setUser(data.user);
       setTenant(data.tenant || null);
@@ -99,13 +88,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         zustandUpdateTenant(data.tenant);
       }
       
-      if (import.meta.env.DEV) {
-        console.log('✅ User state updated successfully');
-      }
       return data;
     } catch (error) {
-      console.error('❌ Error syncing user with backend:', error);
-      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       throw error;
     }
   };
@@ -113,7 +97,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const refreshUserData = async () => {
     if (!currentUser) {
       if (import.meta.env.DEV) {
-        console.log('❌ No current user for refresh');
       }
       setLoading(false);
       return;
@@ -121,7 +104,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     try {
       if (import.meta.env.DEV) {
-        console.log('🔄 Getting fresh ID token for backend request...');
       }
       const idToken = await getCurrentUserToken();
       if (!idToken) {
@@ -131,8 +113,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (import.meta.env.DEV) {
-        console.log('📡 Making request to /auth/me endpoint...');
-        console.log('🔑 Token available for request');
       }
       
       // Add timeout to prevent hanging
@@ -143,7 +123,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const responsePromise = fetchWithIdToken('/auth/me', idToken);
       const response = await Promise.race([responsePromise, timeoutPromise]) as Response;
 
-      console.log('📡 Backend /auth/me response status:', response.status);
 
       let data = null;
       try {
@@ -160,14 +139,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         // If token is invalid, try to get a fresh one
         if (response.status === 401) {
-          console.log('🔄 Token seems invalid, getting fresh token and retrying...');
           const freshToken = await currentUser.getIdToken(true); // Force refresh
           if (freshToken !== idToken) {
-            console.log('✅ Got fresh token, retrying request...');
             const retryResponse = await fetchWithIdToken('/auth/me', freshToken);
             if (retryResponse.ok) {
               data = await retryResponse.json();
-              console.log('✅ Retry successful with fresh token');
             } else {
               const retryData = await retryResponse.json().catch(() => ({}));
               console.error('❌ Retry also failed:', retryData);
@@ -181,8 +157,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }
 
-      console.log('✅ Backend /auth/me full response:', data);
-      console.log('✅ Backend /auth/me summary:', {
         userId: data?.user?.id,
         email: data?.user?.email,
         role: data?.role,
@@ -201,7 +175,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         zustandUpdateTenant(data.tenant);
       }
 
-      console.log('✅ User data refresh completed successfully');
       
       setLoading(false);
       
@@ -214,7 +187,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       // If backend fails, at least set some basic user info from Firebase
       if (currentUser) {
-        console.log('⚠️ Backend failed, using Firebase user data as fallback');
         const fallbackUser = {
           id: currentUser.uid,
           email: currentUser.email || '',
@@ -237,34 +209,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const handleGoogleSignIn = async () => {
     try {
-      console.log('🚀 Starting Google Sign-In process...');
       setLoading(true);
       
       // Use popup method only (more reliable)
       const { signInWithGoogle: firebaseSignInWithGoogle } = await import('../firebase/auth');
       
-      console.log('🪟 Using popup method for Google Sign-In...');
       const { user: firebaseUser, idToken } = await firebaseSignInWithGoogle(false);
       
       if (import.meta.env.DEV) {
-        console.log('✅ Firebase authentication successful');
       }
-      console.log('🔑 Got ID token, syncing with backend...');
       
       // Sync with backend
       const syncData = await syncUserWithBackend(idToken);
       if (import.meta.env.DEV) {
-        console.log('✅ Backend sync complete!');
       }
       
       // Navigate based on sync response
       if (syncData.role === 'tenant_admin' && (syncData.user?.tenantSlug || syncData.tenant?.slug)) {
         const tenantSlug = syncData.user?.tenantSlug || syncData.tenant?.slug;
-        console.log('🔄 Sync complete, user will be redirected to tenant dashboard:', tenantSlug);
       } else if (syncData.role === 'platform_admin') {
-        console.log('🔄 Sync complete, user will be redirected to platform dashboard');
       } else {
-        console.log('🔄 Sync complete, user will be redirected based on role');
       }
       
     } catch (error) {
@@ -276,7 +240,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (error.message.includes('popup') || error.message.includes('blocked')) {
           alert('Pop-up was blocked. Please allow pop-ups for this site and try again.');
         } else if (error.message.includes('cancelled')) {
-          console.log('User cancelled sign-in');
         } else {
           alert(`Sign-in failed: ${error.message}`);
         }
@@ -288,7 +251,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Simple Google login that works like normal login
   const handleGoogleSignInSimple = async () => {
     try {
-      console.log('🚀 Starting Simple Google Sign-In...');
       setLoading(true);
       
       // Step 1: Get Firebase ID token
@@ -296,14 +258,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { user: firebaseUser, idToken } = await firebaseSignInWithGoogle(false);
       
       if (import.meta.env.DEV) {
-        console.log('✅ Firebase authentication successful');
       }
-      console.log('🔑 Got ID token, calling backend API...');
       
       // Step 2: Call backend API (same as normal login)
       const data = await api.googleLogin(idToken);
       if (import.meta.env.DEV) {
-        console.log('✅ Backend login successful');
       }
       
       // Step 3: Set state (same as normal login)
@@ -317,7 +276,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         zustandUpdateTenant(data.tenant);
       }
       
-      console.log('✅ Simple Google login complete!');
       setLoading(false);
       
     } catch (error) {
@@ -329,7 +287,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (error.message.includes('popup') || error.message.includes('blocked')) {
           alert('Pop-up was blocked. Please allow pop-ups for this site and try again.');
         } else if (error.message.includes('cancelled')) {
-          console.log('User cancelled sign-in');
         } else {
           alert(`Sign-in failed: ${error.message}`);
         }
@@ -365,18 +322,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   useEffect(() => {
-    console.log('� Setting up auth state listener...');
     
     // Set up auth state listener
     const unsubscribe = onAuthStateChange(async (firebaseUser: User | null) => {
       if (import.meta.env.DEV) {
-        console.log('🔄 Auth state changed:', firebaseUser ? 'User authenticated' : 'No user');
       }
       setCurrentUser(firebaseUser);
       
       if (firebaseUser) {
         try {
-          console.log('🔄 User authenticated, refreshing backend data...');
           await refreshUserData();
         } catch (error) {
           console.error('❌ Error during auth state change:', error);
@@ -384,7 +338,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setLoading(false);
         }
       } else {
-        console.log('🔄 No user, clearing state...');
         setUser(null);
         setTenant(null);
         setRole(null);

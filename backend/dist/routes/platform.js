@@ -357,9 +357,9 @@ router.delete('/plans/:id', auth, rbac(['platform_admin']), asyncHandler(async (
 }));
 // Get platform card print orders (for printing management)
 router.get('/card-print-orders', auth, rbac(['platform_admin']), asyncHandler(async (req, res) => {
-    console.log('Platform Admin Print Orders API called');
-    console.log('User:', req.user);
-    console.log('Query params:', req.query);
+    
+    
+    
     const { page = 1, limit = 20, status, search } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
     const where = {};
@@ -374,7 +374,7 @@ router.get('/card-print-orders', auth, rbac(['platform_admin']), asyncHandler(as
             { storeName: { contains: search, mode: 'insensitive' } }
         ];
     }
-    console.log('Where clause:', JSON.stringify(where, null, 2));
+    
     const [orders, total] = await Promise.all([
         prisma.cardPrintOrder.findMany({
             where,
@@ -400,8 +400,8 @@ router.get('/card-print-orders', auth, rbac(['platform_admin']), asyncHandler(as
         }),
         prisma.cardPrintOrder.count({ where })
     ]);
-    console.log(`Found ${total} total orders, returning ${orders.length} orders`);
-    console.log('Orders:', orders.map(o => ({ id: o.id, tenantName: o.tenant?.name, status: o.status })));
+    
+    
     res.json({
         orders,
         pagination: {

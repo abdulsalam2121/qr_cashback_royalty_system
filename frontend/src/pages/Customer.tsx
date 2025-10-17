@@ -30,7 +30,6 @@ const Customer: React.FC = () => {
       setError(null);
       
       if (import.meta.env.DEV) {
-        console.log('👤 Fetching customer data for user:', {
           id: user?.id,
           role: user?.role,
           tenantSlug
@@ -39,7 +38,6 @@ const Customer: React.FC = () => {
       
       // Check user role to determine which data to fetch
       if (user?.role === 'customer') {
-        console.log('🔍 Fetching data for customer role...');
         // Customer users: fetch their own profile data
         const [customerData, cardsData, transactionsData] = await Promise.all([
           api.tenant.getMyProfile(tenantSlug),
@@ -51,7 +49,6 @@ const Customer: React.FC = () => {
         setCards(cardsData.cards);
         setTransactions(transactionsData.transactions);
       } else if (user?.role === 'tenant_admin') {
-        console.log('🔍 Fetching data for tenant_admin role...');
         // Admin users: fetch all customers data (for demo, show first customer)
         const [customersData, cardsData, transactionsData] = await Promise.all([
           api.tenant.getCustomers(tenantSlug),

@@ -14,14 +14,6 @@ async function checkFirebaseClaims(email: string) {
 
     const user = await admin.auth().getUserByEmail(email);
     
-    console.log(`🔥 Firebase Auth details for ${email}:`);
-    console.log(`   UID: ${user.uid}`);
-    console.log(`   Email: ${user.email}`);
-    console.log(`   Custom Claims: ${JSON.stringify(user.customClaims || {})}`);
-    console.log(`   Email Verified: ${user.emailVerified}`);
-    console.log(`   Disabled: ${user.disabled}`);
-    console.log(`   Created: ${user.metadata.creationTime}`);
-    console.log(`   Last Sign In: ${user.metadata.lastSignInTime || 'Never'}`);
     
   } catch (error) {
     console.error('❌ Error checking Firebase claims:', error);
@@ -31,7 +23,6 @@ async function checkFirebaseClaims(email: string) {
 
 const email = process.argv[2];
 if (!email) {
-  console.log('Usage: npx tsx scripts/checkFirebaseClaims.ts <email>');
   process.exit(1);
 }
 

@@ -6,7 +6,6 @@ async function main() {
   let platformTenant = await prisma.tenant.findUnique({ where: { slug: "platform" } });
 
   if (platformTenant) {
-    console.log("? Platform tenant already exists:", platformTenant.slug);
     return;
   }
 
@@ -21,7 +20,6 @@ async function main() {
     },
   });
 
-  console.log("?? Created platform tenant:", platformTenant);
 }
 
 main()

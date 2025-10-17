@@ -2,11 +2,11 @@ import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 async function main() {
-    console.log('🌱 Starting database seeding...');
+    
     // ------------------------------------------------------------
     // 1) CREATE DEFAULT PLANS
     // ------------------------------------------------------------
-    console.log('📋 Creating subscription plans...');
+    
     const plans = [
         {
             name: 'Starter Plan',
@@ -60,16 +60,16 @@ async function main() {
             await prisma.plan.create({
                 data: planData
             });
-            console.log(`✅ Created plan: ${planData.name}`);
+            
         }
         else {
-            console.log(`⏭️  Plan already exists: ${planData.name}`);
+            
         }
     }
     // ------------------------------------------------------------
     // 2) PLATFORM TENANT (for platform_admin user attachment)
     // ------------------------------------------------------------
-    console.log('🏗️  Creating platform tenant...');
+    
     const platformTenant = await prisma.tenant.upsert({
         where: { slug: 'platform' },
         update: {},
@@ -80,11 +80,11 @@ async function main() {
             planId: null,
         },
     });
-    console.log('✅ Platform tenant ready');
+    
     // ------------------------------------------------------------
     // 3) PLATFORM ADMIN USER
     // ------------------------------------------------------------
-    console.log('👤 Creating platform admin user...');
+    
     const platformAdmin = await prisma.user.upsert({
         where: { email: 'admin@platform.com' },
         update: {},
@@ -97,11 +97,11 @@ async function main() {
             tenantId: platformTenant.id,
         },
     });
-    console.log('✅ Platform admin created: admin@platform.com / AdminSecure123!');
+    
     // ------------------------------------------------------------
     // 4) DEMO TENANT (ACTIVE SUBSCRIPTION)
     // ------------------------------------------------------------
-    console.log('🏪 Creating demo tenant...');
+    
     const demoTenant = await prisma.tenant.upsert({
         where: { slug: 'demo-store' },
         update: {},
@@ -117,7 +117,7 @@ async function main() {
             freeTrialLimit: 50,
         },
     });
-    console.log('✅ Demo tenant created');
+    
     // Create demo store location
     const demoStore = await prisma.store.upsert({
         where: { id: `${demoTenant.id}-main` },
@@ -130,7 +130,7 @@ async function main() {
             active: true,
         },
     });
-    console.log('✅ Demo store location created');
+    
     // Create demo tenant admin
     const demoAdmin = await prisma.user.upsert({
         where: { email: 'admin@demo.com' },
@@ -144,7 +144,7 @@ async function main() {
             tenantId: demoTenant.id,
         },
     });
-    console.log('✅ Demo admin created: admin@demo.com / DemoAdmin123!');
+    
     // Create demo cashier
     const demoCashier = await prisma.user.upsert({
         where: { email: 'cashier@demo.com' },
@@ -159,7 +159,7 @@ async function main() {
             storeId: demoStore.id,
         },
     });
-    console.log('✅ Demo cashier created: cashier@demo.com / DemoCashier123!');
+    
     // Create demo customer
     const demoCustomer = await prisma.customer.upsert({
         where: { email: 'customer@demo.com' },
@@ -174,11 +174,11 @@ async function main() {
             totalSpend: new Prisma.Decimal(150.00),
         },
     });
-    console.log('✅ Demo customer created');
+    
     // ------------------------------------------------------------
     // 5) DEFAULT CASHBACK AND TIER RULES
     // ------------------------------------------------------------
-    console.log('⚙️  Setting up default business rules...');
+    
     // Create default tier rules
     const tierRules = [
         { tier: 'SILVER', name: 'Silver Tier', minTotalSpendCents: 0, baseRateBps: 200 },
@@ -202,7 +202,7 @@ async function main() {
                     baseRateBps: ruleData.baseRateBps,
                 }
             });
-            console.log(`✅ Created tier rule: ${ruleData.tier}`);
+            
         }
     }
     // Create default cashback rules
@@ -227,13 +227,13 @@ async function main() {
                     isActive: true,
                 }
             });
-            console.log(`✅ Created cashback rule: ${ruleData.category}`);
+            
         }
     }
     // ------------------------------------------------------------
     // 6) SAMPLE DATA FOR DEMO
     // ------------------------------------------------------------
-    console.log('📊 Creating sample demo data...');
+    
     // Create a sample card for the demo customer
     const { nanoid } = await import('nanoid');
     const jwt = await import('jsonwebtoken');
@@ -254,7 +254,7 @@ async function main() {
             activatedAt: new Date(),
         },
     });
-    console.log(`✅ Demo card created: ${cardUid}`);
+    
     // Create sample transactions
     const sampleTransactions = [
         {
@@ -304,21 +304,21 @@ async function main() {
             },
         });
         currentBalance = afterBalance;
-        console.log(`✅ Created sample transaction: ${txData.type} - ${txData.note}`);
+        
     }
     // Update card balance to match final transaction state
     await prisma.card.update({
         where: { id: demoCard.id },
         data: { balanceCents: 2720 } // Final calculated balance
     });
-    console.log('🎉 Database seeding completed successfully!');
-    console.log('\n📋 Demo Credentials:');
-    console.log('Platform Admin: admin@platform.com / AdminSecure123!');
-    console.log('Demo Store Admin: admin@demo.com / DemoAdmin123!');
-    console.log('Demo Cashier: cashier@demo.com / DemoCashier123!');
-    console.log(`Demo Customer Card: ${cardUid}`);
-    console.log(`Demo Store Slug: demo-store`);
-    console.log('\n🚀 System is ready for deployment!');
+    
+    
+    
+    
+    
+    
+    
+    
     // Continue with more seed data
     const card1 = await prisma.card.upsert({
         where: { cardUid: 'CARD-ALPHA-001' },
@@ -446,7 +446,7 @@ async function main() {
             },
         });
     }
-    console.log('🌱 Seed data created successfully');
+    
 }
 main()
     .then(async () => {

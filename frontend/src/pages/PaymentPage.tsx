@@ -54,15 +54,11 @@ const CheckoutForm: React.FC<{
 
   // Debug: Log stripe and elements status
   useEffect(() => {
-    console.log('Stripe loaded:', !!stripe);
-    console.log('Elements loaded:', !!elements);
-    console.log('Client secret:', clientSecret);
   }, [stripe, elements, clientSecret]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!stripe || !elements || disabled) {
-      console.log('Form submission blocked:', { stripe: !!stripe, elements: !!elements, disabled });
       return;
     }
 
@@ -80,7 +76,6 @@ const CheckoutForm: React.FC<{
         console.error('Payment error:', error);
         onError(error.message || 'Payment failed');
       } else if (paymentIntent) {
-        console.log('Payment successful:', paymentIntent);
         // Give webhook a moment to process before showing success
         setTimeout(() => {
           onSuccess();
@@ -117,11 +112,10 @@ const CheckoutForm: React.FC<{
               },
             },
           }}
-          onReady={() => console.log('PaymentElement is ready')}
-          onFocus={() => console.log('PaymentElement focused')}
-          onBlur={() => console.log('PaymentElement blurred')}
+          onReady={() => void 0}
+          onFocus={() => void 0}
+          onBlur={() => void 0}
           onChange={(e) => {
-            console.log('PaymentElement changed:', e);
           }}
         />
       </div>
@@ -165,16 +159,12 @@ const PaymentPage: React.FC = () => {
     if (!token) return;
     try {
       setError(null); // Clear any previous errors
-      console.log('Loading payment data for token:', token);
       
       const data = await api.tenant.getPaymentLink(token);
-      console.log('Payment link data:', data);
       setPaymentData(data);
 
       // request backend to create PaymentIntent for this link
-      console.log('Creating payment intent...');
       const intent = await api.tenant.createPaymentIntent(token);
-      console.log('Payment intent created:', intent);
       
       if (intent.client_secret) {
         setClientSecret(intent.client_secret);

@@ -10,7 +10,6 @@ const prisma = new PrismaClient();
 
 // Add debugging middleware for admin routes
 router.use((req, res, next) => {
-  console.log(`Admin route accessed: ${req.method} ${req.path}`);
   next();
 });
 

@@ -100,16 +100,10 @@ const POSTerminal: React.FC = () => {
       }
       
       if (import.meta.env.DEV) {
-        console.log('Scanned data:', scannedData);
-        console.log('Extracted card UID:', cardUid);
       }
       
       try {
         const card = await api.tenant.getCard(tenantSlug, cardUid);
-        console.log('🔍 Card API Response:', card);
-        console.log('🔍 Card customer:', card.customer);
-        console.log('🔍 Card status:', card.status);
-        console.log('🔍 Card customerId:', card.customerId);
         
         // Check if we got limited card data (no customer info due to auth issues)
         if (card.status === 'ACTIVE' && card.customerId && !card.customer) {
@@ -141,7 +135,6 @@ const POSTerminal: React.FC = () => {
         
         // If the primary lookup fails, try the legacy endpoint as fallback
         try {
-          console.log('🔄 Trying fallback card lookup...');
           const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/t/${tenantSlug}/cards/${cardUid}`, {
             credentials: 'include',
             headers: {
@@ -154,7 +147,6 @@ const POSTerminal: React.FC = () => {
           }
           
           const card = await response.json();
-          console.log('🔍 Fallback Card API Response:', card);
           setScannedCard(card);
           setActiveTab('purchase');
           setMessage({

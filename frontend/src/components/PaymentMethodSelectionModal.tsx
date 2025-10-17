@@ -49,9 +49,6 @@ const PaymentMethodSelectionModal: React.FC<PaymentMethodSelectionModalProps> = 
 
     setLoading(true);
     try {
-      console.log('Starting payment with method:', selectedPaymentMethod);
-      console.log('Plan ID:', plan.id);
-      console.log('Plan price (cents):', plan.priceMonthly);
       await onConfirm(selectedPaymentMethod);
     } catch (error) {
       console.error('Payment failed:', error);

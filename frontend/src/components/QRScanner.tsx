@@ -50,7 +50,6 @@ export default function QRScanner({ onScanSuccess, onError, isActive }: QRScanne
         },
         (error: string) => {
           // QR scan error (can be ignored for most cases)
-          console.debug('QR scan error:', error);
         }
       );
 

@@ -78,16 +78,12 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
     where: { tenantId }
   });
 
-  console.log(`Card creation request: tenant=${tenantId}, count=${count}, currentCards=${currentCardCount}`);
-  console.log(`Tenant status: ${tenant.subscriptionStatus}, planId: ${tenant.planId}`);
-  console.log(`Subscription limits: ${tenant.subscriptionCardsUsed}/${tenant.subscriptionCardLimit}`);
 
   // Handle card limit validation based on subscription status
   if (tenant.subscriptionStatus === 'ACTIVE') {
     // For active subscriptions, use subscription card limits
     const cardsRemaining = Math.max(0, tenant.subscriptionCardLimit - tenant.subscriptionCardsUsed);
     
-    console.log(`Active subscription: ${tenant.subscriptionCardsUsed}/${tenant.subscriptionCardLimit} used, ${cardsRemaining} remaining`);
 
     // Check if tenant is over their subscription limit (downgrade scenario)
     if (tenant.subscriptionCardsUsed > tenant.subscriptionCardLimit) {
@@ -122,7 +118,6 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
     }
   } else {
     // For trial users or inactive subscriptions, check trial limits
-    console.log(`Trial/inactive subscription: ${currentCardCount}/${tenant.freeTrialLimit} cards used`);
 
     if (currentCardCount + count > tenant.freeTrialLimit) {
       res.status(403).json({ 
@@ -256,7 +251,6 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
         }
       });
 
-      console.log(`Updated subscription usage: ${tenant.subscriptionCardsUsed + count}/${tenant.subscriptionCardLimit}`);
     } catch (error) {
       console.error('Failed to update subscription usage:', error);
       // Don't fail the card creation for accounting errors
@@ -271,7 +265,6 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
         }
       });
 
-      console.log(`Updated trial usage: ${tenant.freeTrialCardsCreated + count}/${tenant.freeTrialLimit}`);
     } catch (error) {
       console.error('Failed to update trial usage:', error);
       // Don't fail the card creation for accounting errors
@@ -365,7 +358,6 @@ router.get('/lookup/:cardUid', auth, rbac(['tenant_admin', 'cashier']), asyncHan
   const { cardUid } = req.params as { cardUid: string };
   const { tenantId } = req.user;
 
-  console.log('🔍 POS Card Lookup:', { cardUid, tenantId, userRole: req.user.role });
 
   const card = await prisma.card.findUnique({
     where: { cardUid },
@@ -395,7 +387,6 @@ router.get('/lookup/:cardUid', auth, rbac(['tenant_admin', 'cashier']), asyncHan
 
   // Verify card belongs to the same tenant
   if (card.tenantId !== tenantId) {
-    console.log('❌ POS Card Lookup: Tenant mismatch', {
       cardTenantId: card.tenantId,
       userTenantId: tenantId
     });
@@ -404,7 +395,6 @@ router.get('/lookup/:cardUid', auth, rbac(['tenant_admin', 'cashier']), asyncHan
   }
 
   // Always return full card info for POS operations by cashiers/admins
-  console.log('✅ POS Card Lookup: Success', {
     cardUid: card.cardUid,
     hasCustomer: !!card.customer,
     customerName: card.customer ? `${card.customer.firstName} ${card.customer.lastName}` : null
@@ -420,9 +410,6 @@ router.get('/lookup/:cardUid', auth, rbac(['tenant_admin', 'cashier']), asyncHan
 router.get('/:cardUid', auth, asyncHandler(async (req: Request, res: Response) => {
   const { cardUid } = req.params as { cardUid: string };
 
-  console.log('🔍 GET /cards/:cardUid called');
-  console.log('Card UID:', cardUid);
-  console.log('User:', req.user ? {
     id: req.user.userId,
     role: req.user.role,
     tenantId: req.user.tenantId
@@ -449,7 +436,6 @@ router.get('/:cardUid', auth, asyncHandler(async (req: Request, res: Response) =
     },
   });
 
-  console.log('Card found:', card ? {
     cardUid: card.cardUid,
     status: card.status,
     customerId: card.customerId,
@@ -491,7 +477,6 @@ router.get('/:cardUid', auth, asyncHandler(async (req: Request, res: Response) =
     authFailReason = 'User not authenticated';
   }
 
-  console.log('🔍 Enhanced Auth Check:', {
     isAuthenticated,
     isAuthorized,
     authFailReason,
@@ -506,7 +491,6 @@ router.get('/:cardUid', auth, asyncHandler(async (req: Request, res: Response) =
 
   // Return limited info for unauthenticated requests
   if (!isAuthenticated) {
-    console.log('❌ Returning limited info (unauthenticated)');
     res.json({
       cardUid: card.cardUid,
       status: card.status,
@@ -522,14 +506,12 @@ router.get('/:cardUid', auth, asyncHandler(async (req: Request, res: Response) =
 
   // Return full info for authorized requests
   if (isAuthorized) {
-    console.log('✅ Returning full info (authorized)');
     res.json({
       ...card,
       storeName: card.store?.name || null
     });
     return;
   } else {
-    console.log(`❌ Unauthorized access attempt: ${authFailReason}`);
     res.status(403).json({ 
       error: 'Unauthorized',
       message: authFailReason,

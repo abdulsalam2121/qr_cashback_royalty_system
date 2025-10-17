@@ -19,28 +19,22 @@ export interface FirebaseUser {
 
 export const signInWithGoogle = async (useRedirect = false): Promise<{ user: FirebaseUser; idToken: string }> => {
   try {
-    console.log('🚀 Starting Google Sign-In with method:', useRedirect ? 'redirect' : 'popup');
     let result;
     
     if (useRedirect) {
-      console.log('🔄 Using redirect method...');
       // Use redirect method (better for mobile and COOP issues)
       await signInWithRedirect(auth, googleProvider);
       // The page will redirect, so we don't get a result here
       // The result will be handled by checkRedirectResult()
       throw new Error('redirect_initiated');
     } else {
-      console.log('🪟 Using popup method...');
       // Try popup method first
       result = await signInWithPopup(auth, googleProvider);
       if (import.meta.env.DEV) {
-        console.log('✅ Popup sign-in successful');
       }
     }
     
-    console.log('🔑 Getting ID token...');
     const idToken = await result.user.getIdToken();
-    console.log('✅ Got ID token, length:', idToken.length);
     
     return {
       user: {
@@ -57,7 +51,6 @@ export const signInWithGoogle = async (useRedirect = false): Promise<{ user: Fir
     
     // Handle redirect initiation
     if (authError.message === 'redirect_initiated') {
-      console.log('🔄 Redirect initiated successfully');
       throw authError;
     }
     
@@ -65,7 +58,6 @@ export const signInWithGoogle = async (useRedirect = false): Promise<{ user: Fir
     if (authError.code === 'auth/popup-blocked' || 
         authError.message?.includes('Cross-Origin-Opener-Policy') ||
         authError.message?.includes('window.closed')) {
-      console.log('🔄 Popup blocked, falling back to redirect method...');
       return signInWithGoogle(true); // Retry with redirect
     }
     

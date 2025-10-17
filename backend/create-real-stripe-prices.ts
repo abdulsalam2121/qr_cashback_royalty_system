@@ -6,7 +6,6 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06
 
 async function createRealStripeProductsAndPrices() {
   try {
-    console.log('🚀 Creating real Stripe products and prices for 2-tier system...');
 
     // Create a product for our Premium plan (Free trial doesn't need Stripe product)
     const product = await stripe.products.create({
@@ -14,7 +13,6 @@ async function createRealStripeProductsAndPrices() {
       description: 'Unlimited card activations and full features for QR cashback loyalty system',
     });
 
-    console.log(`✅ Created product: ${product.id}`);
 
     // Get only Premium plan from database (Free trial doesn't need Stripe price)
     const premiumPlan = await prisma.plan.findFirst({
@@ -25,7 +23,6 @@ async function createRealStripeProductsAndPrices() {
     });
 
     if (!premiumPlan) {
-      console.log('❌ Premium plan not found in database. Please run the seed script first.');
       process.exit(1);
     }
 
@@ -41,7 +38,6 @@ async function createRealStripeProductsAndPrices() {
         nickname: `${premiumPlan.name} Monthly`,
       });
 
-      console.log(`✅ Created price for ${premiumPlan.name}: ${price.id} ($${premiumPlan.priceMonthly / 100}/month)`);
 
       // Update the Premium plan in database
       await prisma.plan.update({
@@ -49,12 +45,10 @@ async function createRealStripeProductsAndPrices() {
         data: { stripePriceId: price.id }
       });
 
-      console.log(`✅ Updated plan ${premiumPlan.name} with price ID: ${price.id}`);
     } catch (error: any) {
       console.error(`❌ Failed to create price for ${premiumPlan.name}:`, error.message);
     }
 
-    console.log('\n🎉 All done! Updated plans:');
     const updatedPlans = await prisma.plan.findMany({
       where: { isActive: true },
       select: { name: true, priceMonthly: true, stripePriceId: true }
@@ -62,9 +56,7 @@ async function createRealStripeProductsAndPrices() {
 
     updatedPlans.forEach(plan => {
       if (plan.name === 'Free Trial') {
-        console.log(`- ${plan.name}: Free (no Stripe price needed) -> ${plan.stripePriceId}`);
       } else {
-        console.log(`- ${plan.name}: $${plan.priceMonthly / 100}/month -> ${plan.stripePriceId}`);
       }
     });
 
@@ -77,13 +69,11 @@ async function createRealStripeProductsAndPrices() {
 
 // Check if Stripe is configured
 if (!process.env.STRIPE_SECRET_KEY) {
-  console.log('❌ STRIPE_SECRET_KEY not found. Using demo prices.');
   process.exit(1);
 }
 
 if (process.env.STRIPE_SECRET_KEY.startsWith('sk_test_') || process.env.STRIPE_SECRET_KEY.startsWith('sk_live_')) {
   createRealStripeProductsAndPrices();
 } else {
-  console.log('❌ Invalid Stripe secret key format. Using demo prices.');
   process.exit(1);
 }

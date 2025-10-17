@@ -43,8 +43,6 @@ export default function CustomerLogin() {
     try {
       const endpoint = loginMethod === 'qr' ? '/api/customer-auth/qr-login' : '/api/customer-auth/manual-login';
       
-      console.log(`Attempting login with UID: ${uid}, method: ${loginMethod}`);
-      console.log(`API endpoint: ${endpoint}`);
       
       const tenantSlug = new URLSearchParams(window.location.search).get('tenant');
       
@@ -57,7 +55,6 @@ export default function CustomerLogin() {
         requestBody.tenantSlug = tenantSlug;
       }
       
-      console.log(`Request body:`, requestBody);
       
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -67,8 +64,6 @@ export default function CustomerLogin() {
         body: JSON.stringify(requestBody),
       });
 
-      console.log(`Response status: ${response.status}`);
-      console.log(`Response headers:`, response.headers);
 
       // Check if response is actually JSON
       const contentType = response.headers.get('content-type');
@@ -78,7 +73,6 @@ export default function CustomerLogin() {
       }
 
       const responseText = await response.text();
-      console.log(`Response text:`, responseText);
 
       if (!responseText.trim()) {
         throw new Error('Server returned empty response');
