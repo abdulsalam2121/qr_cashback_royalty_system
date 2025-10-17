@@ -332,11 +332,11 @@ export default function CustomerDashboard() {
           <div className="space-y-8">
             {/* Balance Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="bg-gradient-to-br from-green-400 to-green-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300">
+              <div className="card-hover-effect bg-gradient-to-br from-green-400 to-green-600 rounded-2xl shadow-xl p-6 text-white">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-green-100 text-sm font-medium">Current Balance</p>
-                    <p className="text-3xl font-bold mt-2">
+                    <p className="text-3xl font-bold mt-2 bounce-in">
                       {formatCurrency(dashboardData.stats.currentBalanceCents)}
                     </p>
                   </div>
@@ -348,17 +348,17 @@ export default function CustomerDashboard() {
                 </div>
                 <div className="mt-4 flex items-center">
                   <div className="w-full bg-white/20 rounded-full h-2">
-                    <div className="bg-white h-2 rounded-full" style={{width: '75%'}}></div>
+                    <div className="bg-white h-2 rounded-full shimmer" style={{width: '75%'}}></div>
                   </div>
                   <span className="ml-2 text-xs">75%</span>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300">
+              <div className="card-hover-effect bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl shadow-xl p-6 text-white">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-blue-100 text-sm font-medium">Total Earned</p>
-                    <p className="text-3xl font-bold mt-2">
+                    <p className="text-3xl font-bold mt-2 bounce-in">
                       {formatCurrency(dashboardData.stats.totalEarnedCents)}
                     </p>
                   </div>
@@ -373,11 +373,11 @@ export default function CustomerDashboard() {
                 </p>
               </div>
 
-              <div className="bg-gradient-to-br from-purple-400 to-purple-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300">
+              <div className="card-hover-effect bg-gradient-to-br from-purple-400 to-purple-600 rounded-2xl shadow-xl p-6 text-white">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-purple-100 text-sm font-medium">Total Redeemed</p>
-                    <p className="text-3xl font-bold mt-2">
+                    <p className="text-3xl font-bold mt-2 bounce-in">
                       {formatCurrency(dashboardData.stats.totalRedeemedCents)}
                     </p>
                   </div>
@@ -520,10 +520,9 @@ export default function CustomerDashboard() {
                   {dashboardData.transactions.map((transaction, index) => (
                     <div
                       key={transaction.id}
-                      className="flex items-center space-x-4 p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-all duration-200 hover:shadow-md"
+                      className={`flex items-center space-x-4 p-4 rounded-xl bg-gray-50 hover:bg-gray-100 smooth-transition hover:shadow-md fade-in-up`}
                       style={{
-                        animationDelay: `${index * 0.1}s`,
-                        animation: 'fadeInUp 0.5s ease-out forwards'
+                        animationDelay: `${index * 0.1}s`
                       }}
                     >
                       {getTransactionIcon(transaction.type)}
@@ -575,20 +574,6 @@ export default function CustomerDashboard() {
           </div>
         )}
       </div>
-
-      {/* Add custom CSS for animations */}
-      <style jsx>{`
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
     </div>
   );
 }
