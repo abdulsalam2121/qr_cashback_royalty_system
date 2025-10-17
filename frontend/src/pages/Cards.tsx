@@ -72,6 +72,7 @@ const Cards: React.FC = () => {
     limitType = 'subscription';
     isLimitReached = remainingCards <= 0;
     
+    console.log('📊 Subscription card limits:', {
       used: subscriptionInfo.cardsUsed,
       limit: subscriptionInfo.cardLimit,
       remaining: remainingCards,
@@ -84,6 +85,7 @@ const Cards: React.FC = () => {
       currentCardCount >= tenant.freeTrialLimit &&
       tenant.subscriptionStatus !== 'ACTIVE';
       
+    console.log('🎯 Trial card limits:', {
       currentCards: currentCardCount,
       trialLimit,
       remaining: remainingCards

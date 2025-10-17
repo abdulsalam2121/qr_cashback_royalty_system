@@ -37,14 +37,12 @@ export async function sendNotification(customerId, templateName, variables, tena
         });
         if (!customer || !customer.phone) {
             if (process.env.NODE_ENV !== 'production') {
-                
             }
             return;
         }
         const template = templates[templateName][preferredChannel];
         if (!template) {
             if (process.env.NODE_ENV !== 'production') {
-                
             }
             return;
         }
@@ -91,7 +89,6 @@ export async function sendNotification(customerId, templateName, variables, tena
                     }
                 });
                 if (process.env.NODE_ENV !== 'production') {
-                    
                 }
             }
             catch (twilioError) {
@@ -109,7 +106,6 @@ export async function sendNotification(customerId, templateName, variables, tena
         else {
             // Mock sending for development
             if (process.env.NODE_ENV !== 'production') {
-                
             }
             await prisma.notification.update({
                 where: { id: notification.id },

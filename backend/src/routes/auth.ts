@@ -410,12 +410,14 @@ router.post('/sync', verifyFirebaseToken, asyncHandler(async (req: FirebaseUserR
     });
 
     if (process.env.NODE_ENV !== 'production') {
+      console.log('Existing user found:', user ? {
         id: user.id,
         role: user.role,
         authProvider: (user as any).authProvider,
         hasTenant: !!user.tenantId
       } : 'No existing user found');
     }
+    
 
     if (user) {
       // Update existing user with Google auth provider
@@ -475,6 +477,7 @@ router.post('/sync', verifyFirebaseToken, asyncHandler(async (req: FirebaseUserR
         });
 
         if (process.env.NODE_ENV !== 'production') {
+          console.log('User upgraded to tenant_admin:', {
             id: user.id,
             role: user.role,
             hasTenant: !!user.tenantId,
@@ -541,6 +544,7 @@ router.post('/sync', verifyFirebaseToken, asyncHandler(async (req: FirebaseUserR
       });
 
       if (process.env.NODE_ENV !== 'production') {
+        console.log('Tenant created:', {
           slug: tenant.slug,
           name: tenant.name
         });
@@ -567,6 +571,7 @@ router.post('/sync', verifyFirebaseToken, asyncHandler(async (req: FirebaseUserR
       });
 
       if (process.env.NODE_ENV !== 'production') {
+        console.log('New user created:', {
           id: user.id,
           role: user.role,
           hasTenant: !!user.tenantId,
@@ -577,6 +582,7 @@ router.post('/sync', verifyFirebaseToken, asyncHandler(async (req: FirebaseUserR
       try {
         await initializeDefaultRules(tenant.id);
         if (process.env.NODE_ENV !== 'production') {
+          console.log('Default rules initialized for tenant:', tenant.id);
         }
       } catch (error) {
         console.error('Failed to initialize default rules for new Google user tenant:', error);

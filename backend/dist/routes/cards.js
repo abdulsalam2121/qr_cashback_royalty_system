@@ -66,14 +66,10 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
     const currentCardCount = await prisma.card.count({
         where: { tenantId }
     });
-    
-    
-    
     // Handle card limit validation based on subscription status
     if (tenant.subscriptionStatus === 'ACTIVE') {
         // For active subscriptions, use subscription card limits
         const cardsRemaining = Math.max(0, tenant.subscriptionCardLimit - tenant.subscriptionCardsUsed);
-        
         // Check if tenant is over their subscription limit (downgrade scenario)
         if (tenant.subscriptionCardsUsed > tenant.subscriptionCardLimit) {
             res.status(403).json({
@@ -107,7 +103,6 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
     }
     else {
         // For trial users or inactive subscriptions, check trial limits
-        
         if (currentCardCount + count > tenant.freeTrialLimit) {
             res.status(403).json({
                 error: 'Subscription required',
@@ -227,7 +222,6 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
                     createdBy: req.user?.id || 'system'
                 }
             });
-            
         }
         catch (error) {
             console.error('Failed to update subscription usage:', error);
@@ -243,7 +237,6 @@ router.post('/batch', auth, rbac(['tenant_admin']), validate(createBatchSchema),
                     freeTrialCardsCreated: { increment: count }
                 }
             });
-            
         }
         catch (error) {
             console.error('Failed to update trial usage:', error);
@@ -326,7 +319,6 @@ router.get('/', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req
 router.get('/lookup/:cardUid', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req, res) => {
     const { cardUid } = req.params;
     const { tenantId } = req.user;
-    
     const card = await prisma.card.findUnique({
         where: { cardUid },
         include: {
@@ -353,12 +345,19 @@ router.get('/lookup/:cardUid', auth, rbac(['tenant_admin', 'cashier']), asyncHan
     }
     // Verify card belongs to the same tenant
     if (card.tenantId !== tenantId) {
-        
+        console.log('Tenant mismatch:', {
+            cardTenantId: card.tenantId,
+            userTenantId: tenantId
+        });
         res.status(403).json({ error: 'Unauthorized - card belongs to different tenant' });
         return;
     }
     // Always return full card info for POS operations by cashiers/admins
-    
+    console.log('POS Card lookup:', {
+        cardUid: card.cardUid,
+        hasCustomer: !!card.customer,
+        customerName: card.customer ? `${card.customer.firstName} ${card.customer.lastName}` : null
+    });
     res.json({
         ...card,
         storeName: card.store?.name || null
@@ -367,9 +366,11 @@ router.get('/lookup/:cardUid', auth, rbac(['tenant_admin', 'cashier']), asyncHan
 // Get card by UID
 router.get('/:cardUid', auth, asyncHandler(async (req, res) => {
     const { cardUid } = req.params;
-    
-    
-    
+    console.log('Card lookup request from user:', req.user ? {
+        id: req.user.userId,
+        role: req.user.role,
+        tenantId: req.user.tenantId
+    } : 'No user (unauthenticated)');
     let card = await prisma.card.findUnique({
         where: { cardUid },
         include: {
@@ -390,7 +391,13 @@ router.get('/:cardUid', auth, asyncHandler(async (req, res) => {
             },
         },
     });
-    
+    console.log('Card found:', card ? {
+        cardUid: card.cardUid,
+        status: card.status,
+        customerId: card.customerId,
+        hasCustomer: !!card.customer,
+        customerName: card.customer ? `${card.customer.firstName} ${card.customer.lastName}` : null
+    } : 'No card found');
     if (!card) {
         res.status(404).json({ error: 'Card not found' });
         return;
@@ -425,10 +432,20 @@ router.get('/:cardUid', auth, asyncHandler(async (req, res) => {
     else {
         authFailReason = 'User not authenticated';
     }
-    
+    console.log('Card access debug:', {
+        isAuthenticated,
+        isAuthorized,
+        authFailReason,
+        userRole: req.user?.role,
+        userTenantId: req.user?.tenantId,
+        cardTenantId: card.tenantId,
+        tenantMatch: isAuthenticated ? card.tenantId === req.user?.tenantId : false,
+        cardUid: card.cardUid,
+        hasCustomer: !!card.customer,
+        customerName: card.customer ? `${card.customer.firstName} ${card.customer.lastName}` : null
+    });
     // Return limited info for unauthenticated requests
     if (!isAuthenticated) {
-        
         res.json({
             cardUid: card.cardUid,
             status: card.status,
@@ -443,7 +460,6 @@ router.get('/:cardUid', auth, asyncHandler(async (req, res) => {
     }
     // Return full info for authorized requests
     if (isAuthorized) {
-        
         res.json({
             ...card,
             storeName: card.store?.name || null
@@ -451,7 +467,6 @@ router.get('/:cardUid', auth, asyncHandler(async (req, res) => {
         return;
     }
     else {
-        
         res.status(403).json({
             error: 'Unauthorized',
             message: authFailReason,

@@ -7,7 +7,6 @@ import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
 import pino from 'pino';
 // START DEBUG - This should show up in logs if deployed correctly
-
 import authRoutes from './routes/auth.js';
 import cardRoutes from './routes/cards.js';
 import publicCardRoutes from './routes/publicCards.js';
@@ -33,7 +32,6 @@ import { customerAuthLimiter, customerAPILimiter } from './middleware/customerSe
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 // Debug: Check if cardPrintOrderRoutes is loaded correctly
-
 const app = express();
 const prisma = new PrismaClient();
 const logger = pino();
@@ -94,7 +92,6 @@ app.use(cookieParser());
 app.use(requestLogger);
 // Debug middleware to log all requests
 app.use((req, res, next) => {
-    
     next();
 });
 // Health check endpoint
@@ -133,11 +130,9 @@ app.use('/api/cards', publicCardRoutes);
 app.use('/api/customer-auth', customerAuthLimiter, customerAuthRoutes);
 app.use('/api/customer', customerAPILimiter, customerDashboardRoutes);
 // Tenant-scoped routes (must come before /api/t to avoid conflicts)
-
 app.use('/api/t/:tenantSlug/cards', cardRoutes);
 app.use('/api/t/:tenantSlug/customers', customerRoutes);
 app.use('/api/t/:tenantSlug/transactions', transactionRoutes);
-
 app.use('/api/t/:tenantSlug/purchase-transactions', purchaseTransactionRoutes);
 app.use('/api/t/:tenantSlug/rules', rulesRoutes);
 app.use('/api/t/:tenantSlug/reports', reportRoutes);
@@ -146,7 +141,6 @@ app.use('/api/t/:tenantSlug/stores', storeRoutes);
 app.use('/api/t/:tenantSlug/users', userRoutes);
 app.use('/api/t/:tenantSlug/trial', trialRoutes);
 app.use('/api/t/:tenantSlug/card-orders', cardOrderRoutes);
-
 app.use('/api/t/:tenantSlug/card-print-orders', cardPrintOrderRoutes);
 // General tenant routes (must come after specific tenant-scoped routes)
 app.use('/api/t', tenantRoutes);
@@ -168,8 +162,6 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     logger.info(`🚀 Server running on port ${PORT}`);
     logger.info(`📊 Health check available at http://localhost:${PORT}/healthz`);
-    
-    
 });
 export default app;
 //# sourceMappingURL=index.js.map

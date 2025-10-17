@@ -387,6 +387,7 @@ router.get('/lookup/:cardUid', auth, rbac(['tenant_admin', 'cashier']), asyncHan
 
   // Verify card belongs to the same tenant
   if (card.tenantId !== tenantId) {
+    console.log('Tenant mismatch:', {
       cardTenantId: card.tenantId,
       userTenantId: tenantId
     });
@@ -395,6 +396,7 @@ router.get('/lookup/:cardUid', auth, rbac(['tenant_admin', 'cashier']), asyncHan
   }
 
   // Always return full card info for POS operations by cashiers/admins
+  console.log('POS Card lookup:', {
     cardUid: card.cardUid,
     hasCustomer: !!card.customer,
     customerName: card.customer ? `${card.customer.firstName} ${card.customer.lastName}` : null
@@ -410,6 +412,7 @@ router.get('/lookup/:cardUid', auth, rbac(['tenant_admin', 'cashier']), asyncHan
 router.get('/:cardUid', auth, asyncHandler(async (req: Request, res: Response) => {
   const { cardUid } = req.params as { cardUid: string };
 
+  console.log('Card lookup request from user:', req.user ? {
     id: req.user.userId,
     role: req.user.role,
     tenantId: req.user.tenantId
@@ -436,6 +439,7 @@ router.get('/:cardUid', auth, asyncHandler(async (req: Request, res: Response) =
     },
   });
 
+  console.log('Card found:', card ? {
     cardUid: card.cardUid,
     status: card.status,
     customerId: card.customerId,
@@ -477,6 +481,7 @@ router.get('/:cardUid', auth, asyncHandler(async (req: Request, res: Response) =
     authFailReason = 'User not authenticated';
   }
 
+  console.log('Card access debug:', {
     isAuthenticated,
     isAuthorized,
     authFailReason,

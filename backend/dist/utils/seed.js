@@ -2,11 +2,9 @@ import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 async function main() {
-    
     // ------------------------------------------------------------
     // 1) CREATE DEFAULT PLANS
     // ------------------------------------------------------------
-    
     const plans = [
         {
             name: 'Starter Plan',
@@ -60,16 +58,13 @@ async function main() {
             await prisma.plan.create({
                 data: planData
             });
-            
         }
         else {
-            
         }
     }
     // ------------------------------------------------------------
     // 2) PLATFORM TENANT (for platform_admin user attachment)
     // ------------------------------------------------------------
-    
     const platformTenant = await prisma.tenant.upsert({
         where: { slug: 'platform' },
         update: {},
@@ -80,11 +75,9 @@ async function main() {
             planId: null,
         },
     });
-    
     // ------------------------------------------------------------
     // 3) PLATFORM ADMIN USER
     // ------------------------------------------------------------
-    
     const platformAdmin = await prisma.user.upsert({
         where: { email: 'admin@platform.com' },
         update: {},
@@ -97,11 +90,9 @@ async function main() {
             tenantId: platformTenant.id,
         },
     });
-    
     // ------------------------------------------------------------
     // 4) DEMO TENANT (ACTIVE SUBSCRIPTION)
     // ------------------------------------------------------------
-    
     const demoTenant = await prisma.tenant.upsert({
         where: { slug: 'demo-store' },
         update: {},
@@ -117,7 +108,6 @@ async function main() {
             freeTrialLimit: 50,
         },
     });
-    
     // Create demo store location
     const demoStore = await prisma.store.upsert({
         where: { id: `${demoTenant.id}-main` },
@@ -130,7 +120,6 @@ async function main() {
             active: true,
         },
     });
-    
     // Create demo tenant admin
     const demoAdmin = await prisma.user.upsert({
         where: { email: 'admin@demo.com' },
@@ -144,7 +133,6 @@ async function main() {
             tenantId: demoTenant.id,
         },
     });
-    
     // Create demo cashier
     const demoCashier = await prisma.user.upsert({
         where: { email: 'cashier@demo.com' },
@@ -159,7 +147,6 @@ async function main() {
             storeId: demoStore.id,
         },
     });
-    
     // Create demo customer
     const demoCustomer = await prisma.customer.upsert({
         where: { email: 'customer@demo.com' },
@@ -174,11 +161,9 @@ async function main() {
             totalSpend: new Prisma.Decimal(150.00),
         },
     });
-    
     // ------------------------------------------------------------
     // 5) DEFAULT CASHBACK AND TIER RULES
     // ------------------------------------------------------------
-    
     // Create default tier rules
     const tierRules = [
         { tier: 'SILVER', name: 'Silver Tier', minTotalSpendCents: 0, baseRateBps: 200 },
@@ -202,7 +187,6 @@ async function main() {
                     baseRateBps: ruleData.baseRateBps,
                 }
             });
-            
         }
     }
     // Create default cashback rules
@@ -227,13 +211,11 @@ async function main() {
                     isActive: true,
                 }
             });
-            
         }
     }
     // ------------------------------------------------------------
     // 6) SAMPLE DATA FOR DEMO
     // ------------------------------------------------------------
-    
     // Create a sample card for the demo customer
     const { nanoid } = await import('nanoid');
     const jwt = await import('jsonwebtoken');
@@ -254,7 +236,6 @@ async function main() {
             activatedAt: new Date(),
         },
     });
-    
     // Create sample transactions
     const sampleTransactions = [
         {
@@ -304,21 +285,12 @@ async function main() {
             },
         });
         currentBalance = afterBalance;
-        
     }
     // Update card balance to match final transaction state
     await prisma.card.update({
         where: { id: demoCard.id },
         data: { balanceCents: 2720 } // Final calculated balance
     });
-    
-    
-    
-    
-    
-    
-    
-    
     // Continue with more seed data
     const card1 = await prisma.card.upsert({
         where: { cardUid: 'CARD-ALPHA-001' },
@@ -446,7 +418,6 @@ async function main() {
             },
         });
     }
-    
 }
 main()
     .then(async () => {

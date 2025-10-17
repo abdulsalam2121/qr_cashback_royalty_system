@@ -157,6 +157,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }
 
+      console.log('🔄 Auth refresh successful:', {
         userId: data?.user?.id,
         email: data?.user?.email,
         role: data?.role,

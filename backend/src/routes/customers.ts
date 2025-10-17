@@ -212,16 +212,19 @@ router.get('/available', auth, asyncHandler(async (req: Request, res: Response) 
   // Filter customers who have NO cards at all (completely new customers only)
   const availableCustomers = customers.filter(customer => {
     if (process.env.NODE_ENV !== 'production') {
+      console.log(`Checking customer ${customer.firstName} ${customer.lastName}: ${customer.cards.length} cards`);
     }
     
     // Only available if customer has absolutely no cards
     if (customer.cards.length === 0) {
       if (process.env.NODE_ENV !== 'production') {
+        console.log(`Customer ${customer.firstName} ${customer.lastName} is available (no cards)`);
       }
       return true;
     } else {
       return false;
     }
+  });
 
   res.json({
     customers: availableCustomers.map(customer => ({

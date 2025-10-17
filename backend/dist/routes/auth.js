@@ -344,18 +344,21 @@ router.post('/sync', verifyFirebaseToken, asyncHandler(async (req, res) => {
             },
         });
         if (process.env.NODE_ENV !== 'production') {
-            
+            console.log('Existing user found:', user ? {
+                id: user.id,
+                role: user.role,
+                authProvider: user.authProvider,
+                hasTenant: !!user.tenantId
+            } : 'No existing user found');
         }
         if (user) {
             // Update existing user with Google auth provider
             if (process.env.NODE_ENV !== 'production') {
-                
             }
             // Special case: If the user is currently a 'customer' but signing up with Google,
             // they should be upgraded to 'tenant_admin' and get their own tenant
             if (user.role === 'customer' && user.authProvider !== 'google') {
                 if (process.env.NODE_ENV !== 'production') {
-                    
                 }
                 // Generate unique slug for new tenant
                 const firstName = firebaseUser.name?.split(' ')[0] || firebaseUser.displayName?.split(' ')[0] || user.firstName || 'User';
@@ -368,7 +371,6 @@ router.post('/sync', verifyFirebaseToken, asyncHandler(async (req, res) => {
                     slug = `${baseSlug}-${counter}`;
                     counter++;
                 }
-                
                 // Create a new tenant for the upgraded user
                 const tenant = await prisma.tenant.create({
                     data: {
@@ -399,13 +401,16 @@ router.post('/sync', verifyFirebaseToken, asyncHandler(async (req, res) => {
                     },
                 });
                 if (process.env.NODE_ENV !== 'production') {
-                    
+                    console.log('User upgraded to tenant_admin:', {
+                        id: user.id,
+                        role: user.role,
+                        hasTenant: !!user.tenantId,
+                    });
                 }
                 // Initialize default rules for the new tenant
                 try {
                     await initializeDefaultRules(tenant.id);
                     if (process.env.NODE_ENV !== 'production') {
-                        
                     }
                 }
                 catch (error) {
@@ -433,7 +438,6 @@ router.post('/sync', verifyFirebaseToken, asyncHandler(async (req, res) => {
             // For new Google users, create them as tenant admins with their own tenant
             // Similar to the signup process
             if (process.env.NODE_ENV !== 'production') {
-                
             }
             const firstName = firebaseUser.name?.split(' ')[0] || firebaseUser.displayName?.split(' ')[0] || 'User';
             const lastName = firebaseUser.name?.split(' ').slice(1).join(' ') || firebaseUser.displayName?.split(' ').slice(1).join(' ') || '';
@@ -447,7 +451,6 @@ router.post('/sync', verifyFirebaseToken, asyncHandler(async (req, res) => {
                 counter++;
             }
             if (process.env.NODE_ENV !== 'production') {
-                
             }
             // Create a tenant for the new Google user with trial settings
             const tenant = await prisma.tenant.create({
@@ -461,7 +464,10 @@ router.post('/sync', verifyFirebaseToken, asyncHandler(async (req, res) => {
                 },
             });
             if (process.env.NODE_ENV !== 'production') {
-                
+                console.log('Tenant created:', {
+                    slug: tenant.slug,
+                    name: tenant.name
+                });
             }
             // Create new user as tenant admin (store owner)
             user = await prisma.user.create({
@@ -483,13 +489,17 @@ router.post('/sync', verifyFirebaseToken, asyncHandler(async (req, res) => {
                 },
             });
             if (process.env.NODE_ENV !== 'production') {
-                
+                console.log('New user created:', {
+                    id: user.id,
+                    role: user.role,
+                    hasTenant: !!user.tenantId,
+                });
             }
             // Initialize default cashback rules and tier rules for the new tenant
             try {
                 await initializeDefaultRules(tenant.id);
                 if (process.env.NODE_ENV !== 'production') {
-                    
+                    console.log('Default rules initialized for tenant:', tenant.id);
                 }
             }
             catch (error) {

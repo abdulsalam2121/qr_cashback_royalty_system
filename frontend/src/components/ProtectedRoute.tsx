@@ -41,6 +41,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Debug logging (only in development and without sensitive data)
   if (import.meta.env.DEV) {
+    console.log('🛡️ ProtectedRoute state:', {
       loading,
       authenticated,
       hasUser: !!currentUser,

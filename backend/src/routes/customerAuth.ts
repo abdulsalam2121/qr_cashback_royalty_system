@@ -174,6 +174,7 @@ router.post('/qr-login', validate(qrLoginSchema), asyncHandler(async (req: Reque
 router.post('/manual-login', validate(manualLoginSchema), asyncHandler(async (req: Request, res: Response) => {
   const { cardUid, tenantSlug } = req.body;
 
+  console.log('Customer auth request:', {
     cardUid: cardUid,
     tenantSlug: tenantSlug,
     body: req.body

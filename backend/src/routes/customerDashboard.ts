@@ -281,6 +281,7 @@ asyncHandler(async (req: Request & { customer?: any }, res: Response) => {
       description: `Add $${(amountCents / 100).toFixed(2)} to ${tenant.name} loyalty card`
     });
 
+    console.log('Payment intent created:', {
       id: paymentIntent.id,
       amount: paymentIntent.amount,
       metadata: paymentIntent.metadata,
