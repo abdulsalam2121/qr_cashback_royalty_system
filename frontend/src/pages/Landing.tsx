@@ -175,7 +175,16 @@ const Landing: React.FC = () => {
                 to="/login"
                 className="text-gray-600 hover:text-gray-900 font-medium transition-all duration-300 hover:scale-105"
               >
-                Sign In
+                Business Login
+              </Link>
+              <Link
+                to="/customer/login"
+                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:shadow-lg transition-all duration-300 transform hover:scale-105 shadow-sm font-medium flex items-center space-x-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+                <span>Customer Login</span>
               </Link>
               <Link
                 to="/signup"
@@ -538,6 +547,95 @@ const Landing: React.FC = () => {
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Customer Section */}
+      <section className="py-16 px-6 lg:px-8 bg-gradient-to-br from-emerald-50 to-teal-50 relative overflow-hidden">
+        {/* Background Elements */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-200/30 to-teal-200/30 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-green-200/30 to-emerald-200/30 rounded-full blur-3xl"></div>
+        
+        <div className="max-w-6xl mx-auto relative z-10">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center space-x-2 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-full text-sm font-medium mb-6 border border-emerald-200">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" clipRule="evenodd"/>
+              </svg>
+              <span>For Customers</span>
+            </div>
+            <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6">
+              Already Have a Loyalty Card?
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Access your loyalty rewards, check your balance, and track your cashback earnings with our easy-to-use customer portal.
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div className="space-y-8">
+              <div className="flex items-start space-x-4">
+                <div className="flex-shrink-0 w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Check Your Balance</h3>
+                  <p className="text-gray-600">View your current loyalty points and cashback balance in real-time</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-4">
+                <div className="flex-shrink-0 w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Transaction History</h3>
+                  <p className="text-gray-600">See all your purchases, earnings, and redemptions in one place</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-4">
+                <div className="flex-shrink-0 w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Instant Updates</h3>
+                  <p className="text-gray-600">Get notified immediately when you earn or redeem rewards</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-center lg:text-left">
+              <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd"/>
+                    </svg>
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Customer Portal</h3>
+                  <p className="text-gray-600 mb-6">Login to access your loyalty account and manage your rewards</p>
+                </div>
+                
+                <Link
+                  to="/customer/login"
+                  className="block w-full px-8 py-4 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl text-lg font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105 mb-4"
+                >
+                  Access Your Account
+                </Link>
+                
+                <p className="text-sm text-gray-500">
+                  Enter your card number or QR code to login
+                </p>
               </div>
             </div>
           </div>
