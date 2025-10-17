@@ -275,7 +275,7 @@ export default function CustomerDashboard() {
               />
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Welcome back, {dashboardData.customer.firstName}! 👋
+                  Welcome back, {dashboardData.customer.firstName}!
                 </h1>
                 <p className="text-sm text-gray-500 flex items-center space-x-2">
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
