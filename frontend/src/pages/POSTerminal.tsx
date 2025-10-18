@@ -41,10 +41,41 @@ const POSTerminal: React.FC = () => {
     phone: '',
   });
   
+  // Partial payment with card balance
+  const [useCardBalance, setUseCardBalance] = useState(false);
+  const [balanceToUse, setBalanceToUse] = useState('');
+  
   // Check subscription status
   const isSubscriptionActive = tenant?.subscriptionStatus === 'ACTIVE' || 
     tenant?.subscriptionStatus === 'TRIALING' ||
     (tenant?.subscriptionStatus === 'PAST_DUE' && tenant?.graceEndsAt && new Date(tenant.graceEndsAt) > new Date());
+
+  // Helper functions for partial payment calculations
+  const getAvailableBalance = () => {
+    return scannedCard?.balanceCents || 0;
+  };
+
+  const getBalanceToUseCents = () => {
+    if (!useCardBalance || !balanceToUse) return 0;
+    return Math.round(parseFloat(balanceToUse) * 100);
+  };
+
+  const getTotalAmountCents = () => {
+    if (!amount) return 0;
+    return Math.round(parseFloat(amount) * 100);
+  };
+
+  const getRemainingAmountCents = () => {
+    const totalCents = getTotalAmountCents();
+    const balanceUsedCents = getBalanceToUseCents();
+    return Math.max(0, totalCents - balanceUsedCents);
+  };
+
+  const canUseFullBalance = () => {
+    const totalCents = getTotalAmountCents();
+    const availableBalance = getAvailableBalance();
+    return availableBalance >= totalCents;
+  };
 
   useEffect(() => {
     return () => {
@@ -217,6 +248,52 @@ const POSTerminal: React.FC = () => {
       return;
     }
 
+    // Validate balance usage if enabled
+    if (useCardBalance) {
+      if (!scannedCard) {
+        setMessage({
+          type: 'error',
+          text: 'Card must be scanned to use balance'
+        });
+        return;
+      }
+
+      const balanceUsedCents = getBalanceToUseCents();
+      const availableBalance = getAvailableBalance();
+      
+      if (balanceUsedCents <= 0) {
+        setMessage({
+          type: 'error',
+          text: 'Please enter a valid amount to use from balance'
+        });
+        return;
+      }
+
+      if (balanceUsedCents > availableBalance) {
+        setMessage({
+          type: 'error',
+          text: 'Amount exceeds available balance'
+        });
+        return;
+      }
+
+      const totalCents = getTotalAmountCents();
+      if (balanceUsedCents > totalCents) {
+        setMessage({
+          type: 'error',
+          text: 'Balance amount cannot exceed total purchase amount'
+        });
+        return;
+      }
+
+      // If using full balance and no remaining amount, no other payment method needed
+      const remainingCents = getRemainingAmountCents();
+      if (remainingCents === 0) {
+        // Full payment with balance - set to a special payment method
+        // We'll handle this in the backend as a balance-only transaction
+      }
+    }
+
     setLoading(true);
     setMessage(null);
     setPaymentUrl(null);
@@ -230,6 +307,13 @@ const POSTerminal: React.FC = () => {
         description: description || undefined,
         paymentMethod,
       };
+
+      // Add partial payment information if using balance
+      if (useCardBalance && getBalanceToUseCents() > 0) {
+        data.useCardBalance = true;
+        data.balanceUsedCents = getBalanceToUseCents();
+        data.remainingAmountCents = getRemainingAmountCents();
+      }
 
       // Add card if scanned
       if (scannedCard) {
@@ -275,19 +359,47 @@ const POSTerminal: React.FC = () => {
           });
         } else {
           // For CASH payments - they are completed immediately
+          let successMessage = '';
+          
+          if (useCardBalance && getBalanceToUseCents() > 0) {
+            const balanceUsed = getBalanceToUseCents() / 100;
+            const remainingAmount = getRemainingAmountCents() / 100;
+            
+            if (remainingAmount === 0) {
+              successMessage = `Transaction completed using card balance! Balance used: ${formatCurrency(balanceUsed)}`;
+            } else {
+              successMessage = `Partial payment completed! Balance used: ${formatCurrency(balanceUsed)}, ${paymentMethod} payment: ${formatCurrency(remainingAmount)}`;
+            }
+          } else {
+            successMessage = `${paymentMethod} transaction completed successfully!`;
+          }
+
+          if (result.transaction.cashbackCents) {
+            successMessage += ` Cashback earned: ${formatCurrency(result.transaction.cashbackCents / 100)}`;
+          }
+
           setMessage({
             type: 'success',
-            text: `${paymentMethod} transaction completed successfully! ${
-              result.transaction.cashbackCents ? 
-              `Cashback earned: ${formatCurrency(result.transaction.cashbackCents / 100)}` : ''
-            }`
+            text: successMessage
           });
           
           // Update card balance if applicable
-          if (scannedCard && result.transaction.cashbackCents) {
+          if (scannedCard) {
+            let newBalance = scannedCard.balanceCents;
+            
+            // Subtract balance used for payment
+            if (useCardBalance && getBalanceToUseCents() > 0) {
+              newBalance -= getBalanceToUseCents();
+            }
+            
+            // Add cashback earned
+            if (result.transaction.cashbackCents) {
+              newBalance += result.transaction.cashbackCents;
+            }
+            
             setScannedCard(prev => prev ? {
               ...prev,
-              balanceCents: prev.balanceCents + result.transaction.cashbackCents
+              balanceCents: newBalance
             } : null);
           }
           
@@ -295,6 +407,8 @@ const POSTerminal: React.FC = () => {
           setTimeout(() => {
             setAmount('');
             setDescription('');
+            setUseCardBalance(false);
+            setBalanceToUse('');
             setCustomerInfo({ firstName: '', lastName: '', email: '', phone: '' });
           }, 1000);
         }
@@ -777,10 +891,106 @@ const POSTerminal: React.FC = () => {
                   </div>
                 )}
 
+                {/* Card Balance Usage - Only show if card is scanned and has balance */}
+                {scannedCard && scannedCard.balanceCents > 0 && (
+                  <div className="border border-gray-200 rounded-lg p-4 space-y-4">
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        id="useBalance"
+                        checked={useCardBalance}
+                        onChange={(e) => {
+                          setUseCardBalance(e.target.checked);
+                          if (!e.target.checked) {
+                            setBalanceToUse('');
+                          }
+                        }}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <label htmlFor="useBalance" className="text-sm font-medium text-gray-700">
+                        Use Card Balance for Payment
+                      </label>
+                    </div>
+                    
+                    {useCardBalance && (
+                      <div className="space-y-3">
+                        <div className="bg-blue-50 p-3 rounded-lg">
+                          <p className="text-sm text-blue-700">
+                            Available Balance: <span className="font-semibold">{formatCurrency(getAvailableBalance() / 100)}</span>
+                          </p>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Amount to Use from Balance ($)
+                          </label>
+                          <div className="space-y-2">
+                            <div className="relative">
+                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <DollarSign className="h-4 w-4 text-gray-400" />
+                              </div>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max={Math.min(getAvailableBalance() / 100, getTotalAmountCents() / 100)}
+                                value={balanceToUse}
+                                onChange={(e) => setBalanceToUse(e.target.value)}
+                                placeholder="0.00"
+                                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                            
+                            {/* Quick balance amount buttons */}
+                            <div className="flex space-x-2">
+                              {canUseFullBalance() && (
+                                <button
+                                  onClick={() => setBalanceToUse(amount)}
+                                  className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-full hover:bg-green-200 transition-colors"
+                                >
+                                  Use Full Amount
+                                </button>
+                              )}
+                              <button
+                                onClick={() => setBalanceToUse((getAvailableBalance() / 100).toFixed(2))}
+                                className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors"
+                              >
+                                Use All Balance
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Payment summary */}
+                        {balanceToUse && parseFloat(balanceToUse) > 0 && (
+                          <div className="bg-gray-50 p-3 rounded-lg space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span>Total Amount:</span>
+                              <span className="font-medium">{formatCurrency(getTotalAmountCents() / 100)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Using Balance:</span>
+                              <span className="font-medium text-green-600">-{formatCurrency(getBalanceToUseCents() / 100)}</span>
+                            </div>
+                            <div className="border-t pt-2">
+                              <div className="flex justify-between text-sm font-semibold">
+                                <span>Remaining to Pay:</span>
+                                <span className={getRemainingAmountCents() > 0 ? "text-orange-600" : "text-green-600"}>
+                                  {formatCurrency(getRemainingAmountCents() / 100)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Payment Method */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Payment Method
+                    {useCardBalance && getRemainingAmountCents() > 0 ? 'Payment Method for Remaining Amount' : 'Payment Method'}
                   </label>
                   <div className="grid grid-cols-3 gap-3">
                     <button

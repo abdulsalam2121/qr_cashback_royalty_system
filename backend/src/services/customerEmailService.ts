@@ -22,6 +22,10 @@ export interface CashbackEmailData {
   tenantName: string | null;
   timestamp: string;
   transactionId?: string;
+  // Partial payment fields
+  balanceUsed?: string;
+  remainingPaid?: string;
+  paymentMethod?: string;
 }
 
 export class CustomerEmailService {
@@ -185,9 +189,19 @@ export class CustomerEmailService {
                           <td style="padding: 8px 0; color: #6b7280;">${data.storeName}</td>
                         </tr>
                         <tr style="border-bottom: 1px solid #e5e7eb;">
-                          <td style="padding: 8px 0; font-weight: bold; color: #374151;">Purchase Amount:</td>
+                          <td style="padding: 8px 0; font-weight: bold; color: #374151;">Total Purchase:</td>
                           <td style="padding: 8px 0; color: #6b7280;">$${data.purchaseAmount}</td>
                         </tr>
+                        ${data.balanceUsed && parseFloat(data.balanceUsed) > 0 ? `
+                        <tr style="border-bottom: 1px solid #e5e7eb;">
+                          <td style="padding: 8px 0; font-weight: bold; color: #374151;">Paid with Balance:</td>
+                          <td style="padding: 8px 0; color: #f59e0b; font-weight: bold;">-$${data.balanceUsed}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #e5e7eb;">
+                          <td style="padding: 8px 0; font-weight: bold; color: #374151;">Paid with ${data.paymentMethod}:</td>
+                          <td style="padding: 8px 0; color: #6b7280;">$${data.remainingPaid}</td>
+                        </tr>
+                        ` : ''}
                         <tr style="border-bottom: 1px solid #e5e7eb;">
                           <td style="padding: 8px 0; font-weight: bold; color: #374151;">Cashback Earned:</td>
                           <td style="padding: 8px 0; color: #16a34a; font-weight: bold;">+$${data.cashbackAmount}</td>

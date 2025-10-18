@@ -31,6 +31,10 @@ const createPurchaseSchema = z.object({
     email: z.string().email().optional(),
     phone: z.string().optional(),
   }).optional(),
+  // Partial payment with card balance
+  useCardBalance: z.boolean().optional(),
+  balanceUsedCents: z.number().int().min(0).optional(),
+  remainingAmountCents: z.number().int().min(0).optional(),
 });
 
 const confirmPaymentSchema = z.object({
@@ -43,7 +47,19 @@ const paymentLinkSchema = z.object({
 
 // Create purchase transaction (with or without card)
 router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createPurchaseSchema), asyncHandler(async (req: Request, res: Response) => {
-  const { cardUid, customerId, amountCents, category, description, paymentMethod, customerInfo, storeId: requestedStoreId } = req.body;
+  const { 
+    cardUid, 
+    customerId, 
+    amountCents, 
+    category, 
+    description, 
+    paymentMethod, 
+    customerInfo, 
+    storeId: requestedStoreId,
+    useCardBalance = false,
+    balanceUsedCents = 0,
+    remainingAmountCents = 0
+  } = req.body;
   const { tenantId, userId: cashierId, storeId: userStoreId, role } = req.user;
 
   console.log('Purchase transaction request:', {
@@ -54,8 +70,29 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
     customerId,
     userRole: role,
     userStoreId,
-    requestedStoreId
+    requestedStoreId,
+    useCardBalance,
+    balanceUsedCents,
+    remainingAmountCents
   });
+
+  // Partial payment validation
+  if (useCardBalance) {
+    if (!cardUid) {
+      res.status(400).json({ error: 'Card UID required for balance payment' });
+      return;
+    }
+    
+    if (balanceUsedCents <= 0) {
+      res.status(400).json({ error: 'Balance used amount must be positive' });
+      return;
+    }
+    
+    if (balanceUsedCents + remainingAmountCents !== amountCents) {
+      res.status(400).json({ error: 'Balance used + remaining amount must equal total amount' });
+      return;
+    }
+  }
 
   // Determine which store to use for the transaction
   let transactionStoreId = userStoreId;
@@ -131,6 +168,13 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
 
       customer = card.customer;
 
+      // Validate balance usage if partial payment
+      if (useCardBalance) {
+        if (balanceUsedCents > card.balanceCents) {
+          throw new Error(`Insufficient balance. Available: ${card.balanceCents / 100}, Requested: ${balanceUsedCents / 100}`);
+        }
+      }
+
       // Calculate cashback for card-based purchases
       cashbackCents = await calculateCashback(
         amountCents,
@@ -201,14 +245,14 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
         cashierId,
         cardUid,
         paymentMethod: paymentMethod as PaymentMethod,
-        paymentStatus: paymentMethod === 'CASH' ? 'COMPLETED' as PaymentStatus : 'PENDING' as PaymentStatus,
+        paymentStatus: (paymentMethod === 'CASH' || (useCardBalance && remainingAmountCents === 0)) ? 'COMPLETED' as PaymentStatus : 'PENDING' as PaymentStatus,
         amountCents,
         cashbackCents,
         category: category as TxCategory,
         description,
         paymentLinkId,
         paymentLinkExpiry,
-        paidAt: paymentMethod === 'CASH' ? new Date() : null,
+        paidAt: (paymentMethod === 'CASH' || (useCardBalance && remainingAmountCents === 0)) ? new Date() : null,
       },
       include: {
         store: { select: { name: true } },
@@ -218,10 +262,21 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
       }
     });
 
-    // If CASH payment, process cashback immediately
-    if (paymentMethod === 'CASH' && card && customer && cashbackCents > 0) {
+    // If CASH payment or partial payment with balance, process immediately
+    if ((paymentMethod === 'CASH' || useCardBalance) && card && customer) {
+      let newBalance = card.balanceCents;
+      
+      // Deduct balance used for payment
+      if (useCardBalance && balanceUsedCents > 0) {
+        newBalance -= balanceUsedCents;
+      }
+      
+      // Add cashback earned
+      if (cashbackCents > 0) {
+        newBalance += cashbackCents;
+      }
+      
       // Update card balance
-      const newBalance = card.balanceCents + cashbackCents;
       await tx.card.update({
         where: { id: card.id },
         data: { balanceCents: newBalance }
@@ -234,24 +289,47 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
         data: { totalSpend: newTotalSpend }
       });
 
-      // Create traditional cashback transaction record
-      await tx.transaction.create({
-        data: {
-          tenantId,
-          storeId: transactionStoreId,
-          cardId: card.id,
-          customerId: customer.id,
-          cashierId,
-          type: 'EARN',
-          category: category as TxCategory,
-          amountCents,
-          cashbackCents,
-          beforeBalanceCents: card.balanceCents,
-          afterBalanceCents: newBalance,
-          note: `Purchase transaction: ${purchaseTransaction.id}`,
-          sourceIp: req.ip || null,
-        }
-      });
+      // Create transaction record for balance usage (if applicable)
+      if (useCardBalance && balanceUsedCents > 0) {
+        await tx.transaction.create({
+          data: {
+            tenantId,
+            storeId: transactionStoreId,
+            cardId: card.id,
+            customerId: customer.id,
+            cashierId,
+            type: 'REDEEM',
+            category: category as TxCategory,
+            amountCents: balanceUsedCents,
+            cashbackCents: 0,
+            beforeBalanceCents: card.balanceCents,
+            afterBalanceCents: card.balanceCents - balanceUsedCents,
+            note: `Balance used for purchase: ${purchaseTransaction.id}`,
+            sourceIp: req.ip || null,
+          }
+        });
+      }
+
+      // Create traditional cashback transaction record (if cashback earned)
+      if (cashbackCents > 0) {
+        await tx.transaction.create({
+          data: {
+            tenantId,
+            storeId: transactionStoreId,
+            cardId: card.id,
+            customerId: customer.id,
+            cashierId,
+            type: 'EARN',
+            category: category as TxCategory,
+            amountCents,
+            cashbackCents,
+            beforeBalanceCents: useCardBalance ? card.balanceCents - balanceUsedCents : card.balanceCents,
+            afterBalanceCents: newBalance,
+            note: `Purchase transaction: ${purchaseTransaction.id}`,
+            sourceIp: req.ip || null,
+          }
+        });
+      }
 
       // Check for tier upgrade
       await updateCustomerTier(customer.id, tenantId, tx);
@@ -283,6 +361,10 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
                 tenantName: tenant?.name || null,
                 timestamp: new Date().toLocaleString(),
                 transactionId: purchaseTransaction.id,
+                // Add partial payment information
+                balanceUsed: useCardBalance ? (balanceUsedCents / 100).toFixed(2) : '0.00',
+                remainingPaid: useCardBalance ? (remainingAmountCents / 100).toFixed(2) : (amountCents / 100).toFixed(2),
+                paymentMethod: paymentMethod,
               }
             );
           } catch (error) {
