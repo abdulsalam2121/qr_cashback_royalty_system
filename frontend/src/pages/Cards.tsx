@@ -125,6 +125,7 @@ const Cards: React.FC = () => {
     try {
       const { tenant: latestTenant } = await api.tenant.getTenant(tenantSlug);
       if (import.meta.env.DEV) {
+        console.log('🏢 Latest tenant info:', {
           subscriptionStatus: latestTenant.subscriptionStatus,
           cardCounts: {
             total: latestTenant._count?.cards

@@ -30,6 +30,7 @@ const Customer: React.FC = () => {
       setError(null);
       
       if (import.meta.env.DEV) {
+        console.log('👤 Customer page - user context:', {
           id: user?.id,
           role: user?.role,
           tenantSlug
