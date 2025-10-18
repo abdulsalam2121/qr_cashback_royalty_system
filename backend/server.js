@@ -27,6 +27,7 @@ import customerDashboardRoutes from './dist/routes/customerDashboard.js';
 import publicCardRoutes from './dist/routes/publicCards.js';
 import purchaseTransactionRoutes from './dist/routes/purchaseTransactions.js';
 import cardPrintOrderRoutes from './dist/routes/cardPrintOrders.js';
+import webhookRoutes from './dist/routes/webhooks.js';
 import { customerAuthLimiter, customerAPILimiter } from './dist/middleware/customerSecurity.js';
 import { errorHandler } from './dist/middleware/errorHandler.js';
 import { requestLogger } from './dist/middleware/requestLogger.js';
