@@ -72,12 +72,14 @@ const Cards: React.FC = () => {
     limitType = 'subscription';
     isLimitReached = remainingCards <= 0;
     
-    console.log('📊 Subscription card limits:', {
-      used: subscriptionInfo.cardsUsed,
-      limit: subscriptionInfo.cardLimit,
-      remaining: remainingCards,
-      planName: subscriptionInfo.planName
-    });
+    if (import.meta.env.DEV) {
+      console.log('📊 Subscription card limits:', {
+        used: subscriptionInfo.cardsUsed,
+        limit: subscriptionInfo.cardLimit,
+        remaining: remainingCards,
+        planName: subscriptionInfo.planName
+      });
+    }
   } else {
     // For trial users, use trial limits
     remainingCards = Math.max(0, trialLimit - currentCardCount);
