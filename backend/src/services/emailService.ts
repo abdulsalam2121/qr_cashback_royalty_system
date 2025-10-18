@@ -251,6 +251,32 @@ export class EmailService {
     }
   }
 
+  async sendCustomEmail(
+    to: string,
+    subject: string,
+    htmlContent: string,
+    textContent: string,
+    fromName?: string
+  ): Promise<void> {
+    try {
+      const mailOptions = {
+        from: `"${fromName || 'LoyaltyPro'}" <${process.env.SMTP_USER || 'covercellinsure@gmail.com'}>`,
+        to: to,
+        subject: subject,
+        text: textContent,
+        html: htmlContent,
+      };
+
+      await this.transporter.sendMail(mailOptions);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Custom email sent successfully to ${to}`);
+      }
+    } catch (error) {
+      console.error('Error sending custom email:', error);
+      throw new Error('Failed to send custom email');
+    }
+  }
+
   async testConnection(): Promise<boolean> {
     try {
       await this.transporter.verify();

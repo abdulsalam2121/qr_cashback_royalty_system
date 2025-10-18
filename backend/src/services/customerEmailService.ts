@@ -1,5 +1,6 @@
 // Email notification service for customer actions
 import { PrismaClient } from '@prisma/client';
+import { emailService } from './emailService.js';
 
 const prisma = new PrismaClient();
 
@@ -30,15 +31,19 @@ export class CustomerEmailService {
     data: EmailData
   ) {
     try {
-      await prisma.notification.create({
-        data: {
-          tenantId,
-          customerId,
-          channel: 'SMS', // Using SMS enum value for email too
-          template: 'FUNDS_ADDED',
-          payload: {
-            subject: `Funds Added to Your ${data.tenantName} Loyalty Card`,
-            body: `
+      // Get customer email
+      const customer = await prisma.customer.findUnique({
+        where: { id: customerId },
+        select: { email: true, firstName: true, lastName: true }
+      });
+
+      if (!customer?.email) {
+        console.log('Customer has no email address, skipping funds added email notification');
+        return;
+      }
+
+      const subject = `Funds Added to Your ${data.tenantName} Loyalty Card`;
+      const htmlBody = `
               <html>
                 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                   <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -68,16 +73,73 @@ export class CustomerEmailService {
                   </div>
                 </body>
               </html>
-            `,
-            ...data
+              `;
+
+      const textBody = `
+        Funds Added Successfully!
+        
+        Hi ${data.customerName},
+        
+        Funds have been successfully added to your ${data.tenantName} loyalty card.
+        
+        Transaction Details:
+        - Amount Added: ${data.amountAdded}
+        - New Balance: ${data.newBalance}
+        - Date & Time: ${data.timestamp}
+        
+        Your funds are now available for purchases and earning cashback rewards!
+        
+        This is an automated message from ${data.tenantName}.
+      `;
+
+      // Actually send the email using EmailService
+      await emailService.sendCustomEmail(
+        customer.email,
+        subject,
+        htmlBody,
+        textBody,
+        data.tenantName || 'LoyaltyPro'
+      );
+      
+      console.log(`Funds added email sent successfully to ${customer.email}`);
+
+      // Also create a notification record for tracking
+      await prisma.notification.create({
+        data: {
+          tenantId,
+          customerId,
+          channel: 'SMS',
+          template: 'FUNDS_ADDED',
+          payload: {
+            subject,
+            customerEmail: customer.email,
+            amountAdded: data.amountAdded
           },
-          status: 'PENDING'
+          status: 'SENT'
         }
       });
 
     } catch (error) {
-      console.error('Failed to queue funds added email:', error);
-      throw error;
+      console.error('Failed to send funds added email:', error);
+      
+      // Create failed notification record
+      try {
+        await prisma.notification.create({
+          data: {
+            tenantId,
+            customerId,
+            channel: 'SMS',
+            template: 'FUNDS_ADDED',
+            payload: {
+              error: error instanceof Error ? error.message : 'Unknown error',
+              amountAdded: data.amountAdded
+            },
+            status: 'FAILED'
+          }
+        });
+      } catch (dbError) {
+        console.error('Failed to create failed notification record:', dbError);
+      }
     }
   }
 
@@ -87,15 +149,19 @@ export class CustomerEmailService {
     data: CashbackEmailData
   ) {
     try {
-      await prisma.notification.create({
-        data: {
-          tenantId,
-          customerId,
-          channel: 'SMS', // Using SMS enum value for email too
-          template: 'CASHBACK_EARNED',
-          payload: {
-            subject: `Cashback Earned! $${data.cashbackAmount} - ${data.tenantName}`,
-            body: `
+      // Get customer email
+      const customer = await prisma.customer.findUnique({
+        where: { id: customerId },
+        select: { email: true, firstName: true, lastName: true }
+      });
+
+      if (!customer?.email) {
+        console.log('Customer has no email address, skipping email notification');
+        return;
+      }
+
+      const subject = `Cashback Earned! $${data.cashbackAmount} - ${data.tenantName}`;
+      const htmlBody = `
               <html>
                 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                   <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -167,16 +233,80 @@ export class CustomerEmailService {
                   </div>
                 </body>
               </html>
-            `,
-            ...data
+              `;
+
+      const textBody = `
+        Cashback Earned! $${data.cashbackAmount}
+        
+        Hi ${data.customerName},
+        
+        Great news! You've just earned $${data.cashbackAmount} cashback on your recent purchase at ${data.storeName}.
+        
+        Transaction Details:
+        - Store: ${data.storeName}
+        - Purchase Amount: $${data.purchaseAmount}
+        - Cashback Earned: +$${data.cashbackAmount}
+        - Previous Balance: $${data.beforeBalance}
+        - New Balance: $${data.newBalance}
+        
+        Your cashback balance is now available to use on future purchases.
+        
+        Transaction processed on ${data.timestamp}
+        ${data.transactionId ? `Transaction ID: ${data.transactionId}` : ''}
+        
+        This is an automated message from ${data.tenantName}.
+        Thank you for your loyalty!
+      `;
+
+      // Actually send the email using EmailService
+      await emailService.sendCustomEmail(
+        customer.email,
+        subject,
+        htmlBody,
+        textBody,
+        data.tenantName || 'LoyaltyPro'
+      );
+      
+      console.log(`Cashback email sent successfully to ${customer.email}`);
+
+      // Also create a notification record for tracking
+      await prisma.notification.create({
+        data: {
+          tenantId,
+          customerId,
+          channel: 'SMS', // Using SMS enum value for email tracking
+          template: 'CASHBACK_EARNED',
+          payload: {
+            subject,
+            customerEmail: customer.email,
+            cashbackAmount: data.cashbackAmount,
+            purchaseAmount: data.purchaseAmount
           },
-          status: 'PENDING'
+          status: 'SENT'
         }
       });
 
     } catch (error) {
-      console.error('Failed to queue cashback earned email:', error);
-      throw error;
+      console.error('Failed to send cashback earned email:', error);
+      
+      // Create failed notification record
+      try {
+        await prisma.notification.create({
+          data: {
+            tenantId,
+            customerId,
+            channel: 'SMS',
+            template: 'CASHBACK_EARNED',
+            payload: {
+              error: error instanceof Error ? error.message : 'Unknown error',
+              cashbackAmount: data.cashbackAmount
+            },
+            status: 'FAILED'
+          }
+        });
+      } catch (dbError) {
+        console.error('Failed to create failed notification record:', dbError);
+      }
     }
   }
 
