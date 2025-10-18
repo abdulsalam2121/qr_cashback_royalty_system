@@ -11,6 +11,7 @@ import { calculateCashback } from '../utils/cashback.js';
 import { updateCustomerTier } from '../utils/tiers.js';
 import { sendNotification } from '../services/notification.js';
 import { generateSecureToken } from '../utils/crypto.js';
+import { CustomerEmailService } from '../services/customerEmailService.js';
 import Stripe from 'stripe';
 
 const router = express.Router();
@@ -254,6 +255,41 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
 
       // Check for tier upgrade
       await updateCustomerTier(customer.id, tenantId, tx);
+      
+      // Send cashback earned email notification (async, don't block response)
+      if (customer.email) {
+        setImmediate(async () => {
+          try {
+            const tenant = await prisma.tenant.findUnique({
+              where: { id: tenantId },
+              select: { name: true }
+            });
+            
+            const store = await prisma.store.findUnique({
+              where: { id: transactionStoreId },
+              select: { name: true }
+            });
+
+            await CustomerEmailService.sendCashbackEarnedNotification(
+              tenantId,
+              customer.id,
+              {
+                customerName: `${customer.firstName} ${customer.lastName}`,
+                cashbackAmount: (cashbackCents / 100).toFixed(2),
+                purchaseAmount: (amountCents / 100).toFixed(2),
+                newBalance: (newBalance / 100).toFixed(2),
+                beforeBalance: (card.balanceCents / 100).toFixed(2),
+                storeName: store?.name || 'Store',
+                tenantName: tenant?.name || null,
+                timestamp: new Date().toLocaleString(),
+                transactionId: purchaseTransaction.id,
+              }
+            );
+          } catch (error) {
+            console.error('Failed to send cashback earned email:', error);
+          }
+        });
+      }
     } else if (paymentMethod === 'CASH' && card && customer) {
       // Even if no cashback, create a transaction record for tracking
       const newTotalSpend = new Decimal(customer.totalSpend).add(new Decimal(amountCents).div(100));
@@ -491,6 +527,41 @@ router.post('/confirm-payment', auth, rbac(['tenant_admin', 'cashier']), validat
 
         // Check for tier upgrade
         await updateCustomerTier(card.customer.id, tenantId, tx);
+        
+        // Send cashback earned email notification (async, don't block response)
+        if (card.customer.email) {
+          setImmediate(async () => {
+            try {
+              const tenant = await prisma.tenant.findUnique({
+                where: { id: tenantId },
+                select: { name: true }
+              });
+              
+              const store = await prisma.store.findUnique({
+                where: { id: purchaseTransaction.storeId },
+                select: { name: true }
+              });
+
+              await CustomerEmailService.sendCashbackEarnedNotification(
+                tenantId,
+                card.customer!.id,
+                {
+                  customerName: `${card.customer!.firstName} ${card.customer!.lastName}`,
+                  cashbackAmount: (purchaseTransaction.cashbackCents! / 100).toFixed(2),
+                  purchaseAmount: (purchaseTransaction.amountCents / 100).toFixed(2),
+                  newBalance: (newBalance / 100).toFixed(2),
+                  beforeBalance: (card.balanceCents / 100).toFixed(2),
+                  storeName: store?.name || 'Store',
+                  tenantName: tenant?.name || null,
+                  timestamp: new Date().toLocaleString(),
+                  transactionId: purchaseTransaction.id,
+                }
+              );
+            } catch (error) {
+              console.error('Failed to send cashback earned email:', error);
+            }
+          });
+        }
       }
     }
     } // End of else block for regular purchase transactions
@@ -616,6 +687,41 @@ router.post('/pay/:token', asyncHandler(async (req: Request, res: Response) => {
 
         // Check for tier upgrade
         await updateCustomerTier(card.customer.id, purchaseTransaction.tenantId, tx);
+        
+        // Send cashback earned email notification (async, don't block response)
+        if (card.customer?.email) {
+          setImmediate(async () => {
+            try {
+              const tenant = await prisma.tenant.findUnique({
+                where: { id: purchaseTransaction.tenantId },
+                select: { name: true }
+              });
+              
+              const store = await prisma.store.findUnique({
+                where: { id: purchaseTransaction.storeId },
+                select: { name: true }
+              });
+
+              await CustomerEmailService.sendCashbackEarnedNotification(
+                purchaseTransaction.tenantId,
+                card.customer!.id,
+                {
+                  customerName: `${card.customer!.firstName} ${card.customer!.lastName}`,
+                  cashbackAmount: (purchaseTransaction.cashbackCents! / 100).toFixed(2),
+                  purchaseAmount: (purchaseTransaction.amountCents / 100).toFixed(2),
+                  newBalance: (newBalance / 100).toFixed(2),
+                  beforeBalance: (card.balanceCents / 100).toFixed(2),
+                  storeName: store?.name || 'Store',
+                  tenantName: tenant?.name || null,
+                  timestamp: new Date().toLocaleString(),
+                  transactionId: purchaseTransaction.id,
+                }
+              );
+            } catch (error) {
+              console.error('Failed to send cashback earned email in payment confirmation:', error);
+            }
+          });
+        }
       }
     }
 

@@ -11,6 +11,18 @@ export interface EmailData {
   timestamp: string;
 }
 
+export interface CashbackEmailData {
+  customerName: string;
+  cashbackAmount: string;
+  purchaseAmount: string;
+  newBalance: string;
+  beforeBalance: string;
+  storeName: string;
+  tenantName: string | null;
+  timestamp: string;
+  transactionId?: string;
+}
+
 export class CustomerEmailService {
   static async sendFundsAddedNotification(
     tenantId: string,
@@ -65,6 +77,105 @@ export class CustomerEmailService {
 
     } catch (error) {
       console.error('Failed to queue funds added email:', error);
+      throw error;
+    }
+  }
+
+  static async sendCashbackEarnedNotification(
+    tenantId: string,
+    customerId: string,
+    data: CashbackEmailData
+  ) {
+    try {
+      await prisma.notification.create({
+        data: {
+          tenantId,
+          customerId,
+          channel: 'SMS', // Using SMS enum value for email too
+          template: 'CASHBACK_EARNED',
+          payload: {
+            subject: `Cashback Earned! $${data.cashbackAmount} - ${data.tenantName}`,
+            body: `
+              <html>
+                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                  <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                      <h2 style="color: #16a34a; margin-bottom: 10px;">🎉 Cashback Earned!</h2>
+                      <div style="background-color: #dcfce7; border: 2px solid #16a34a; border-radius: 8px; padding: 20px; display: inline-block;">
+                        <h3 style="color: #16a34a; margin: 0; font-size: 24px;">+$${data.cashbackAmount}</h3>
+                        <p style="color: #15803d; margin: 5px 0 0 0; font-weight: bold;">Cashback Earned!</p>
+                      </div>
+                    </div>
+                    
+                    <p style="font-size: 16px;">Hi ${data.customerName},</p>
+                    
+                    <p>Great news! You've just earned cashback on your recent purchase at ${data.storeName}. Here are the details:</p>
+                    
+                    <div style="background-color: #f8fafc; border-left: 4px solid #3b82f6; padding: 20px; margin: 20px 0;">
+                      <h3 style="margin-top: 0; color: #1e40af;">💳 Transaction Details</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr style="border-bottom: 1px solid #e5e7eb;">
+                          <td style="padding: 8px 0; font-weight: bold; color: #374151;">Store:</td>
+                          <td style="padding: 8px 0; color: #6b7280;">${data.storeName}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #e5e7eb;">
+                          <td style="padding: 8px 0; font-weight: bold; color: #374151;">Purchase Amount:</td>
+                          <td style="padding: 8px 0; color: #6b7280;">$${data.purchaseAmount}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #e5e7eb;">
+                          <td style="padding: 8px 0; font-weight: bold; color: #374151;">Cashback Earned:</td>
+                          <td style="padding: 8px 0; color: #16a34a; font-weight: bold;">+$${data.cashbackAmount}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #e5e7eb;">
+                          <td style="padding: 8px 0; font-weight: bold; color: #374151;">Previous Balance:</td>
+                          <td style="padding: 8px 0; color: #6b7280;">$${data.beforeBalance}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; font-weight: bold; color: #374151;">New Balance:</td>
+                          <td style="padding: 8px 0; color: #1e40af; font-weight: bold; font-size: 18px;">$${data.newBalance}</td>
+                        </tr>
+                      </table>
+                    </div>
+                    
+                    <div style="background-color: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 15px; margin: 20px 0;">
+                      <h4 style="margin-top: 0; color: #1e40af;">💡 What You Can Do Next:</h4>
+                      <ul style="margin-bottom: 0; color: #374151;">
+                        <li>Keep shopping to earn more cashback rewards</li>
+                        <li>Redeem your balance for store credit or rewards</li>
+                        <li>Check your transaction history anytime</li>
+                        <li>Share your experience with friends and family</li>
+                      </ul>
+                    </div>
+                    
+                    <p>Your cashback balance is now available to use on future purchases or can be redeemed according to store policy.</p>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                      <p style="color: #6b7280; font-size: 14px;">Transaction processed on ${data.timestamp}</p>
+                      ${data.transactionId ? `<p style="color: #9ca3af; font-size: 12px;">Transaction ID: ${data.transactionId}</p>` : ''}
+                    </div>
+                    
+                    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+                    
+                    <p style="font-size: 14px; color: #6b7280;">
+                      This is an automated message from ${data.tenantName}. 
+                      If you have any questions about this transaction, please contact us.
+                    </p>
+                    
+                    <p style="font-size: 12px; color: #9ca3af; text-align: center; margin-top: 20px;">
+                      Thank you for your loyalty! 🙏
+                    </p>
+                  </div>
+                </body>
+              </html>
+            `,
+            ...data
+          },
+          status: 'PENDING'
+        }
+      });
+
+    } catch (error) {
+      console.error('Failed to queue cashback earned email:', error);
       throw error;
     }
   }

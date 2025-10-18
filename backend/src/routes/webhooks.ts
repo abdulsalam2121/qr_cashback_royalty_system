@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { PrismaClient, PaymentMethod, PaymentStatus, TxCategory } from '@prisma/client';
 import { Decimal } from 'decimal.js';
 import { updateCustomerTier } from '../utils/tiers.js';
+import { CustomerEmailService } from '../services/customerEmailService.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -550,6 +551,41 @@ async function handleQRPaymentSuccess(paymentIntent: Stripe.PaymentIntent, payme
             // Check for tier upgrade
             if (typeof updateCustomerTier === 'function') {
               await updateCustomerTier(card.customer.id, purchaseTransaction.tenantId, tx);
+            }
+            
+            // Send cashback earned email notification (async, don't block response)
+            if (card.customer?.email && purchaseTransaction.cashbackCents) {
+              setImmediate(async () => {
+                try {
+                  const tenant = await prisma.tenant.findUnique({
+                    where: { id: purchaseTransaction.tenantId },
+                    select: { name: true }
+                  });
+                  
+                  const store = await prisma.store.findUnique({
+                    where: { id: purchaseTransaction.storeId },
+                    select: { name: true }
+                  });
+
+                  await CustomerEmailService.sendCashbackEarnedNotification(
+                    purchaseTransaction.tenantId,
+                    card.customer!.id,
+                    {
+                      customerName: `${card.customer!.firstName} ${card.customer!.lastName}`,
+                      cashbackAmount: (purchaseTransaction.cashbackCents! / 100).toFixed(2),
+                      purchaseAmount: (purchaseTransaction.amountCents / 100).toFixed(2),
+                      newBalance: (newBalance / 100).toFixed(2),
+                      beforeBalance: (beforeBalance / 100).toFixed(2),
+                      storeName: store?.name || 'Store',
+                      tenantName: tenant?.name || null,
+                      timestamp: new Date().toLocaleString(),
+                      transactionId: purchaseTransaction.id,
+                    }
+                  );
+                } catch (error) {
+                  console.error('Failed to send cashback earned email in webhook:', error);
+                }
+              });
             }
           }
         }

@@ -10,6 +10,7 @@ import { rbac } from '../middleware/rbac.js';
 import { calculateCashback } from '../utils/cashback.js';
 import { sendNotification } from '../services/notification.js';
 import { updateCustomerTier } from '../utils/tiers.js';
+import { CustomerEmailService } from '../services/customerEmailService.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -146,6 +147,30 @@ router.post('/earn', auth, rbac(['tenant_admin', 'cashier']), validate(earnSchem
         },
         tenantId
       );
+      
+      // Send cashback earned email notification
+      if (result.customer.email) {
+        const tenant = await prisma.tenant.findUnique({
+          where: { id: tenantId },
+          select: { name: true }
+        });
+
+        await CustomerEmailService.sendCashbackEarnedNotification(
+          tenantId,
+          result.customer.id,
+          {
+            customerName: `${result.customer.firstName} ${result.customer.lastName}`,
+            cashbackAmount: (result.transaction.cashbackCents / 100).toFixed(2),
+            purchaseAmount: (result.transaction.amountCents / 100).toFixed(2),
+            newBalance: (result.transaction.afterBalanceCents / 100).toFixed(2),
+            beforeBalance: (result.transaction.beforeBalanceCents / 100).toFixed(2),
+            storeName: result.storeName || 'Unknown Store',
+            tenantName: tenant?.name || null,
+            timestamp: new Date().toLocaleString(),
+            transactionId: result.transaction.id,
+          }
+        );
+      }
     } catch (error) {
       console.error('Failed to send notification:', error);
     }
