@@ -222,11 +222,14 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + 24); // 24 hour expiry
 
+      // For partial payments, use remaining amount for payment link
+      const paymentLinkAmount = useCardBalance && remainingAmountCents > 0 ? remainingAmountCents : amountCents;
+
       const paymentLink = await tx.paymentLink.create({
         data: {
           tenantId,
           token,
-          amountCents,
+          amountCents: paymentLinkAmount,
           description: description || 'Purchase Payment',
           expiresAt,
         }

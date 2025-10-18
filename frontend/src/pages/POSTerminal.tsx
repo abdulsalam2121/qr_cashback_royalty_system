@@ -342,9 +342,13 @@ const POSTerminal: React.FC = () => {
           setClientSecret(intent.client_secret);
           setCardPaymentPending(true);
           setLoading(false); // Stop loading to show the payment form
+          
+          const remainingAmount = useCardBalance ? getRemainingAmountCents() / 100 : parseFloat(amount);
           setMessage({
             type: 'info',
-            text: 'Complete the card payment below to finalize the transaction.'
+            text: useCardBalance && getRemainingAmountCents() > 0 
+              ? `Balance of ${formatCurrency(getBalanceToUseCents() / 100)} will be used. Complete card payment for remaining ${formatCurrency(remainingAmount)}.`
+              : 'Complete the card payment below to finalize the transaction.'
           });
           return; // Exit early to prevent further execution
         }
@@ -353,9 +357,12 @@ const POSTerminal: React.FC = () => {
 
         if (paymentMethod === 'QR_PAYMENT' && result.paymentUrl) {
           setPaymentUrl(result.paymentUrl);
+          const qrMessage = useCardBalance && getRemainingAmountCents() > 0 
+            ? `Balance of ${formatCurrency(getBalanceToUseCents() / 100)} will be used. QR Payment link generated for remaining ${formatCurrency(getRemainingAmountCents() / 100)}.`
+            : 'QR Payment link generated! Share this link with the customer to complete payment.';
           setMessage({
             type: 'info',
-            text: 'QR Payment link generated! Share this link with the customer to complete payment.'
+            text: qrMessage
           });
         } else {
           // For CASH payments - they are completed immediately
