@@ -566,13 +566,17 @@ const POSTerminal: React.FC = () => {
     
     setMessage({
       type: 'success',
-      text: 'Card payment completed successfully! Transaction has been recorded.'
+      text: useCardBalance && getBalanceToUseCents() > 0 
+        ? `Card payment completed! Balance of ${formatCurrency(getBalanceToUseCents() / 100)} was used, ${formatCurrency(getRemainingAmountCents() / 100)} paid by card.`
+        : 'Card payment completed successfully! Transaction has been recorded.'
     });
     
     // Clear form after successful transaction
     setTimeout(() => {
       setAmount('');
       setDescription('');
+      setUseCardBalance(false);
+      setBalanceToUse('');
       setCustomerInfo({ firstName: '', lastName: '', email: '', phone: '' });
     }, 1000);
   };
@@ -1060,10 +1064,10 @@ const POSTerminal: React.FC = () => {
                         <p className="text-sm text-gray-600">Complete the card payment to finalize the transaction:</p>
                         <StripePaymentElement
                           clientSecret={clientSecret!}
-                          amount={Math.round(parseFloat(amount) * 100)}
+                          amount={useCardBalance && getRemainingAmountCents() > 0 ? getRemainingAmountCents() : Math.round(parseFloat(amount) * 100)}
                           onSuccess={handleStripePaymentSuccess}
                           onError={handleStripePaymentError}
-                          submitButtonText="Complete Card Payment"
+                          submitButtonText={useCardBalance && getRemainingAmountCents() > 0 ? `Complete Card Payment ${formatCurrency(getRemainingAmountCents() / 100)}` : "Complete Card Payment"}
                         />
                         <button
                           onClick={() => {
