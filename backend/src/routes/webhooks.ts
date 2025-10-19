@@ -645,4 +645,131 @@ async function handleCardOrderPayment(paymentIntent: Stripe.PaymentIntent, order
   }
 }
 
+// Helper function to handle purchase transaction card payment success
+async function handlePurchaseTransactionCardPaymentSuccess(paymentIntent: Stripe.PaymentIntent, purchaseTransactionId: string) {
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Get the purchase transaction with all related data
+      const purchaseTransaction = await tx.purchaseTransaction.findUnique({
+        where: { id: purchaseTransactionId },
+        include: {
+          customer: true,
+          paymentLink: true,
+        }
+      });
+
+      if (!purchaseTransaction) {
+        console.error(`Purchase transaction ${purchaseTransactionId} not found`);
+        return;
+      }
+
+      // Check if this transaction used card balance
+      const useCardBalance = purchaseTransaction.amountCents > paymentIntent.amount;
+      const balanceUsedCents = useCardBalance ? purchaseTransaction.amountCents - paymentIntent.amount : 0;
+
+      // Update the purchase transaction to completed
+      await tx.purchaseTransaction.update({
+        where: { id: purchaseTransactionId },
+        data: {
+          paymentStatus: 'COMPLETED',
+          paidAt: new Date(),
+          paymentMethod: 'CARD',
+        }
+      });
+
+      // Mark payment link as used
+      if (purchaseTransaction.paymentLinkId) {
+        await tx.paymentLink.update({
+          where: { id: purchaseTransaction.paymentLinkId },
+          data: { usedAt: new Date() }
+        });
+      }
+
+      // If using card balance, now process the balance deduction and cashback
+      if (useCardBalance && purchaseTransaction.cardUid && purchaseTransaction.customer) {
+        const card = await tx.card.findUnique({
+          where: { cardUid: purchaseTransaction.cardUid },
+        });
+
+        if (card) {
+          let newBalance = card.balanceCents;
+          
+          // Deduct balance used for payment
+          if (balanceUsedCents > 0) {
+            newBalance -= balanceUsedCents;
+          }
+          
+          // Add cashback earned (should be calculated on remaining amount only)
+          if (purchaseTransaction.cashbackCents > 0) {
+            newBalance += purchaseTransaction.cashbackCents;
+          }
+          
+          // Update card balance
+          await tx.card.update({
+            where: { id: card.id },
+            data: { balanceCents: newBalance }
+          });
+
+          // Update customer total spend
+          const newTotalSpend = new Decimal(purchaseTransaction.customer.totalSpend).add(new Decimal(purchaseTransaction.amountCents).div(100));
+          await tx.customer.update({
+            where: { id: purchaseTransaction.customer.id },
+            data: { totalSpend: newTotalSpend }
+          });
+
+          // Create transaction record for balance usage
+          if (balanceUsedCents > 0) {
+            await tx.transaction.create({
+              data: {
+                tenantId: purchaseTransaction.tenantId,
+                storeId: purchaseTransaction.storeId,
+                cardId: card.id,
+                customerId: purchaseTransaction.customer.id,
+                cashierId: purchaseTransaction.cashierId,
+                type: 'REDEEM',
+                category: purchaseTransaction.category,
+                amountCents: balanceUsedCents,
+                cashbackCents: 0,
+                beforeBalanceCents: card.balanceCents,
+                afterBalanceCents: card.balanceCents - balanceUsedCents,
+                note: `Balance used for purchase: ${purchaseTransaction.id}`,
+                sourceIp: null,
+              }
+            });
+          }
+
+          // Create cashback transaction record
+          if (purchaseTransaction.cashbackCents > 0) {
+            await tx.transaction.create({
+              data: {
+                tenantId: purchaseTransaction.tenantId,
+                storeId: purchaseTransaction.storeId,
+                cardId: card.id,
+                customerId: purchaseTransaction.customer.id,
+                cashierId: purchaseTransaction.cashierId,
+                type: 'EARN',
+                category: purchaseTransaction.category,
+                amountCents: paymentIntent.amount, // Amount cashback was calculated on
+                cashbackCents: purchaseTransaction.cashbackCents,
+                beforeBalanceCents: balanceUsedCents > 0 ? card.balanceCents - balanceUsedCents : card.balanceCents,
+                afterBalanceCents: newBalance,
+                note: `Purchase transaction: ${purchaseTransaction.id} (cashback on card payment: ${(paymentIntent.amount / 100).toFixed(2)})`,
+                sourceIp: null,
+              }
+            });
+          }
+
+          // Check for tier upgrade
+          const { updateCustomerTier } = await import('../utils/tiers.js');
+          await updateCustomerTier(purchaseTransaction.customer.id, purchaseTransaction.tenantId, tx);
+        }
+      }
+    });
+
+    console.log(`✅ Purchase transaction ${purchaseTransactionId} card payment completed successfully`);
+  } catch (error) {
+    console.error(`Failed to process purchase transaction card payment success for ${purchaseTransactionId}:`, error);
+  }
+}
+
 export default router;
