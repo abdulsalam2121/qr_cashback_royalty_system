@@ -700,7 +700,7 @@ async function handlePurchaseTransactionCardPaymentSuccess(paymentIntent: Stripe
           }
           
           // Add cashback earned (should be calculated on remaining amount only)
-          if (purchaseTransaction.cashbackCents > 0) {
+          if (purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0) {
             newBalance += purchaseTransaction.cashbackCents;
           }
           
