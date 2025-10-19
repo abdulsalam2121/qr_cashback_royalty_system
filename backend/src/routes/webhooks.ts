@@ -739,7 +739,7 @@ async function handlePurchaseTransactionCardPaymentSuccess(paymentIntent: Stripe
           }
 
           // Create cashback transaction record
-          if (purchaseTransaction.cashbackCents > 0) {
+          if (purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0) {
             await tx.transaction.create({
               data: {
                 tenantId: purchaseTransaction.tenantId,
