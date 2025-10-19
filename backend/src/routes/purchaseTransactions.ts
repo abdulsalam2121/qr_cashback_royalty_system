@@ -271,8 +271,9 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
       }
     });
 
-    // If CASH payment or partial payment with balance, process immediately
-    if ((paymentMethod === 'CASH' || useCardBalance) && card && customer) {
+    // If CASH payment or full balance payment (no remaining amount), process immediately
+    // For CARD payments with partial balance, only process after payment success
+    if (((paymentMethod === 'CASH') || (useCardBalance && remainingAmountCents === 0)) && card && customer) {
       let newBalance = card.balanceCents;
       
       // Deduct balance used for payment
