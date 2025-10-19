@@ -1067,7 +1067,7 @@ const POSTerminal: React.FC = () => {
                           amount={useCardBalance && getRemainingAmountCents() > 0 ? getRemainingAmountCents() : Math.round(parseFloat(amount) * 100)}
                           onSuccess={handleStripePaymentSuccess}
                           onError={handleStripePaymentError}
-                          submitButtonText={useCardBalance && getRemainingAmountCents() > 0 ? `Complete Card Payment ${formatCurrency(getRemainingAmountCents() / 100)}` : "Complete Card Payment"}
+                          submitButtonText={useCardBalance && getRemainingAmountCents() > 0 ? "Complete Card Payment" : "Complete Card Payment"}
                         />
                         <button
                           onClick={() => {

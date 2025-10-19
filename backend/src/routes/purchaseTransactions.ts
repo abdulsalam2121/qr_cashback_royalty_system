@@ -176,8 +176,14 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
       }
 
       // Calculate cashback for card-based purchases
+      // Only calculate cashback on the amount actually paid (remaining amount)
+      // If using card balance, cashback should be based on remaining amount only
+      const cashbackCalculationAmount = useCardBalance && remainingAmountCents >= 0 
+        ? remainingAmountCents 
+        : amountCents;
+        
       cashbackCents = await calculateCashback(
-        amountCents,
+        cashbackCalculationAmount,
         category as TxCategory,
         customer.tier,
         tenantId,
@@ -315,6 +321,11 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
 
       // Create traditional cashback transaction record (if cashback earned)
       if (cashbackCents > 0) {
+        // Use the amount that cashback was actually calculated on
+        const cashbackCalculationAmount = useCardBalance && remainingAmountCents >= 0 
+          ? remainingAmountCents 
+          : amountCents;
+          
         await tx.transaction.create({
           data: {
             tenantId,
@@ -324,11 +335,11 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
             cashierId,
             type: 'EARN',
             category: category as TxCategory,
-            amountCents,
+            amountCents: cashbackCalculationAmount, // Use the amount cashback was calculated on
             cashbackCents,
             beforeBalanceCents: useCardBalance ? card.balanceCents - balanceUsedCents : card.balanceCents,
             afterBalanceCents: newBalance,
-            note: `Purchase transaction: ${purchaseTransaction.id}`,
+            note: `Purchase transaction: ${purchaseTransaction.id}${useCardBalance ? ` (cashback on remaining amount: ${(cashbackCalculationAmount / 100).toFixed(2)})` : ''}`,
             sourceIp: req.ip || null,
           }
         });

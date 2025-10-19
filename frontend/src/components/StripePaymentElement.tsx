@@ -93,7 +93,7 @@ const StripeCheckoutForm: React.FC<StripeCheckoutFormProps> = ({
           onReady={() => void 0}
           onFocus={() => void 0}
           onBlur={() => void 0}
-          onChange={(e) => {
+          onChange={() => {
           }}
         />
       </div>
@@ -110,7 +110,7 @@ const StripeCheckoutForm: React.FC<StripeCheckoutFormProps> = ({
         ) : (
           <>
             <Lock className="w-5 h-5 mr-3" />
-            {submitButtonText} {formatCurrency(amount / 100)}
+            {submitButtonText || `Pay ${formatCurrency(amount / 100)}`}
           </>
         )}
       </button>
