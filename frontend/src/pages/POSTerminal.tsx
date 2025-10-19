@@ -910,15 +910,24 @@ const POSTerminal: React.FC = () => {
                         type="checkbox"
                         id="useBalance"
                         checked={useCardBalance}
+                        disabled={paymentMethod === 'QR_PAYMENT'}
                         onChange={(e) => {
                           setUseCardBalance(e.target.checked);
                           if (!e.target.checked) {
                             setBalanceToUse('');
                           }
                         }}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        className={`w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 ${
+                          paymentMethod === 'QR_PAYMENT' ? 'cursor-not-allowed opacity-50' : ''
+                        }`}
                       />
-                      <label htmlFor="useBalance" className="text-sm font-medium text-gray-700">
+                      <label 
+                        htmlFor="useBalance" 
+                        className={`text-sm font-medium ${
+                          paymentMethod === 'QR_PAYMENT' ? 'text-gray-400' : 'text-gray-700'
+                        }`}
+                        title={paymentMethod === 'QR_PAYMENT' ? 'Balance usage is disabled when QR Payment is selected' : ''}
+                      >
                         Use Card Balance for Payment
                       </label>
                     </div>
@@ -1027,12 +1036,23 @@ const POSTerminal: React.FC = () => {
                       Card Payment
                     </button>
                     <button
-                      onClick={() => setPaymentMethod('QR_PAYMENT')}
+                      onClick={() => {
+                        setPaymentMethod('QR_PAYMENT');
+                        // Reset balance usage when QR Payment is selected
+                        if (useCardBalance) {
+                          setUseCardBalance(false);
+                          setBalanceToUse('');
+                        }
+                      }}
+                      disabled={useCardBalance}
                       className={`flex items-center justify-center px-4 py-3 border-2 rounded-lg transition-colors ${
-                        paymentMethod === 'QR_PAYMENT'
+                        useCardBalance 
+                          ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : paymentMethod === 'QR_PAYMENT'
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
                           : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                       }`}
+                      title={useCardBalance ? 'QR Payment is disabled when using card balance' : ''}
                     >
                       <Smartphone className="w-5 h-5 mr-2" />
                       QR Payment
