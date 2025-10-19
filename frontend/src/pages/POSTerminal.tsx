@@ -1067,7 +1067,10 @@ const POSTerminal: React.FC = () => {
                           amount={useCardBalance && getRemainingAmountCents() > 0 ? getRemainingAmountCents() : Math.round(parseFloat(amount) * 100)}
                           onSuccess={handleStripePaymentSuccess}
                           onError={handleStripePaymentError}
-                          submitButtonText="Complete Card Payment"
+                          submitButtonText={useCardBalance && getRemainingAmountCents() > 0 
+                            ? `Complete Card Payment ${formatCurrency(getRemainingAmountCents() / 100)}`
+                            : `Complete Card Payment ${formatCurrency(parseFloat(amount))}`
+                          }
                         />
                         <button
                           onClick={() => {
@@ -1123,7 +1126,10 @@ const POSTerminal: React.FC = () => {
                       </div>
                       
                       <p className="text-sm text-gray-600 mb-4">
-                        Customer can scan this QR code with their phone to pay {formatCurrency(parseFloat(amount) || 0)}
+                        Customer can scan this QR code with their phone to pay {useCardBalance && getRemainingAmountCents() > 0 
+                          ? formatCurrency(getRemainingAmountCents() / 100)
+                          : formatCurrency(parseFloat(amount) || 0)
+                        }
                       </p>
                     </div>
                     
