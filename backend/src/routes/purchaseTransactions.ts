@@ -453,6 +453,9 @@ router.post('/create-payment-intent/:token', asyncHandler(async (req: Request, r
 
   const paymentLink = await prisma.paymentLink.findUnique({
     where: { token },
+    include: {
+      purchaseTransactions: true
+    }
   });
 
   if (!paymentLink) {
@@ -465,13 +468,26 @@ router.post('/create-payment-intent/:token', asyncHandler(async (req: Request, r
     return;
   }
 
+  // Check if this is for a purchase transaction with card balance
+  const purchaseTransaction = paymentLink.purchaseTransactions[0];
+  const metadata: any = {
+    paymentLinkId: paymentLink.id,
+  };
+
+  // If this is a purchase transaction with card balance, include relevant metadata
+  if (purchaseTransaction && purchaseTransaction.cardUid) {
+    metadata.purchaseTransactionId = purchaseTransaction.id;
+    metadata.tenantId = purchaseTransaction.tenantId;
+    metadata.storeId = purchaseTransaction.storeId;
+    metadata.cashierId = purchaseTransaction.cashierId;
+    metadata.cardUid = purchaseTransaction.cardUid;
+  }
+
   // Create a PaymentIntent with Stripe
   const intent = await stripe.paymentIntents.create({
     amount: paymentLink.amountCents,
     currency: 'usd',
-    metadata: {
-      paymentLinkId: paymentLink.id,
-    },
+    metadata,
   });
 
   res.json({ client_secret: intent.client_secret });
