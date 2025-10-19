@@ -207,6 +207,44 @@ const PaymentPage: React.FC = () => {
     }
   };
 
+  const handleBalanceUsageChange = async (newBalanceUsedCents: number) => {
+    if (!paymentData || !token) return;
+
+    const totalAmountCents = paymentData.paymentLink.amountCents;
+    const maxBalanceUsable = paymentData.cardInfo?.balanceCents || 0;
+    
+    // Clamp the balance usage to valid range
+    const clampedBalanceUsed = Math.max(0, Math.min(newBalanceUsedCents, maxBalanceUsable, totalAmountCents));
+    const newRemainingAmount = totalAmountCents - clampedBalanceUsed;
+
+    try {
+      setIsUpdatingPayment(true);
+      
+      // Update backend payment amount
+      await api.tenant.updatePaymentAmount(token, clampedBalanceUsed);
+      
+      // Update local state
+      setBalanceUsedCents(clampedBalanceUsed);
+      setRemainingAmountCents(newRemainingAmount);
+
+      // Create new payment intent with updated amount
+      if (newRemainingAmount > 0) {
+        const intent = await api.tenant.createPaymentIntent(token);
+        if (intent.client_secret) {
+          setClientSecret(intent.client_secret);
+        }
+      } else {
+        // If remaining amount is 0, no Stripe payment needed
+        setClientSecret(null);
+      }
+    } catch (err) {
+      console.error('Error updating payment amount:', err);
+      setError('Failed to update payment amount. Please try again.');
+    } finally {
+      setIsUpdatingPayment(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
