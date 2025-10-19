@@ -443,23 +443,6 @@ const PaymentPage: React.FC = () => {
                       Amount to use from balance:
                     </label>
                     
-                    {/* Balance slider */}
-                    <div className="space-y-2">
-                      <input
-                        type="range"
-                        min="0"
-                        max={Math.min(paymentData.cardInfo.balanceCents, paymentData.paymentLink.amountCents)}
-                        value={balanceUsedCents}
-                        onChange={(e) => handleBalanceUsageChange(parseInt(e.target.value))}
-                        disabled={isUpdatingPayment}
-                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                      />
-                      <div className="flex justify-between text-xs text-gray-500">
-                        <span>$0.00</span>
-                        <span>{formatCurrency(Math.min(paymentData.cardInfo.balanceCents, paymentData.paymentLink.amountCents) / 100)}</span>
-                      </div>
-                    </div>
-                    
                     {/* Balance amount input */}
                     <div className="flex items-center space-x-2">
                       <span className="text-sm text-gray-600">Use:</span>
