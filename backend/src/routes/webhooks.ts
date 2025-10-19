@@ -480,6 +480,24 @@ async function handleQRPaymentSuccess(paymentIntent: Stripe.PaymentIntent, payme
       // Check if this is a store credit transaction
       const isStoreCredit = purchaseTransaction.description?.startsWith('STORE_CREDIT:');
       
+      // Extract balance usage info from payment metadata or payment link description
+      let balanceUsedCents = 0;
+      if (paymentIntent.metadata?.balanceUsedCents) {
+        balanceUsedCents = parseInt(paymentIntent.metadata.balanceUsedCents, 10) || 0;
+      } else {
+        // Try to extract from payment link description
+        const paymentLink = await tx.paymentLink.findUnique({
+          where: { id: paymentLinkId }
+        });
+        
+        if (paymentLink?.description) {
+          const balanceMatch = paymentLink.description.match(/Balance used: (\d+\.?\d*)/);
+          if (balanceMatch && balanceMatch[1]) {
+            balanceUsedCents = Math.round(parseFloat(balanceMatch[1]) * 100);
+          }
+        }
+      }
+      
       if (purchaseTransaction.cardUid) {
         const card = await tx.card.findUnique({
           where: { cardUid: purchaseTransaction.cardUid },
@@ -516,10 +534,36 @@ async function handleQRPaymentSuccess(paymentIntent: Stripe.PaymentIntent, payme
               }
             });
 
-          } else if (purchaseTransaction.cashbackCents && purchaseTransaction.cashbackCents > 0 && card.customer) {
-            // Handle regular purchase with cashback
-            const beforeBalance = card.balanceCents;
-            const newBalance = beforeBalance + purchaseTransaction.cashbackCents;
+          } else {
+            // Handle regular purchase with potential balance usage and cashback
+            let newBalance = card.balanceCents;
+            
+            // Deduct balance used if applicable
+            if (balanceUsedCents > 0) {
+              if (balanceUsedCents > card.balanceCents) {
+                console.error(`Insufficient balance for deduction: ${balanceUsedCents} > ${card.balanceCents}`);
+                return;
+              }
+              newBalance -= balanceUsedCents;
+            }
+
+            // Calculate cashback on the amount actually paid (excluding balance used)
+            const paidAmountCents = paymentIntent.amount; // This is the amount paid by external payment method
+            let cashbackCents = 0;
+            
+            if (paidAmountCents > 0 && card.customer) {
+              const { calculateCashback } = await import('../utils/cashback.js');
+              cashbackCents = await calculateCashback(
+                paidAmountCents,
+                purchaseTransaction.category as any,
+                card.customer.tier,
+                purchaseTransaction.tenantId,
+                tx
+              );
+              
+              // Add cashback to balance
+              newBalance += cashbackCents;
+            }
 
             // Update card balance
             await tx.card.update({
@@ -527,38 +571,64 @@ async function handleQRPaymentSuccess(paymentIntent: Stripe.PaymentIntent, payme
               data: { balanceCents: newBalance }
             });
 
-            // Update customer total spend
-            const newTotalSpend = new Decimal(card.customer.totalSpend).add(new Decimal(purchaseTransaction.amountCents).div(100));
-            await tx.customer.update({
-              where: { id: card.customer.id },
-              data: { totalSpend: newTotalSpend }
-            });
+            // Update customer total spend with full purchase amount
+            if (card.customer) {
+              const newTotalSpend = new Decimal(card.customer.totalSpend).add(
+                new Decimal(purchaseTransaction.amountCents).div(100)
+              );
+              await tx.customer.update({
+                where: { id: card.customer.id },
+                data: { totalSpend: newTotalSpend }
+              });
+            }
 
-            // Create traditional cashback transaction record
-            await tx.transaction.create({
-              data: {
-                tenantId: purchaseTransaction.tenantId,
-                storeId: purchaseTransaction.storeId,
-                cardId: card.id,
-                customerId: card.customer.id,
-                cashierId: purchaseTransaction.cashierId,
-                type: 'EARN',
-                category: purchaseTransaction.category,
-                amountCents: purchaseTransaction.amountCents,
-                cashbackCents: purchaseTransaction.cashbackCents,
-                beforeBalanceCents: beforeBalance,
-                afterBalanceCents: newBalance,
-                note: `Purchase transaction: ${purchaseTransaction.id} (Stripe Payment)`,
-              }
-            });
+            // Create transaction record for balance usage (if applicable)
+            if (balanceUsedCents > 0) {
+              await tx.transaction.create({
+                data: {
+                  tenantId: purchaseTransaction.tenantId,
+                  storeId: purchaseTransaction.storeId,
+                  cardId: card.id,
+                  customerId: card.customerId!,
+                  cashierId: purchaseTransaction.cashierId,
+                  type: 'REDEEM',
+                  category: purchaseTransaction.category,
+                  amountCents: balanceUsedCents,
+                  cashbackCents: 0,
+                  beforeBalanceCents: card.balanceCents,
+                  afterBalanceCents: card.balanceCents - balanceUsedCents,
+                  note: `Balance used for purchase: ${purchaseTransaction.id} (QR Payment)`,
+                }
+              });
+            }
+
+            // Create transaction record for cashback earned (if applicable)
+            if (cashbackCents > 0 && card.customer) {
+              await tx.transaction.create({
+                data: {
+                  tenantId: purchaseTransaction.tenantId,
+                  storeId: purchaseTransaction.storeId,
+                  cardId: card.id,
+                  customerId: card.customer.id,
+                  cashierId: purchaseTransaction.cashierId,
+                  type: 'EARN',
+                  category: purchaseTransaction.category,
+                  amountCents: paidAmountCents, // Amount cashback was calculated on
+                  cashbackCents: cashbackCents,
+                  beforeBalanceCents: balanceUsedCents > 0 ? card.balanceCents - balanceUsedCents : card.balanceCents,
+                  afterBalanceCents: newBalance,
+                  note: `Purchase via QR payment: ${purchaseTransaction.id} (cashback on paid amount: ${(paidAmountCents / 100).toFixed(2)})`,
+                }
+              });
+            }
 
             // Check for tier upgrade
-            if (typeof updateCustomerTier === 'function') {
+            if (card.customer && typeof updateCustomerTier === 'function') {
               await updateCustomerTier(card.customer.id, purchaseTransaction.tenantId, tx);
             }
             
             // Send cashback earned email notification (async, don't block response)
-            if (card.customer?.email && purchaseTransaction.cashbackCents) {
+            if (card.customer?.email && cashbackCents > 0) {
               setImmediate(async () => {
                 try {
                   const tenant = await prisma.tenant.findUnique({
@@ -576,14 +646,17 @@ async function handleQRPaymentSuccess(paymentIntent: Stripe.PaymentIntent, payme
                     card.customer!.id,
                     {
                       customerName: `${card.customer!.firstName} ${card.customer!.lastName}`,
-                      cashbackAmount: (purchaseTransaction.cashbackCents! / 100).toFixed(2),
+                      cashbackAmount: (cashbackCents / 100).toFixed(2),
                       purchaseAmount: (purchaseTransaction.amountCents / 100).toFixed(2),
                       newBalance: (newBalance / 100).toFixed(2),
-                      beforeBalance: (beforeBalance / 100).toFixed(2),
+                      beforeBalance: (card.balanceCents / 100).toFixed(2),
                       storeName: store?.name || 'Store',
                       tenantName: tenant?.name || null,
                       timestamp: new Date().toLocaleString(),
                       transactionId: purchaseTransaction.id,
+                      balanceUsed: balanceUsedCents > 0 ? (balanceUsedCents / 100).toFixed(2) : '0.00',
+                      remainingPaid: (paidAmountCents / 100).toFixed(2),
+                      paymentMethod: 'QR_PAYMENT',
                     }
                   );
                 } catch (error) {

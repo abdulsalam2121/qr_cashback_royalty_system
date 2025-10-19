@@ -613,15 +613,33 @@ createPaymentIntent: async (token: string): Promise<any> => {
       return request(`/t/${tenantSlug}/purchase-transactions${query}`);
     },
 
-    getPaymentLink: async (token: string): Promise<{ paymentLink: any; transaction: any }> => {
-      // Use a direct fetch without auth for public payment links
-      const url = `${API_BASE_URL}/purchase-transactions/payment-link/${token}`;
+    getPaymentLink: async (token: string): Promise<{ paymentLink: any; transaction: any; purchaseTransaction: any; cardInfo: any }> => {
+      // Use the new detailed endpoint for better card info
+      const url = `${API_BASE_URL}/purchase-transactions/payment-link-details/${token}`;
       const response = await fetch(url, {
         method: 'GET',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
+      });
+      
+      if (!response.ok) {
+        throw new ApiError(`HTTP error! status: ${response.status}`, response.status);
+      }
+      
+      return response.json();
+    },
+
+    updatePaymentAmount: async (token: string, balanceUsedCents: number): Promise<{ success: boolean; newPaymentAmount: number; balanceUsedCents: number; message: string }> => {
+      const url = `${API_BASE_URL}/purchase-transactions/update-payment-amount/${token}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ balanceUsedCents }),
       });
       
       if (!response.ok) {

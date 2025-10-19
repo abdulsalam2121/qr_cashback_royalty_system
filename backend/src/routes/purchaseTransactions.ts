@@ -1062,4 +1062,213 @@ router.post('/add-credit', auth, rbac(['tenant_admin', 'cashier']), validate(add
   });
 }));
 
+// Get payment link details with card information (public endpoint for customers)
+router.get('/payment-link-details/:token', asyncHandler(async (req: Request, res: Response) => {
+  const { token } = req.params;
+
+  if (!token) {
+    res.status(400).json({ error: 'Token parameter is required' });
+    return;
+  }
+
+  const paymentLink = await prisma.paymentLink.findUnique({
+    where: { token },
+    include: {
+      purchaseTransactions: {
+        include: {
+          customer: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            }
+          },
+          store: {
+            select: {
+              id: true,
+              name: true,
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!paymentLink) {
+    res.status(404).json({ error: 'Payment link not found' });
+    return;
+  }
+
+  if (paymentLink.usedAt || new Date() > paymentLink.expiresAt) {
+    res.status(400).json({ error: 'Payment link expired or already used' });
+    return;
+  }
+
+  // Get the purchase transaction associated with this payment link
+  const purchaseTransaction = paymentLink.purchaseTransactions[0];
+  
+  let cardInfo = null;
+  if (purchaseTransaction?.cardUid) {
+    try {
+      // Get card information to show balance
+      const card = await prisma.card.findUnique({
+        where: { cardUid: purchaseTransaction.cardUid },
+        include: {
+          customer: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            }
+          }
+        }
+      });
+
+      if (card && card.status === 'ACTIVE') {
+        cardInfo = {
+          cardUid: card.cardUid,
+          balanceCents: card.balanceCents,
+          customer: card.customer,
+        };
+      }
+    } catch (error) {
+      console.error('Error fetching card info for payment link:', error);
+      // Don't fail the request, just don't include card info
+    }
+  }
+
+  res.json({
+    paymentLink: {
+      id: paymentLink.id,
+      token: paymentLink.token,
+      amountCents: paymentLink.amountCents,
+      description: paymentLink.description,
+      expiresAt: paymentLink.expiresAt,
+    },
+    purchaseTransaction: purchaseTransaction ? {
+      id: purchaseTransaction.id,
+      amountCents: purchaseTransaction.amountCents,
+      category: purchaseTransaction.category,
+      description: purchaseTransaction.description,
+      customer: purchaseTransaction.customer,
+      store: purchaseTransaction.store,
+      cardUid: purchaseTransaction.cardUid,
+    } : null,
+    cardInfo,
+  });
+}));
+
+// Update payment intent amount based on balance usage
+router.post('/update-payment-amount/:token', asyncHandler(async (req: Request, res: Response) => {
+  const { token } = req.params;
+  const { balanceUsedCents } = req.body;
+
+  if (!token) {
+    res.status(400).json({ error: 'Token parameter is required' });
+    return;
+  }
+
+  if (typeof balanceUsedCents !== 'number' || balanceUsedCents < 0) {
+    res.status(400).json({ error: 'Valid balanceUsedCents is required' });
+    return;
+  }
+
+  const paymentLink = await prisma.paymentLink.findUnique({
+    where: { token },
+    include: {
+      purchaseTransactions: true
+    }
+  });
+
+  if (!paymentLink) {
+    res.status(404).json({ error: 'Payment link not found' });
+    return;
+  }
+
+  if (paymentLink.usedAt || new Date() > paymentLink.expiresAt) {
+    res.status(400).json({ error: 'Payment link expired or already used' });
+    return;
+  }
+
+  const purchaseTransaction = paymentLink.purchaseTransactions[0];
+  if (!purchaseTransaction?.cardUid) {
+    res.status(400).json({ error: 'No card associated with this payment link' });
+    return;
+  }
+
+  // Get card to validate balance
+  const card = await prisma.card.findUnique({
+    where: { cardUid: purchaseTransaction.cardUid }
+  });
+
+  if (!card || card.status !== 'ACTIVE') {
+    res.status(400).json({ error: 'Card not found or not active' });
+    return;
+  }
+
+  if (balanceUsedCents > card.balanceCents) {
+    res.status(400).json({ error: 'Insufficient card balance' });
+    return;
+  }
+
+  if (balanceUsedCents > purchaseTransaction.amountCents) {
+    res.status(400).json({ error: 'Balance amount cannot exceed total purchase amount' });
+    return;
+  }
+
+  // Calculate new payment amount
+  const newPaymentAmount = purchaseTransaction.amountCents - balanceUsedCents;
+
+  // Update the payment link amount
+  await prisma.paymentLink.update({
+    where: { id: paymentLink.id },
+    data: { 
+      amountCents: newPaymentAmount,
+      // Store balance usage info in description for webhook processing
+      description: balanceUsedCents > 0 
+        ? `${paymentLink.description || 'Purchase Payment'} (Balance used: ${(balanceUsedCents / 100).toFixed(2)})`
+        : paymentLink.description
+    }
+  });
+
+  // If there's an existing Stripe payment intent, update it
+  try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' });
+    
+    // Find existing payment intent with this paymentLinkId in metadata
+    const paymentIntents = await stripe.paymentIntents.list({
+      limit: 10,
+      expand: ['data']
+    });
+
+    const existingIntent = paymentIntents.data.find(intent => 
+      intent.metadata?.paymentLinkId === paymentLink.id
+    );
+
+    if (existingIntent && existingIntent.status === 'requires_payment_method') {
+      // Update the existing payment intent amount
+      await stripe.paymentIntents.update(existingIntent.id, {
+        amount: newPaymentAmount,
+        metadata: {
+          ...existingIntent.metadata,
+          balanceUsedCents: balanceUsedCents.toString(),
+          originalAmount: purchaseTransaction.amountCents.toString(),
+        }
+      });
+    }
+  } catch (stripeError) {
+    console.error('Error updating Stripe payment intent:', stripeError);
+    // Don't fail the request, the new amount will be used when creating a new intent
+  }
+
+  res.json({
+    success: true,
+    newPaymentAmount,
+    balanceUsedCents,
+    message: 'Payment amount updated successfully'
+  });
+}));
+
 export default router;
