@@ -52,6 +52,10 @@ router.post(
             if (md.paymentLinkId) {
               await handleQRPaymentSuccess(paymentIntent, md.paymentLinkId);
             }
+            // Handle purchase transactions with card balance (purchaseTransactionId metadata)
+            else if (md.purchaseTransactionId) {
+              await handlePurchaseTransactionCardPaymentSuccess(paymentIntent, md.purchaseTransactionId);
+            }
             // Handle POS payments (tenantId, storeId, cashierId metadata)  
             else if (md.tenantId && md.storeId && md.cashierId) {
               await prisma.purchaseTransaction.create({
