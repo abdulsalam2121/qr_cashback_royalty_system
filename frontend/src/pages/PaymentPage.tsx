@@ -29,16 +29,34 @@ interface PaymentLinkData {
     amountCents: number;
     description?: string;
     expiresAt: string;
-    tenantName?: string;
   };
-  transaction: {
+  purchaseTransaction: {
     id: string;
     amountCents: number;
     category: string;
     description?: string;
-    storeName?: string;
-    customerName?: string;
-  };
+    customer?: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email?: string;
+    };
+    store?: {
+      id: string;
+      name: string;
+    };
+    cardUid?: string;
+  } | null;
+  cardInfo?: {
+    cardUid: string;
+    balanceCents: number;
+    customer?: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email?: string;
+    };
+  } | null;
 }
 
 const CheckoutForm: React.FC<{
@@ -115,7 +133,8 @@ const CheckoutForm: React.FC<{
           onReady={() => void 0}
           onFocus={() => void 0}
           onBlur={() => void 0}
-          onChange={(e) => {
+          onChange={() => {
+            // Handle payment element changes if needed
           }}
         />
       </div>
@@ -147,6 +166,11 @@ const PaymentPage: React.FC = () => {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  
+  // Balance usage state
+  const [balanceUsedCents, setBalanceUsedCents] = useState(0);
+  const [remainingAmountCents, setRemainingAmountCents] = useState(0);
+  const [isUpdatingPayment, setIsUpdatingPayment] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -162,6 +186,10 @@ const PaymentPage: React.FC = () => {
       
       const data = await api.tenant.getPaymentLink(token);
       setPaymentData(data);
+
+      // Initialize balance usage with the full payment amount
+      const initialRemainingAmount = data.paymentLink.amountCents;
+      setRemainingAmountCents(initialRemainingAmount);
 
       // request backend to create PaymentIntent for this link
       const intent = await api.tenant.createPaymentIntent(token);
@@ -227,16 +255,16 @@ const PaymentPage: React.FC = () => {
                     {formatCurrency((paymentData?.paymentLink.amountCents || 0) / 100)}
                   </span>
                 </div>
-                {paymentData?.transaction.description && (
+                {paymentData?.purchaseTransaction?.description && (
                   <div className="flex justify-between">
                     <span>Description:</span>
-                    <span className="font-medium">{paymentData.transaction.description}</span>
+                    <span className="font-medium">{paymentData.purchaseTransaction.description}</span>
                   </div>
                 )}
-                {paymentData?.transaction.storeName && (
+                {paymentData?.purchaseTransaction?.store?.name && (
                   <div className="flex justify-between">
                     <span>Store:</span>
-                    <span className="font-medium">{paymentData.transaction.storeName}</span>
+                    <span className="font-medium">{paymentData.purchaseTransaction.store.name}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
@@ -274,7 +302,7 @@ const PaymentPage: React.FC = () => {
               <CreditCard className="w-12 h-12 mx-auto mb-4" />
               <h1 className="text-2xl font-bold">Complete Your Payment</h1>
               <p className="text-blue-100 mt-2">
-                {paymentData.paymentLink.tenantName && `${paymentData.paymentLink.tenantName} • `}Secure Payment
+                Secure Payment
                 Processing
               </p>
             </div>
@@ -318,39 +346,39 @@ const PaymentPage: React.FC = () => {
                     {formatCurrency(paymentData.paymentLink.amountCents / 100)}
                   </span>
                 </div>
-                {paymentData.transaction.description && (
+                {paymentData.purchaseTransaction?.description && (
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Item/Service</span>
                     <span className="font-medium text-gray-900">
-                      {paymentData.transaction.description}
+                      {paymentData.purchaseTransaction.description}
                     </span>
                   </div>
                 )}
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Category</span>
                   <span className="font-medium text-gray-900 capitalize">
-                    {paymentData.transaction.category.toLowerCase()}
+                    {paymentData.purchaseTransaction?.category.toLowerCase() || 'general'}
                   </span>
                 </div>
-                {paymentData.transaction.storeName && (
+                {paymentData.purchaseTransaction?.store?.name && (
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600 flex items-center">
                       <Store className="w-4 h-4 mr-1" />
                       Store
                     </span>
                     <span className="font-medium text-gray-900">
-                      {paymentData.transaction.storeName}
+                      {paymentData.purchaseTransaction.store.name}
                     </span>
                   </div>
                 )}
-                {paymentData.transaction.customerName && (
+                {paymentData.purchaseTransaction?.customer && (
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600 flex items-center">
                       <User className="w-4 h-4 mr-1" />
                       Customer
                     </span>
                     <span className="font-medium text-gray-900">
-                      {paymentData.transaction.customerName}
+                      {`${paymentData.purchaseTransaction.customer.firstName} ${paymentData.purchaseTransaction.customer.lastName}`}
                     </span>
                   </div>
                 )}
