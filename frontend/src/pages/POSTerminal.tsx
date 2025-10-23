@@ -308,8 +308,8 @@ const POSTerminal: React.FC = () => {
         paymentMethod,
       };
 
-      // Add partial payment information if using balance
-      if (useCardBalance && getBalanceToUseCents() > 0) {
+      // Add partial payment information if using balance (but not for QR payments)
+      if (useCardBalance && getBalanceToUseCents() > 0 && paymentMethod !== 'QR_PAYMENT') {
         data.useCardBalance = true;
         data.balanceUsedCents = getBalanceToUseCents();
         data.remainingAmountCents = getRemainingAmountCents();
@@ -357,12 +357,9 @@ const POSTerminal: React.FC = () => {
 
         if (paymentMethod === 'QR_PAYMENT' && result.paymentUrl) {
           setPaymentUrl(result.paymentUrl);
-          const qrMessage = useCardBalance && getRemainingAmountCents() > 0 
-            ? `Balance of ${formatCurrency(getBalanceToUseCents() / 100)} will be used. QR Payment link generated for remaining ${formatCurrency(getRemainingAmountCents() / 100)}.`
-            : 'QR Payment link generated! Share this link with the customer to complete payment.';
           setMessage({
             type: 'info',
-            text: qrMessage
+            text: `QR Payment link generated for ${formatCurrency(parseFloat(amount))}! Customer can scan the QR code and choose their balance usage during checkout.`
           });
         } else {
           // For CASH payments - they are completed immediately
@@ -915,6 +912,11 @@ const POSTerminal: React.FC = () => {
                           setUseCardBalance(e.target.checked);
                           if (!e.target.checked) {
                             setBalanceToUse('');
+                          } else {
+                            // Reset to a traditional payment method when balance is used
+                            if (paymentMethod === 'QR_PAYMENT') {
+                              setPaymentMethod('CASH');
+                            }
                           }
                         }}
                         className={`w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 ${
@@ -1058,13 +1060,34 @@ const POSTerminal: React.FC = () => {
                       QR Payment
                     </button>
                   </div>
+                  
+                  {/* Informational message about mutually exclusive options */}
+                  {scannedCard && scannedCard.balanceCents > 0 && (
+                    <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="flex items-start space-x-2">
+                        <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm text-yellow-800">
+                          <p className="font-medium">Payment Options:</p>
+                          <p className="mt-1">
+                            • Choose <strong>"Use Card Balance"</strong> to apply balance at POS, then pay remaining amount via cash/card
+                          </p>
+                          <p className="mt-1">
+                            • Choose <strong>"QR Payment"</strong> to let customer decide balance usage on their device
+                          </p>
+                          <p className="mt-1 text-yellow-700">
+                            These options cannot be used together to prevent double balance usage.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {paymentMethod === 'QR_PAYMENT' && (
                   <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-sm text-blue-700">
-                      <strong>QR Payment:</strong> A payment link will be generated for the customer. 
-                      They can scan the QR code or use the link to complete payment online.
+                      <strong>QR Payment:</strong> A payment link will be generated with the full amount ({formatCurrency(parseFloat(amount) || 0)}). 
+                      The customer can scan the QR code and choose how much of their card balance to use during checkout.
                     </p>
                   </div>
                 )}
@@ -1146,10 +1169,8 @@ const POSTerminal: React.FC = () => {
                       </div>
                       
                       <p className="text-sm text-gray-600 mb-4">
-                        Customer can scan this QR code with their phone to pay {useCardBalance && getRemainingAmountCents() > 0 
-                          ? formatCurrency(getRemainingAmountCents() / 100)
-                          : formatCurrency(parseFloat(amount) || 0)
-                        }
+                        Customer can scan this QR code with their phone to pay {formatCurrency(parseFloat(amount) || 0)}. 
+                        They can choose how much balance to use during checkout.
                       </p>
                     </div>
                     
