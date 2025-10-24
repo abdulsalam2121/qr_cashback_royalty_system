@@ -8,27 +8,27 @@ datasource db {
 }
 
 model Tenant {
-  id                    String                 @id @default(cuid())
+  id                    String                  @id @default(cuid())
   name                  String?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
   graceEndsAt           DateTime?
   planId                String?
-  previousPlanId        String?
-  slug                  String                 @unique
+  slug                  String                  @unique
   stripeCustomerId      String?
   stripeSubscriptionId  String?
-  subscriptionStatus    SubscriptionStatus     @default(TRIALING)
-  subscriptionStartDate DateTime?
+  subscriptionStatus    SubscriptionStatus      @default(TRIALING)
   trialEndsAt           DateTime?
-  freeTrialActivations  Int                    @default(0)
-  freeTrialCardsCreated Int                    @default(0)
-  freeTrialLimit        Int                    @default(40)
-  trialExpiredNotified  Boolean                @default(false)
-  currentCardBalance    Int                    @default(40)
-  subscriptionCardLimit Int                    @default(0)
-  subscriptionCardsUsed Int                    @default(0)
-  totalCardAllowance    Int                    @default(40)
+  freeTrialActivations  Int                     @default(0)
+  freeTrialCardsCreated Int                     @default(0)
+  freeTrialLimit        Int                     @default(40)
+  trialExpiredNotified  Boolean                 @default(false)
+  currentCardBalance    Int                     @default(40)
+  previousPlanId        String?
+  subscriptionCardLimit Int                     @default(0)
+  subscriptionCardsUsed Int                     @default(0)
+  subscriptionStartDate DateTime?
+  totalCardAllowance    Int                     @default(40)
   cardLimitTransactions CardLimitTransaction[]
   cardOrders            CardOrder[]
   cardPrintOrders       CardPrintOrder[]
@@ -37,99 +37,106 @@ model Tenant {
   customers             Customer[]
   notifications         Notification[]
   offers                Offer[]
+  payment_links         payment_links[]
+  payments              Payment[]
+  purchase_transactions purchase_transactions[]
   stores                Store[]
-  plan                  Plan?                  @relation(fields: [planId], references: [id])
+  subscriptionEvents    SubscriptionEvent[]
+  plan                  Plan?                   @relation(fields: [planId], references: [id])
   tierRules             TierRule[]
   transactions          Transaction[]
   users                 User[]
-  payments              Payment[]
-  subscriptionEvents    SubscriptionEvent[]
+  repairDevices         RepairDevice[]
 
   @@map("tenants")
 }
 
 model Store {
-  id           String        @id @default(cuid())
-  tenantId     String
-  name         String
-  address      String?
-  active       Boolean       @default(true)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  cards        Card[]
-  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
-  users        User[]
+  id                    String                  @id @default(cuid())
+  tenantId              String
+  name                  String
+  address               String?
+  active                Boolean                 @default(true)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  cards                 Card[]
+  purchase_transactions purchase_transactions[]
+  tenant                Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  transactions          Transaction[]
+  users                 User[]
 
   @@map("stores")
 }
 
 model User {
-  id                    String        @id @default(cuid())
-  tenantId              String
-  email                 String        @unique
-  passwordHash          String?       // Make optional for Google auth users
-  role                  Role
-  storeId               String?
-  firstName             String?
-  lastName              String?
-  authProvider          String?       // "password" | "google" | etc.
-  displayName           String?
-  photoURL              String?
-  active                Boolean       @default(true)
-  emailVerified         Boolean       @default(false)
-  emailVerificationToken String?
+  id                           String                  @id @default(cuid())
+  tenantId                     String
+  email                        String                  @unique
+  passwordHash                 String?
+  role                         Role
+  storeId                      String?
+  firstName                    String?
+  lastName                     String?
+  active                       Boolean                 @default(true)
+  createdAt                    DateTime                @default(now())
+  updatedAt                    DateTime                @updatedAt
+  lastLogin                    DateTime?
+  authProvider                 String?
+  displayName                  String?
+  photoURL                     String?
+  emailVerificationToken       String?
   emailVerificationTokenExpiry DateTime?
-  passwordResetToken    String?
-  passwordResetTokenExpiry DateTime?
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
-  lastLogin             DateTime?
-  transactionsProcessed Transaction[] @relation("CashierTransactions")
-  store                 Store?        @relation(fields: [storeId], references: [id])
-  tenant                Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  emailVerified                Boolean                 @default(false)
+  passwordResetToken           String?
+  passwordResetTokenExpiry     DateTime?
+  purchase_transactions        purchase_transactions[]
+  transactionsProcessed        Transaction[]           @relation("CashierTransactions")
+  store                        Store?                  @relation(fields: [storeId], references: [id])
+  tenant                       Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("users")
 }
 
 model Customer {
-  id            String         @id @default(cuid())
-  tenantId      String
-  firstName     String
-  lastName      String
-  phone         String?
-  email         String?        @unique
-  tier          Tier           @default(SILVER)
-  totalSpend    Decimal        @default(0)
-  active        Boolean        @default(true)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  cards         Card[]
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  notifications Notification[]
-  transactions  Transaction[]
+  id                    String                  @id @default(cuid())
+  tenantId              String
+  firstName             String
+  lastName              String
+  phone                 String?
+  email                 String?                 @unique
+  tier                  Tier                    @default(SILVER)
+  totalSpend            Decimal                 @default(0)
+  active                Boolean                 @default(true)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  cards                 Card[]
+  tenant                Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  notifications         Notification[]
+  purchase_transactions purchase_transactions[]
+  transactions          Transaction[]
+  repairDevices         RepairDevice[]
 
   @@map("customers")
 }
 
 model Card {
-  id              String         @id @default(cuid())
-  tenantId        String
-  cardUid         String         @unique
-  customerId      String?
-  activatedAt     DateTime?
-  storeId         String?
-  status          CardStatus     @default(UNASSIGNED)
-  qrUrl           String?
-  balanceCents    Int            @default(0)
-  printOrderId    String?        // Link to print order
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  customer        Customer?      @relation(fields: [customerId], references: [id])
-  store           Store?         @relation(fields: [storeId], references: [id])
-  tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  printOrder      CardPrintOrder? @relation("CardPrintOrderCards", fields: [printOrderId], references: [id])
-  transactions    Transaction[]
+  id           String          @id @default(cuid())
+  tenantId     String
+  cardUid      String          @unique
+  customerId   String?
+  activatedAt  DateTime?
+  storeId      String?
+  status       CardStatus      @default(UNASSIGNED)
+  qrUrl        String?
+  balanceCents Int             @default(0)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  printOrderId String?
+  customer     Customer?       @relation(fields: [customerId], references: [id])
+  printOrder   CardPrintOrder? @relation("CardPrintOrderCards", fields: [printOrderId], references: [id])
+  store        Store?          @relation(fields: [storeId], references: [id])
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
 
   @@map("cards")
 }
@@ -256,28 +263,28 @@ model CardOrder {
 }
 
 model Plan {
-  id                      String                 @id @default(cuid())
-  name                    String
-  description             String
-  priceMonthly            Int
-  billingPeriod           BillingPeriod          @default(MONTHLY)
-  billingPeriodMultiplier Int                    @default(1)
-  stripePriceId           String
-  features                String[]
-  maxStores               Int                    @default(-1)
-  maxStaff                Int                    @default(-1)
-  maxCards                Int                    @default(-1)
-  maxTransactions         Int                    @default(-1)
-  isActive                Boolean                @default(true)
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @updatedAt
-  allowCardOrdering       Boolean                @default(true)
-  cardAllowance           Int                    @default(0)
-  cardLimitTransactions   CardLimitTransaction[]
-  tenants                 Tenant[]
-  payments                Payment[]
-  subscriptionEvents      SubscriptionEvent[]
-  previousSubscriptionEvents SubscriptionEvent[] @relation("PreviousPlan")
+  id                         String                 @id @default(cuid())
+  name                       String
+  description                String
+  priceMonthly               Int
+  billingPeriod              BillingPeriod          @default(MONTHLY)
+  billingPeriodMultiplier    Int                    @default(1)
+  stripePriceId              String
+  features                   String[]
+  maxStores                  Int                    @default(-1)
+  maxStaff                   Int                    @default(-1)
+  maxCards                   Int                    @default(-1)
+  maxTransactions            Int                    @default(-1)
+  isActive                   Boolean                @default(true)
+  createdAt                  DateTime               @default(now())
+  updatedAt                  DateTime               @updatedAt
+  allowCardOrdering          Boolean                @default(true)
+  cardAllowance              Int                    @default(0)
+  cardLimitTransactions      CardLimitTransaction[]
+  payments                   Payment[]
+  subscriptionEvents         SubscriptionEvent[]
+  previousSubscriptionEvents SubscriptionEvent[]    @relation("PreviousPlan")
+  tenants                    Tenant[]
 
   @@map("plans")
 }
@@ -300,6 +307,124 @@ model CardLimitTransaction {
   tenant          Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("card_limit_transactions")
+}
+
+model Payment {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  planId                String
+  stripeSubscriptionId  String?
+  stripeInvoiceId       String?
+  stripePaymentIntentId String?
+  amount                Int
+  currency              String   @default("usd")
+  status                String
+  description           String?
+  metadata              String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  plan                  Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  tenant                Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([planId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("payments")
+}
+
+model SubscriptionEvent {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  planId               String
+  eventType            String
+  previousPlanId       String?
+  stripeSubscriptionId String?
+  metadata             String?
+  createdAt            DateTime @default(now())
+  plan                 Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  previousPlan         Plan?    @relation("PreviousPlan", fields: [previousPlanId], references: [id])
+  tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("subscription_events")
+}
+
+model CardPrintOrder {
+  id               String               @id @default(cuid())
+  tenantId         String
+  quantity         Int
+  status           CardPrintOrderStatus @default(CREATED)
+  notes            String?
+  storeName        String?
+  storeAddress     String?
+  tenantAdminEmail String?
+  tenantAdminName  String?
+  deliveryMethod   DeliveryMethod       @default(PICKUP)
+  deliveryAddress  String?
+  trackingInfo     String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  acceptedAt       DateTime?
+  acceptedBy       String?
+  printedAt        DateTime?
+  printedBy        String?
+  deliveredAt      DateTime?
+  deliveredBy      String?
+  collectedAt      DateTime?
+  collectedBy      String?
+  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cards            Card[]               @relation("CardPrintOrderCards")
+
+  @@map("card_print_orders")
+}
+
+model payment_links {
+  id                    String                  @id
+  tenantId              String
+  token                 String                  @unique
+  amountCents           Int
+  description           String?
+  expiresAt             DateTime
+  usedAt                DateTime?
+  createdAt             DateTime                @default(now())
+  tenants               Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  purchase_transactions purchase_transactions[]
+
+  @@index([expiresAt])
+  @@index([tenantId])
+  @@index([token])
+}
+
+model purchase_transactions {
+  id                String         @id
+  tenantId          String
+  storeId           String
+  customerId        String?
+  cashierId         String
+  cardUid           String?
+  paymentMethod     PaymentMethod
+  paymentStatus     PaymentStatus  @default(PENDING)
+  amountCents       Int
+  cashbackCents     Int?           @default(0)
+  category          TxCategory
+  description       String?
+  paymentLinkId     String?
+  paymentLinkExpiry DateTime?
+  paidAt            DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime
+  users             User           @relation(fields: [cashierId], references: [id])
+  customers         Customer?      @relation(fields: [customerId], references: [id])
+  payment_links     payment_links? @relation(fields: [paymentLinkId], references: [id])
+  stores            Store          @relation(fields: [storeId], references: [id])
+  tenants           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([paymentStatus])
+  @@index([tenantId])
 }
 
 enum SubscriptionStatus {
@@ -412,76 +537,136 @@ enum DeliveryMethod {
   DELIVERY
 }
 
-model Payment {
-  id                    String   @id @default(cuid())
-  tenantId              String
-  planId                String
-  stripeSubscriptionId  String?
-  stripeInvoiceId       String?
-  stripePaymentIntentId String?
-  amount                Int      // Amount in cents
-  currency              String   @default("usd")
-  status                String   // paid, pending, failed, refunded
-  description           String?
-  metadata              String?  // JSON string for additional data
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+enum PaymentMethod {
+  COD
+  QR_PAYMENT
+  CASH
+  CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+// ==================== Phone Repair Tracking System ====================
+
+model RepairDevice {
+  id            String   @id @default(cuid())
+  tenantId      String
+  customerId    String?
   
-  tenant                Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  plan                  Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  // Device Information
+  phoneModel    String
+  imei          String?
+  issueDetails  String   @db.Text
+  accessories   String?  @db.Text // JSON array of accessories
+  
+  // Repair Information
+  status        RepairStatus @default(DROPPED_OFF)
+  estimatedCost Int?     // in cents
+  actualCost    Int?     // in cents
+  technicianNotes String? @db.Text
+  
+  // Timestamps
+  droppedOffAt  DateTime @default(now())
+  startedAt     DateTime?
+  completedAt   DateTime?
+  pickedUpAt    DateTime?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  notifications RepairNotification[]
+  statusHistory RepairStatusHistory[]
   
   @@index([tenantId])
-  @@index([planId])
+  @@index([customerId])
   @@index([status])
-  @@index([createdAt])
-  @@map("payments")
+  @@index([droppedOffAt])
+  @@map("repair_devices")
 }
 
-model SubscriptionEvent {
-  id                   String   @id @default(cuid())
-  tenantId             String
-  planId               String
-  eventType            String   // created, updated, cancelled, reactivated
-  previousPlanId       String?
-  stripeSubscriptionId String?
-  metadata             String?  // JSON string for additional data
-  createdAt            DateTime @default(now())
+model RepairStatusHistory {
+  id            String   @id @default(cuid())
+  repairId      String
   
-  tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  plan                 Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
-  previousPlan         Plan?    @relation("PreviousPlan", fields: [previousPlanId], references: [id], onDelete: SetNull)
+  oldStatus     RepairStatus?
+  newStatus     RepairStatus
+  changedBy     String?  // User ID who made the change
+  notes         String?  @db.Text
   
-  @@index([tenantId])
-  @@index([eventType])
+  createdAt     DateTime @default(now())
+  
+  // Relations
+  repair        RepairDevice @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  
+  @@index([repairId])
   @@index([createdAt])
-  @@map("subscription_events")
+  @@map("repair_status_history")
 }
 
-model CardPrintOrder {
-  id                    String                @id @default(cuid())
-  tenantId              String
-  quantity              Int
-  status                CardPrintOrderStatus  @default(CREATED)
-  notes                 String?
-  storeName             String?
-  storeAddress          String?
-  tenantAdminEmail      String?
-  tenantAdminName       String?
-  deliveryMethod        DeliveryMethod        @default(PICKUP)
-  deliveryAddress       String?
-  trackingInfo          String?
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
-  acceptedAt            DateTime?
-  acceptedBy            String?               // Platform admin who accepted
-  printedAt             DateTime?
-  printedBy             String?               // Platform admin who printed
-  deliveredAt           DateTime?
-  deliveredBy           String?               // Platform admin who delivered
-  collectedAt           DateTime?
-  collectedBy           String?               // Tenant admin who collected
-  cards                 Card[]                @relation("CardPrintOrderCards")
-  tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+model RepairNotification {
+  id            String   @id @default(cuid())
+  repairId      String
+  
+  // Notification Details
+  type          NotificationType
+  status        RepairStatus
+  sentVia       String[] // ["SMS", "EMAIL"]
+  
+  // Recipient Info
+  recipientName  String?
+  recipientPhone String?
+  recipientEmail String?
+  
+  // Message Content
+  subject       String?
+  message       String   @db.Text
+  
+  // Delivery Status
+  smsSent       Boolean  @default(false)
+  emailSent     Boolean  @default(false)
+  smsDelivered  Boolean  @default(false)
+  emailDelivered Boolean @default(false)
+  
+  // Error Tracking
+  smsError      String?  @db.Text
+  emailError    String?  @db.Text
+  
+  // External IDs
+  smsMessageId  String?
+  emailMessageId String?
+  
+  sentAt        DateTime @default(now())
+  createdAt     DateTime @default(now())
+  
+  // Relations
+  repair        RepairDevice @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  
+  @@index([repairId])
+  @@index([sentAt])
+  @@map("repair_notifications")
+}
 
-  @@map("card_print_orders")
+// Enums for Repair System
+
+enum RepairStatus {
+  DROPPED_OFF
+  IN_PROGRESS
+  READY_FOR_PICKUP
+  PICKED_UP
+  CANCELLED
+}
+
+enum NotificationType {
+  STATUS_CHANGE
+  REMINDER
+  CUSTOM
 }
