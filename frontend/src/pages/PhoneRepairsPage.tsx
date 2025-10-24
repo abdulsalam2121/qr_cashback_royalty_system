@@ -1,10 +1,8 @@
 import React from 'react';
-import { useParams } from 'react-router-dom';
 import PhoneRepairs from '../components/PhoneRepairs/PhoneRepairs';
 import { useAuthStore } from '../store/authStore';
 
 const PhoneRepairsPage: React.FC = () => {
-  const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const { tenant } = useAuthStore();
 
   if (!tenant || !tenant.id) {
