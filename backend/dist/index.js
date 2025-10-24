@@ -28,6 +28,7 @@ import webhookRoutes from './routes/webhooks.js';
 import adminRoutes from './routes/admin.js';
 import customerAuthRoutes from './routes/customerAuth.js';
 import customerDashboardRoutes from './routes/customerDashboard.js';
+import repairRoutes from './routes/repairs.js';
 import { customerAuthLimiter, customerAPILimiter } from './middleware/customerSecurity.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
@@ -142,6 +143,7 @@ app.use('/api/t/:tenantSlug/users', userRoutes);
 app.use('/api/t/:tenantSlug/trial', trialRoutes);
 app.use('/api/t/:tenantSlug/card-orders', cardOrderRoutes);
 app.use('/api/t/:tenantSlug/card-print-orders', cardPrintOrderRoutes);
+app.use('/api/t/:tenantSlug/repairs', repairRoutes);
 // General tenant routes (must come after specific tenant-scoped routes)
 app.use('/api/t', tenantRoutes);
 // Error handling
