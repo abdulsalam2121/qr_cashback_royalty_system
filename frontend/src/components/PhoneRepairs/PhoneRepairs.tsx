@@ -12,7 +12,6 @@ import {
   CheckCircle,
   Wrench,
   Mail,
-  MessageSquare,
   Calendar,
   User,
   Phone,
@@ -20,7 +19,6 @@ import {
   X,
   ChevronDown,
   RefreshCw,
-  Download,
   Eye,
 } from 'lucide-react';
 import axios from 'axios';
@@ -595,7 +593,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
               className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             >
               <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
@@ -754,7 +752,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
               className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             >
               <div className="sticky top-0 bg-gradient-to-r from-yellow-600 to-orange-600 p-6 text-white">
@@ -897,7 +895,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
               className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
             >
               <div className={`sticky top-0 ${statusConfig[selectedRepair.status].color} p-6 text-white`}>
@@ -1078,7 +1076,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
               className="bg-white rounded-2xl shadow-2xl max-w-md w-full"
             >
               <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 text-white rounded-t-2xl">
