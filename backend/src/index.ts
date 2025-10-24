@@ -162,6 +162,7 @@ app.use('/api/t/:tenantSlug/users', userRoutes);
 app.use('/api/t/:tenantSlug/trial', trialRoutes);
 app.use('/api/t/:tenantSlug/card-orders', cardOrderRoutes);
 app.use('/api/t/:tenantSlug/card-print-orders', cardPrintOrderRoutes);
+app.use('/api/t/:tenantSlug/repairs', repairRoutes);
 
 // General tenant routes (must come after specific tenant-scoped routes)
 app.use('/api/t', tenantRoutes);
