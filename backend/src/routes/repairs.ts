@@ -276,7 +276,7 @@ router.patch(
     // Verify repair exists and belongs to tenant
     const existingRepair = await prisma.repairDevice.findFirst({
       where: {
-        id,
+        id: id!,
         tenantId,
       },
     });
@@ -286,18 +286,20 @@ router.patch(
       return;
     }
 
+    // Prepare update data
+    const updateData: any = {};
+    if (data.phoneModel !== undefined) updateData.phoneModel = data.phoneModel;
+    if (data.imei !== undefined) updateData.imei = data.imei;
+    if (data.issueDetails !== undefined) updateData.issueDetails = data.issueDetails;
+    if (data.accessories !== undefined) updateData.accessories = JSON.stringify(data.accessories);
+    if (data.estimatedCost !== undefined) updateData.estimatedCost = Math.round(data.estimatedCost * 100);
+    if (data.actualCost !== undefined) updateData.actualCost = Math.round(data.actualCost * 100);
+    if (data.technicianNotes !== undefined) updateData.technicianNotes = data.technicianNotes;
+
     // Update repair
     const repair = await prisma.repairDevice.update({
-      where: { id },
-      data: {
-        phoneModel: data.phoneModel,
-        imei: data.imei,
-        issueDetails: data.issueDetails,
-        accessories: data.accessories ? JSON.stringify(data.accessories) : undefined,
-        estimatedCost: data.estimatedCost ? Math.round(data.estimatedCost * 100) : undefined,
-        actualCost: data.actualCost ? Math.round(data.actualCost * 100) : undefined,
-        technicianNotes: data.technicianNotes,
-      },
+      where: { id: id! },
+      data: updateData,
       include: {
         customer: true,
       },
@@ -398,7 +400,7 @@ router.post(
     // Verify repair exists and belongs to tenant
     const repair = await prisma.repairDevice.findFirst({
       where: {
-        id,
+        id: id!,
         tenantId,
       },
       include: {
