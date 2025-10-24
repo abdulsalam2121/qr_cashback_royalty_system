@@ -448,7 +448,7 @@ router.delete(
     // Verify repair exists and belongs to tenant
     const repair = await prisma.repairDevice.findFirst({
       where: {
-        id,
+        id: id!,
         tenantId,
       },
     });
@@ -460,7 +460,7 @@ router.delete(
 
     // Delete repair (cascades to status history and notifications)
     await prisma.repairDevice.delete({
-      where: { id },
+      where: { id: id! },
     });
 
     res.json({ success: true, message: 'Repair deleted successfully' });
