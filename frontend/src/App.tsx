@@ -273,6 +273,14 @@ function AppContent() {
               } 
             />
             <Route 
+              path="phone-repairs" 
+              element={
+                <ProtectedRoute roles={['tenant_admin', 'cashier']}>
+                  <PhoneRepairsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="customer" 
               element={
                 <ProtectedRoute roles={['customer']}>
