@@ -15,6 +15,7 @@ import ResendVerification from './pages/ResendVerification';
 import DebugAuth from './pages/DebugAuth';
 import Dashboard from './pages/Dashboard';
 import POSTerminal from './pages/POSTerminal';
+import PhoneRepairsPage from './pages/PhoneRepairsPage';
 import Customers from './pages/Customers';
 import Cards from './pages/Cards';
 import CardPrintOrders from './pages/CardPrintOrders';
