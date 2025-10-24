@@ -354,7 +354,7 @@ router.patch(
 
     // Update repair status
     const repair = await prisma.repairDevice.update({
-      where: { id },
+      where: { id: id! },
       data: updateData,
       include: {
         customer: true,
