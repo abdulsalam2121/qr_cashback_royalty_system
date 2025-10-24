@@ -12,7 +12,7 @@ const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_T
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
 // Email Configuration
-const emailTransporter = nodemailer.createTransporter({
+const emailTransporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.SMTP_USER || 'covercellinsure@gmail.com',
