@@ -323,7 +323,7 @@ router.patch(
     // Verify repair exists and belongs to tenant
     const existingRepair = await prisma.repairDevice.findFirst({
       where: {
-        id,
+        id: id!,
         tenantId,
       },
       include: {
