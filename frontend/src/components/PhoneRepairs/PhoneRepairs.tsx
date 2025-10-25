@@ -179,8 +179,9 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
   const handleUpdateStatus = async (repairId: string, newStatus: string) => {
     try {
       const token = localStorage.getItem('token');
+      const tenantSlug = window.location.pathname.split('/')[2];
       await axios.patch(
-        `/api/repairs/${repairId}/status`,
+        `/api/t/${tenantSlug}/repairs/${repairId}/status`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
