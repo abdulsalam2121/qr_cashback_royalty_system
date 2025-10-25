@@ -199,11 +199,15 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
 
     try {
       const token = localStorage.getItem('token');
+      const tenantSlug = window.location.pathname.split('/')[2];
       await axios.put(
-        `/api/repairs/${selectedRepair.id}`,
+        `/api/t/${tenantSlug}/repairs/${selectedRepair.id}`,
         {
-          ...formData,
+          customerId: formData.customerId,
+          phoneModel: formData.deviceModel,
+          issueDetails: formData.issueDescription,
           estimatedCost: formData.estimatedCost ? parseFloat(formData.estimatedCost) : undefined,
+          technicianNotes: formData.notes,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
