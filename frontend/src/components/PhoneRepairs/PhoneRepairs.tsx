@@ -227,7 +227,8 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`/api/repairs/${repairId}`, {
+      const tenantSlug = window.location.pathname.split('/')[2];
+      await axios.delete(`/api/t/${tenantSlug}/repairs/${repairId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       toast.success('Repair deleted successfully!');
@@ -241,9 +242,13 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
   const handleResendNotification = async (repairId: string) => {
     try {
       const token = localStorage.getItem('token');
+      const tenantSlug = window.location.pathname.split('/')[2];
       await axios.post(
-        `/api/repairs/${repairId}/notify`,
-        {},
+        `/api/t/${tenantSlug}/repairs/${repairId}/custom-notify`,
+        {
+          message: 'Status update notification',
+          sendVia: ['SMS', 'EMAIL'],
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       toast.success('Notification sent successfully!');
@@ -257,9 +262,15 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
+      const tenantSlug = window.location.pathname.split('/')[2];
       const response = await axios.post(
-        '/api/customers',
-        { ...newCustomer, tenantId },
+        `/api/t/${tenantSlug}/customers`,
+        {
+          firstName: newCustomer.name.split(' ')[0],
+          lastName: newCustomer.name.split(' ').slice(1).join(' ') || newCustomer.name.split(' ')[0],
+          phone: newCustomer.phone,
+          email: newCustomer.email,
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       toast.success('Customer added successfully!');
