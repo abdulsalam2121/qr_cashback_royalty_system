@@ -26,7 +26,8 @@ import { toast } from 'react-hot-toast';
 
 interface Customer {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   phone: string;
 }
@@ -37,7 +38,7 @@ interface RepairDevice {
   customer?: Customer;
   deviceModel: string;
   issueDescription: string;
-  status: 'DROPPED_OFF' | 'IN_PROGRESS' | 'READY_FOR_PICKUP' | 'COMPLETED';
+  status: 'DROPPED_OFF' | 'IN_PROGRESS' | 'READY_FOR_PICKUP' | 'PICKED_UP';
   estimatedCost?: number;
   actualCost?: number;
   notes?: string;
