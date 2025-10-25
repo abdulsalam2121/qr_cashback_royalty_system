@@ -440,7 +440,7 @@ router.post(
 router.delete(
   '/:id',
   auth,
-  rbac(['admin', 'manager']),
+  rbac(['tenant_admin', 'platform_admin']),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId } = req.user;
     const { id } = req.params;
@@ -471,7 +471,7 @@ router.delete(
 router.get(
   '/stats/overview',
   auth,
-  rbac(['admin', 'manager']),
+  rbac(['tenant_admin', 'platform_admin']),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId } = req.user;
     const { startDate, endDate } = req.query;
