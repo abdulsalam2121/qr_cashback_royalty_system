@@ -24,9 +24,6 @@ import {
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 
-// Configure axios base URL
-axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
-
 interface Customer {
   id: string;
   name: string;
