@@ -108,6 +108,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     issueDescription: '',
     estimatedCost: '',
     notes: '',
+    status: 'DROPPED_OFF' as 'DROPPED_OFF' | 'IN_PROGRESS' | 'READY_FOR_PICKUP' | 'PICKED_UP',
   });
 
   const [newCustomer, setNewCustomer] = useState({
