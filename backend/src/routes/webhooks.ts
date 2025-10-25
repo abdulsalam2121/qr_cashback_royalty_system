@@ -58,8 +58,9 @@ router.post(
             }
             // Handle POS payments (tenantId, storeId, cashierId metadata)  
             else if (md.tenantId && md.storeId && md.cashierId) {
-              await prisma.purchaseTransaction.create({
+              await prisma.purchase_transactions.create({
                 data: {
+                  id: `pt_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
                   tenantId: md.tenantId,
                   storeId: md.storeId,
                   cashierId: md.cashierId,
@@ -70,6 +71,7 @@ router.post(
                   paymentStatus: PaymentStatus.COMPLETED,
                   customerId: md.customerId || null,
                   paidAt: new Date(),
+                  updatedAt: new Date(),
                 },
               });
             } 
@@ -98,8 +100,9 @@ router.post(
             }
             // Handle POS payment failures
             else if (md.tenantId && md.storeId && md.cashierId) {
-              await prisma.purchaseTransaction.create({
+              await prisma.purchase_transactions.create({
                 data: {
+                  id: `pt_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
                   tenantId: md.tenantId,
                   storeId: md.storeId,
                   cashierId: md.cashierId,
@@ -109,6 +112,7 @@ router.post(
                   paymentMethod: PaymentMethod.CARD,
                   paymentStatus: PaymentStatus.FAILED,
                   customerId: md.customerId || null,
+                  updatedAt: new Date(),
                 },
               });
             } else {
@@ -126,8 +130,9 @@ router.post(
           try {
             const md = charge.metadata ?? {};
             if (md.tenantId && md.storeId && md.cashierId) {
-              await prisma.purchaseTransaction.create({
+              await prisma.purchase_transactions.create({
                 data: {
+                  id: `pt_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
                   tenantId: md.tenantId,
                   storeId: md.storeId,
                   cashierId: md.cashierId,
@@ -137,6 +142,7 @@ router.post(
                   paymentMethod: PaymentMethod.CARD,
                   paymentStatus: PaymentStatus.CANCELLED,
                   customerId: md.customerId || null,
+                  updatedAt: new Date(),
                 },
               });
             } else {
@@ -447,13 +453,13 @@ async function handleQRPaymentSuccess(paymentIntent: Stripe.PaymentIntent, payme
   try {
     await prisma.$transaction(async (tx) => {
       // Find the purchase transaction linked to this payment link
-      const purchaseTransaction = await tx.purchaseTransaction.findFirst({
+      const purchaseTransaction = await tx.purchase_transactions.findFirst({
         where: { 
           paymentLinkId: paymentLinkId,
           paymentStatus: 'PENDING'
         },
         include: {
-          customer: true
+          customers: true
         }
       });
 
@@ -463,7 +469,7 @@ async function handleQRPaymentSuccess(paymentIntent: Stripe.PaymentIntent, payme
       }
 
       // Update purchase transaction status
-      await tx.purchaseTransaction.update({
+      await tx.purchase_transactions.update({
         where: { id: purchaseTransaction.id },
         data: {
           paymentStatus: 'COMPLETED',
@@ -472,7 +478,7 @@ async function handleQRPaymentSuccess(paymentIntent: Stripe.PaymentIntent, payme
       });
 
       // Mark payment link as used
-      await tx.paymentLink.update({
+      await tx.payment_links.update({
         where: { id: paymentLinkId },
         data: { usedAt: new Date() }
       });
@@ -486,7 +492,7 @@ async function handleQRPaymentSuccess(paymentIntent: Stripe.PaymentIntent, payme
         balanceUsedCents = parseInt(paymentIntent.metadata.balanceUsedCents, 10) || 0;
       } else {
         // Try to extract from payment link description
-        const paymentLink = await tx.paymentLink.findUnique({
+        const paymentLink = await tx.payment_links.findUnique({
           where: { id: paymentLinkId }
         });
         
@@ -678,7 +684,7 @@ async function handleQRPaymentSuccess(paymentIntent: Stripe.PaymentIntent, payme
 async function handleQRPaymentFailure(paymentIntent: Stripe.PaymentIntent, paymentLinkId: string) {
   try {
     // Find the purchase transaction linked to this payment link
-    const purchaseTransaction = await prisma.purchaseTransaction.findFirst({
+    const purchaseTransaction = await prisma.purchase_transactions.findFirst({
       where: { 
         paymentLinkId: paymentLinkId,
         paymentStatus: 'PENDING'
@@ -687,7 +693,7 @@ async function handleQRPaymentFailure(paymentIntent: Stripe.PaymentIntent, payme
 
     if (purchaseTransaction) {
       // Update purchase transaction status to failed
-      await prisma.purchaseTransaction.update({
+      await prisma.purchase_transactions.update({
         where: { id: purchaseTransaction.id },
         data: {
           paymentStatus: 'FAILED',
@@ -723,11 +729,11 @@ async function handlePurchaseTransactionCardPaymentSuccess(paymentIntent: Stripe
   try {
     await prisma.$transaction(async (tx) => {
       // Get the purchase transaction with all related data
-      const purchaseTransaction = await tx.purchaseTransaction.findUnique({
+      const purchaseTransaction = await tx.purchase_transactions.findUnique({
         where: { id: purchaseTransactionId },
         include: {
-          customer: true,
-          paymentLink: true,
+          customers: true,
+          payment_links: true,
         }
       });
 
@@ -741,7 +747,7 @@ async function handlePurchaseTransactionCardPaymentSuccess(paymentIntent: Stripe
       const balanceUsedCents = useCardBalance ? purchaseTransaction.amountCents - paymentIntent.amount : 0;
 
       // Update the purchase transaction to completed
-      await tx.purchaseTransaction.update({
+      await tx.purchase_transactions.update({
         where: { id: purchaseTransactionId },
         data: {
           paymentStatus: 'COMPLETED',
@@ -752,14 +758,14 @@ async function handlePurchaseTransactionCardPaymentSuccess(paymentIntent: Stripe
 
       // Mark payment link as used
       if (purchaseTransaction.paymentLinkId) {
-        await tx.paymentLink.update({
+        await tx.payment_links.update({
           where: { id: purchaseTransaction.paymentLinkId },
           data: { usedAt: new Date() }
         });
       }
 
       // If using card balance, now process the balance deduction and cashback
-      if (useCardBalance && purchaseTransaction.cardUid && purchaseTransaction.customer) {
+      if (useCardBalance && purchaseTransaction.cardUid && purchaseTransaction.customers) {
         const card = await tx.card.findUnique({
           where: { cardUid: purchaseTransaction.cardUid },
         });
@@ -784,9 +790,9 @@ async function handlePurchaseTransactionCardPaymentSuccess(paymentIntent: Stripe
           });
 
           // Update customer total spend
-          const newTotalSpend = new Decimal(purchaseTransaction.customer.totalSpend).add(new Decimal(purchaseTransaction.amountCents).div(100));
+          const newTotalSpend = new Decimal(purchaseTransaction.customers.totalSpend).add(new Decimal(purchaseTransaction.amountCents).div(100));
           await tx.customer.update({
-            where: { id: purchaseTransaction.customer.id },
+            where: { id: purchaseTransaction.customers.id },
             data: { totalSpend: newTotalSpend }
           });
 
@@ -797,7 +803,7 @@ async function handlePurchaseTransactionCardPaymentSuccess(paymentIntent: Stripe
                 tenantId: purchaseTransaction.tenantId,
                 storeId: purchaseTransaction.storeId,
                 cardId: card.id,
-                customerId: purchaseTransaction.customer.id,
+                customerId: purchaseTransaction.customers.id,
                 cashierId: purchaseTransaction.cashierId,
                 type: 'REDEEM',
                 category: purchaseTransaction.category,
@@ -818,7 +824,7 @@ async function handlePurchaseTransactionCardPaymentSuccess(paymentIntent: Stripe
                 tenantId: purchaseTransaction.tenantId,
                 storeId: purchaseTransaction.storeId,
                 cardId: card.id,
-                customerId: purchaseTransaction.customer.id,
+                customerId: purchaseTransaction.customers.id,
                 cashierId: purchaseTransaction.cashierId,
                 type: 'EARN',
                 category: purchaseTransaction.category,
@@ -834,7 +840,7 @@ async function handlePurchaseTransactionCardPaymentSuccess(paymentIntent: Stripe
 
           // Check for tier upgrade
           const { updateCustomerTier } = await import('../utils/tiers.js');
-          await updateCustomerTier(purchaseTransaction.customer.id, purchaseTransaction.tenantId, tx);
+          await updateCustomerTier(purchaseTransaction.customers.id, purchaseTransaction.tenantId, tx);
         }
       }
     });

@@ -73,75 +73,103 @@ function generateNotificationContent(
 
   switch (status) {
     case RepairStatus.DROPPED_OFF:
-      subject = '✅ Device Received - Repair Confirmation';
+      subject = '✓ Repair Request Received';
       message = `
-        <h2>Device Successfully Received</h2>
-        <p>Dear ${customerName},</p>
-        <p>We have received your <strong>${repair.phoneModel}</strong> for repair on ${formattedDate}.</p>
-        <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <h3 style="margin-top: 0;">Repair Details:</h3>
-          <p><strong>Device:</strong> ${repair.phoneModel}</p>
-          ${repair.imei ? `<p><strong>IMEI:</strong> ${repair.imei}</p>` : ''}
-          <p><strong>Issue:</strong> ${repair.issueDetails}</p>
-          ${repair.estimatedCost ? `<p><strong>Estimated Cost:</strong> $${(repair.estimatedCost / 100).toFixed(2)}</p>` : ''}
+        <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 24px;">Repair Request Confirmed</h2>
+        <p style="margin: 0 0 15px 0; font-size: 16px; color: #374151;">Dear ${customerName},</p>
+        <p style="margin: 0 0 20px 0; font-size: 16px; color: #374151;">
+          Thank you for choosing our repair service. We have received your device and it is now in our queue.
+        </p>
+        <div style="background: #dbeafe; border-left: 4px solid #3b82f6; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #1e40af; font-size: 18px;">Device Details</h3>
+          <p style="margin: 5px 0; color: #1e3a8a;"><strong>Device:</strong> ${repair.phoneModel}</p>
+          ${repair.imei ? `<p style="margin: 5px 0; color: #1e3a8a;"><strong>IMEI:</strong> ${repair.imei}</p>` : ''}
+          <p style="margin: 5px 0; color: #1e3a8a;"><strong>Issue:</strong> ${repair.issueDetails}</p>
+          ${repair.estimatedCost ? `<p style="margin: 5px 0; color: #1e3a8a;"><strong>Estimated Cost:</strong> $${(repair.estimatedCost / 100).toFixed(2)}</p>` : ''}
         </div>
-        <p>We'll notify you as soon as we begin working on your device and when it's ready for pickup.</p>
-        <p>Thank you for choosing our repair service!</p>
+        <p style="margin: 20px 0 0 0; font-size: 16px; color: #374151;">
+          We'll notify you as soon as our technicians begin working on your device.
+        </p>
       `;
-      smsMessage = `Device Received! Your ${repair.phoneModel} was successfully dropped off on ${formattedDate}. We'll update you as we progress with the repair.`;
+      smsMessage = `Repair Confirmed! We received your ${repair.phoneModel}. ${repair.estimatedCost ? `Estimated cost: $${(repair.estimatedCost / 100).toFixed(2)}. ` : ''}We'll update you when work begins.`;
       break;
 
     case RepairStatus.IN_PROGRESS:
-      subject = '🔧 Repair In Progress';
+      subject = '🔧 Repair Work In Progress';
       message = `
-        <h2>Repair Work Has Started</h2>
-        <p>Dear ${customerName},</p>
-        <p>Good news! Our technicians have started working on your <strong>${repair.phoneModel}</strong>.</p>
-        <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <p><strong>Device:</strong> ${repair.phoneModel}</p>
-          <p><strong>Issue:</strong> ${repair.issueDetails}</p>
+        <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 24px;">Repair Work Has Started</h2>
+        <p style="margin: 0 0 15px 0; font-size: 16px; color: #374151;">Dear ${customerName},</p>
+        <p style="margin: 0 0 20px 0; font-size: 16px; color: #374151;">
+          Good news! Our technicians have started working on your <strong>${repair.phoneModel}</strong>.
+        </p>
+        <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #92400e; font-size: 18px;">Repair Details</h3>
+          <p style="margin: 5px 0; color: #78350f;"><strong>Device:</strong> ${repair.phoneModel}</p>
+          <p style="margin: 5px 0; color: #78350f;"><strong>Issue:</strong> ${repair.issueDetails}</p>
         </div>
-        <p>We'll notify you as soon as your device is ready for pickup.</p>
+        <p style="margin: 20px 0 0 0; font-size: 16px; color: #374151;">
+          We'll notify you as soon as your device is ready for pickup.
+        </p>
       `;
       smsMessage = `Repair Started! We're now working on your ${repair.phoneModel}. You'll be notified when it's ready for pickup.`;
       break;
 
     case RepairStatus.READY_FOR_PICKUP:
-      subject = '✨ Device Ready for Pickup!';
+      subject = '✨ Device Ready for Pickup';
       message = `
-        <h2>Your Device is Ready!</h2>
-        <p>Dear ${customerName},</p>
-        <p>Great news! Your <strong>${repair.phoneModel}</strong> has been repaired and is ready for pickup!</p>
-        <div style="background: #dcfce7; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <h3 style="margin-top: 0; color: #166534;">Pickup Information:</h3>
-          <p><strong>Device:</strong> ${repair.phoneModel}</p>
-          ${repair.actualCost ? `<p><strong>Repair Cost:</strong> $${(repair.actualCost / 100).toFixed(2)}</p>` : ''}
-          <p><strong>Please collect your device at your earliest convenience.</strong></p>
+        <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 24px;">Your Device is Ready!</h2>
+        <p style="margin: 0 0 15px 0; font-size: 16px; color: #374151;">Dear ${customerName},</p>
+        <p style="margin: 0 0 20px 0; font-size: 16px; color: #374151;">
+          Great news! Your <strong>${repair.phoneModel}</strong> has been successfully repaired and is ready for pickup.
+        </p>
+        <div style="background: #d1fae5; border-left: 4px solid #10b981; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #065f46; font-size: 18px;">Pickup Information</h3>
+          <p style="margin: 5px 0; color: #064e3b;"><strong>Device:</strong> ${repair.phoneModel}</p>
+          ${repair.actualCost ? `<p style="margin: 5px 0; color: #064e3b;"><strong>Repair Cost:</strong> $${(repair.actualCost / 100).toFixed(2)}</p>` : ''}
+          <p style="margin: 15px 0 0 0; color: #064e3b; font-size: 15px;">
+            Please collect your device at your earliest convenience during our business hours.
+          </p>
         </div>
-        <p>Thank you for your patience!</p>
+        <p style="margin: 20px 0 0 0; font-size: 16px; color: #374151;">
+          Thank you for your patience!
+        </p>
       `;
       smsMessage = `Ready for Pickup! Your ${repair.phoneModel} repair is complete. ${repair.actualCost ? `Cost: $${(repair.actualCost / 100).toFixed(2)}. ` : ''}Please come collect it at your convenience.`;
       break;
 
     case RepairStatus.PICKED_UP:
-      subject = '🎉 Thank You - Device Collected';
+      subject = '🎉 Thank You for Your Business';
       message = `
-        <h2>Thank You!</h2>
-        <p>Dear ${customerName},</p>
-        <p>Thank you for collecting your <strong>${repair.phoneModel}</strong>. We hope you're satisfied with our service!</p>
-        <p>If you experience any issues, please don't hesitate to contact us.</p>
-        <p>We look forward to serving you again!</p>
+        <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 24px;">Thank You!</h2>
+        <p style="margin: 0 0 15px 0; font-size: 16px; color: #374151;">Dear ${customerName},</p>
+        <p style="margin: 0 0 20px 0; font-size: 16px; color: #374151;">
+          Thank you for collecting your <strong>${repair.phoneModel}</strong>. We hope you're satisfied with our service!
+        </p>
+        <div style="background: #f3e8ff; border-left: 4px solid #8b5cf6; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <p style="margin: 0; color: #5b21b6; font-size: 15px;">
+            If you experience any issues with the repair, please don't hesitate to contact us within the warranty period.
+          </p>
+        </div>
+        <p style="margin: 20px 0 0 0; font-size: 16px; color: #374151;">
+          We look forward to serving you again!
+        </p>
       `;
       smsMessage = `Thank you for collecting your ${repair.phoneModel}! We hope you're satisfied with our service. Contact us if you need any assistance.`;
       break;
 
     case RepairStatus.CANCELLED:
-      subject = '❌ Repair Cancelled';
+      subject = 'Repair Cancelled';
       message = `
-        <h2>Repair Cancelled</h2>
-        <p>Dear ${customerName},</p>
-        <p>The repair for your <strong>${repair.phoneModel}</strong> has been cancelled.</p>
-        <p>Please contact us if you have any questions or would like to proceed with the repair.</p>
+        <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 24px;">Repair Cancelled</h2>
+        <p style="margin: 0 0 15px 0; font-size: 16px; color: #374151;">Dear ${customerName},</p>
+        <p style="margin: 0 0 20px 0; font-size: 16px; color: #374151;">
+          The repair for your <strong>${repair.phoneModel}</strong> has been cancelled as requested.
+        </p>
+        <div style="background: #fee2e2; border-left: 4px solid #ef4444; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <p style="margin: 0; color: #991b1b; font-size: 15px;">
+            If you have any questions or would like to proceed with the repair, please contact us.
+          </p>
+        </div>
       `;
       smsMessage = `Repair Cancelled: The repair for your ${repair.phoneModel} has been cancelled. Contact us for more information.`;
       break;
@@ -168,6 +196,12 @@ async function sendEmailNotification(
   subject: string,
   htmlMessage: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  console.log('📧 Attempting to send email notification...');
+  console.log('   To:', email);
+  console.log('   Subject:', subject);
+  console.log('   SMTP User:', process.env.SMTP_USER);
+  console.log('   SMTP Pass configured:', !!process.env.SMTP_PASS);
+  
   try {
     const info = await emailTransporter.sendMail({
       from: `"Phone Repair Service" <${process.env.SMTP_USER || 'covercellinsure@gmail.com'}>`,
@@ -181,30 +215,58 @@ async function sendEmailNotification(
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>${subject}</title>
           </head>
-          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="text-align: center; margin-bottom: 30px;">
-              <div style="width: 64px; height: 64px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 16px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
-                <span style="color: white; font-size: 24px;">📱</span>
-              </div>
-            </div>
-            
-            <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 30px; margin-bottom: 30px;">
-              ${htmlMessage}
-            </div>
-            
-            <div style="text-align: center; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-              <p>This is an automated notification from our repair tracking system.</p>
-              <p style="margin-top: 20px;">© 2025 Phone Repair Service. All rights reserved.</p>
-            </div>
+          <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #1f2937; background-color: #f3f4f6; margin: 0; padding: 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
+              <tr>
+                <td align="center">
+                  <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    
+                    <!-- Header with Logo -->
+                    <tr>
+                      <td style="background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); padding: 40px 30px; text-align: center;">
+                        <img src="https://i.ibb.co/9ZQZ3Qy/logo.png" alt="LoyaltyPro" style="width: 180px; height: auto; margin-bottom: 15px;">
+                        <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">Phone Repair Service</h1>
+                      </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                      <td style="padding: 40px 30px;">
+                        ${htmlMessage}
+                      </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                      <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+                        <p style="margin: 0 0 10px 0; font-size: 14px; color: #6b7280;">
+                          This is an automated notification from our repair tracking system.
+                        </p>
+                        <p style="margin: 10px 0; font-size: 12px; color: #9ca3af;">
+                          If you have any questions, please contact our support team.
+                        </p>
+                        <p style="margin: 15px 0 0 0; font-size: 12px; color: #9ca3af;">
+                          © 2025 LoyaltyPro. All rights reserved.
+                        </p>
+                      </td>
+                    </tr>
+                    
+                  </table>
+                </td>
+              </tr>
+            </table>
           </body>
         </html>
       `,
       text: htmlMessage.replace(/<[^>]*>/g, ''), // Strip HTML tags for plain text
     });
 
+    console.log('✅ Email sent successfully! Message ID:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error: any) {
-    console.error('Email sending failed:', error);
+    console.error('❌ Email sending failed:', error);
+    console.error('   Error message:', error.message);
+    console.error('   Error code:', error.code);
     return { success: false, error: error.message };
   }
 }
@@ -246,11 +308,23 @@ export async function sendRepairNotification(
   customSubject?: string,
   sendVia: string[] = ['SMS', 'EMAIL']
 ): Promise<void> {
+  console.log('🔔 Starting repair notification process...');
+  console.log('   Repair ID:', repair.id);
+  console.log('   Status:', status);
+  console.log('   Type:', type);
+  console.log('   Send Via:', sendVia);
+  console.log('   Has Customer:', !!repair.customer);
+  
   if (!repair.customer) {
+    console.error('❌ No customer associated with repair');
     throw new Error('No customer associated with repair');
   }
 
   const { firstName, lastName, phone, email } = repair.customer;
+  console.log('   Customer:', `${firstName} ${lastName}`);
+  console.log('   Email:', email);
+  console.log('   Phone:', phone);
+  
   const { subject, message, smsMessage } = generateNotificationContent(
     repair,
     status,
@@ -269,23 +343,28 @@ export async function sendRepairNotification(
 
   // Send SMS if phone number exists and SMS is requested
   if (sendVia.includes('SMS') && phone) {
+    console.log('📱 Sending SMS...');
     const smsResult = await sendSMSNotification(phone, customMessage || smsMessage);
     smsSent = smsResult.success;
     smsDelivered = smsResult.success;
     smsError = smsResult.error;
     smsMessageId = smsResult.messageId;
+    console.log('   SMS Result:', smsResult.success ? '✅ Success' : '❌ Failed');
   }
 
   // Send Email if email exists and EMAIL is requested
   if (sendVia.includes('EMAIL') && email) {
+    console.log('📧 Sending Email...');
     const emailResult = await sendEmailNotification(repair, email, subject, message);
     emailSent = emailResult.success;
     emailDelivered = emailResult.success;
     emailError = emailResult.error;
     emailMessageId = emailResult.messageId;
+    console.log('   Email Result:', emailResult.success ? '✅ Success' : '❌ Failed');
   }
 
   // Save notification record
+  console.log('💾 Saving notification record...');
   await prisma.repairNotification.create({
     data: {
       repairId: repair.id,
@@ -307,6 +386,7 @@ export async function sendRepairNotification(
       emailMessageId: emailMessageId || null,
     },
   });
+  console.log('✅ Notification process completed!');
 }
 
 export default {

@@ -37,11 +37,14 @@ interface RepairDevice {
   customerId: string | null;
   customer?: Customer;
   deviceModel: string;
+  phoneModel: string;
+  issueDetails: string;
   issueDescription: string;
   status: 'DROPPED_OFF' | 'IN_PROGRESS' | 'READY_FOR_PICKUP' | 'PICKED_UP';
   estimatedCost?: number;
   actualCost?: number;
   notes?: string;
+  technicianNotes?: string;
   droppedOffAt: string;
   inProgressAt?: string;
   readyAt?: string;
@@ -192,7 +195,10 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
       const tenantSlug = window.location.pathname.split('/')[2];
       await axios.patch(
         `/api/t/${tenantSlug}/repairs/${repairId}/status`,
-        { status: newStatus },
+        { 
+          status: newStatus,
+          sendNotification: true // Explicitly enable notifications
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       toast.success(`Status updated to ${statusLabel}! Notifications sent to customer.`);
@@ -207,13 +213,26 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     e.preventDefault();
     if (!selectedRepair) return;
 
+    // Check if status is being changed
+    const statusChanged = selectedRepair.status !== formData.status;
+    
+    if (statusChanged) {
+      const newStatusLabel = statusConfig[formData.status as keyof typeof statusConfig].label;
+      const currentStatusLabel = statusConfig[selectedRepair.status].label;
+      
+      if (!confirm(`You are changing the status from "${currentStatusLabel}" to "${newStatusLabel}".\n\nThis will send SMS and Email notifications to the customer. Continue?`)) {
+        return;
+      }
+    }
+
     try {
       const token = localStorage.getItem('token');
       const tenantSlug = window.location.pathname.split('/')[2];
+      
+      // First update the repair details
       await axios.put(
         `/api/t/${tenantSlug}/repairs/${selectedRepair.id}`,
         {
-          customerId: formData.customerId,
           phoneModel: formData.deviceModel,
           issueDetails: formData.issueDescription,
           estimatedCost: formData.estimatedCost ? parseFloat(formData.estimatedCost) : undefined,
@@ -221,7 +240,22 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      toast.success('Repair updated successfully!');
+      
+      // If status changed, update it separately (this triggers notifications in backend)
+      if (statusChanged) {
+        await axios.patch(
+          `/api/t/${tenantSlug}/repairs/${selectedRepair.id}/status`,
+          { 
+            status: formData.status,
+            sendNotification: true // Explicitly enable notifications
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        toast.success('Repair updated and notifications sent!');
+      } else {
+        toast.success('Repair updated successfully!');
+      }
+      
       setShowEditModal(false);
       setSelectedRepair(null);
       resetForm();
@@ -301,6 +335,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
       issueDescription: '',
       estimatedCost: '',
       notes: '',
+      status: 'DROPPED_OFF',
     });
   };
 
@@ -309,9 +344,11 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
       ? `${repair.customer.firstName} ${repair.customer.lastName}`.toLowerCase() 
       : '';
     
+    const deviceName = (repair.phoneModel || repair.deviceModel || '').toLowerCase();
+    
     const matchesSearch =
       customerName.includes(searchTerm.toLowerCase()) ||
-      (repair.deviceModel?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+      deviceName.includes(searchTerm.toLowerCase()) ||
       (repair.customer?.phone?.includes(searchTerm) || false);
 
     const matchesStatus = statusFilter === 'all' || repair.status === statusFilter;
@@ -329,10 +366,11 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     setSelectedRepair(repair);
     setFormData({
       customerId: repair.customerId || '',
-      deviceModel: repair.deviceModel,
-      issueDescription: repair.issueDescription,
-      estimatedCost: repair.estimatedCost?.toString() || '',
-      notes: repair.notes || '',
+      deviceModel: repair.phoneModel || repair.deviceModel || '',
+      issueDescription: repair.issueDetails || repair.issueDescription || '',
+      estimatedCost: repair.estimatedCost ? (repair.estimatedCost / 100).toString() : '',
+      notes: repair.technicianNotes || repair.notes || '',
+      status: repair.status,
     });
     setShowEditModal(true);
   };
@@ -497,20 +535,17 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
               >
                 {/* Status Header */}
                 <div className={`${statusConfig[repair.status].color} p-4`}>
-                  <div className="flex items-center justify-between text-white">
+                  <div className="flex items-center justify-center text-white">
                     <div className="flex items-center gap-2">
                       <StatusIcon className="w-5 h-5" />
                       <span className="font-semibold">{statusConfig[repair.status].label}</span>
                     </div>
-                    <span className="text-xs bg-white/20 px-3 py-1 rounded-full">
-                      #{repair.id.slice(-6)}
-                    </span>
                   </div>
                 </div>
 
                 {/* Content */}
                 <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">{repair.deviceModel}</h3>
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">{repair.phoneModel || repair.deviceModel}</h3>
 
                   {/* Customer Info */}
                   {repair.customer && (
@@ -534,9 +569,9 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
                   <div className="bg-gray-50 rounded-xl p-3 mb-4">
                     <div className="flex items-start gap-2">
                       <AlertCircle className="w-4 h-4 text-gray-500 mt-0.5" />
-                      <div>
+                      <div className="flex-1">
                         <p className="text-xs font-semibold text-gray-500 mb-1">Issue</p>
-                        <p className="text-sm text-gray-700">{repair.issueDescription}</p>
+                        <p className="text-sm text-gray-700">{repair.issueDetails || repair.issueDescription}</p>
                       </div>
                     </div>
                   </div>
@@ -551,7 +586,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
                   {repair.estimatedCost && (
                     <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
                       <p className="text-xs font-semibold text-green-600 mb-1">Estimated Cost</p>
-                      <p className="text-lg font-bold text-green-700">${repair.estimatedCost.toFixed(2)}</p>
+                      <p className="text-lg font-bold text-green-700">${(repair.estimatedCost / 100).toFixed(2)}</p>
                     </div>
                   )}
 
@@ -561,7 +596,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => handleUpdateStatus(repair.id, nextStatus)}
+                        onClick={() => handleUpdateStatus(repair.id, nextStatus, repair.status)}
                         className={`px-4 py-2 ${statusConfig[nextStatus as keyof typeof statusConfig].color} text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all`}
                       >
                         <ChevronDown className="w-4 h-4 rotate-[-90deg]" />
@@ -876,6 +911,29 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
                   </div>
                 </div>
 
+                {/* Status Update Field */}
+                <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-200 rounded-xl p-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-orange-600" />
+                    Repair Status *
+                  </label>
+                  <select
+                    required
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                    className="w-full px-4 py-3 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all bg-white"
+                  >
+                    <option value="DROPPED_OFF">Dropped Off</option>
+                    <option value="IN_PROGRESS">In Progress</option>
+                    <option value="READY_FOR_PICKUP">Ready for Pickup</option>
+                    <option value="PICKED_UP">Picked Up</option>
+                  </select>
+                  <p className="text-xs text-orange-600 mt-2 flex items-start gap-1">
+                    <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                    <span>Changing status will automatically send SMS and Email notifications to the customer.</span>
+                  </p>
+                </div>
+
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Internal Notes (Optional)
@@ -970,7 +1028,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
                     <Smartphone className="w-5 h-5" />
                     Device Information
                   </h3>
-                  <p className="text-2xl font-bold text-gray-800">{selectedRepair.deviceModel}</p>
+                  <p className="text-2xl font-bold text-gray-800">{selectedRepair.phoneModel || selectedRepair.deviceModel}</p>
                 </div>
 
                 {/* Customer Info */}
@@ -1003,7 +1061,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
                     <AlertCircle className="w-5 h-5 text-yellow-600" />
                     Issue Description
                   </h3>
-                  <p className="text-gray-700 leading-relaxed">{selectedRepair.issueDescription}</p>
+                  <p className="text-gray-700 leading-relaxed">{selectedRepair.issueDetails || selectedRepair.issueDescription}</p>
                 </div>
 
                 {/* Timeline */}
@@ -1057,17 +1115,17 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
                     <div className="flex items-center justify-between">
                       <span className="text-gray-600">Estimated Cost</span>
                       <span className="text-2xl font-bold text-green-700">
-                        ${selectedRepair.estimatedCost.toFixed(2)}
+                        ${(selectedRepair.estimatedCost / 100).toFixed(2)}
                       </span>
                     </div>
                   </div>
                 )}
 
                 {/* Notes */}
-                {selectedRepair.notes && (
+                {(selectedRepair.technicianNotes || selectedRepair.notes) && (
                   <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-6">
                     <h3 className="font-semibold text-gray-700 mb-3">Internal Notes</h3>
-                    <p className="text-gray-700 leading-relaxed">{selectedRepair.notes}</p>
+                    <p className="text-gray-700 leading-relaxed">{selectedRepair.technicianNotes || selectedRepair.notes}</p>
                   </div>
                 )}
 

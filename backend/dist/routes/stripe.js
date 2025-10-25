@@ -178,13 +178,13 @@ async function handlePurchaseTransactionPaymentIntent(paymentIntent) {
     try {
         await prisma.$transaction(async (tx) => {
             // Find the purchase transaction linked to this payment link
-            const purchaseTransaction = await tx.purchaseTransaction.findFirst({
+            const purchaseTransaction = await tx.purchase_transactions.findFirst({
                 where: {
                     paymentLinkId: paymentLinkId,
                     paymentStatus: 'PENDING'
                 },
                 include: {
-                    customer: true
+                    customers: true
                 }
             });
             if (!purchaseTransaction) {
@@ -192,7 +192,7 @@ async function handlePurchaseTransactionPaymentIntent(paymentIntent) {
                 return;
             }
             // Update purchase transaction status
-            const updatedTransaction = await tx.purchaseTransaction.update({
+            const updatedTransaction = await tx.purchase_transactions.update({
                 where: { id: purchaseTransaction.id },
                 data: {
                     paymentStatus: 'COMPLETED',
@@ -200,7 +200,7 @@ async function handlePurchaseTransactionPaymentIntent(paymentIntent) {
                 }
             });
             // Mark payment link as used
-            await tx.paymentLink.update({
+            await tx.payment_links.update({
                 where: { id: paymentLinkId },
                 data: { usedAt: new Date() }
             });

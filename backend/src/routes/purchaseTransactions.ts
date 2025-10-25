@@ -225,14 +225,16 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
     
     if (paymentMethod === 'QR_PAYMENT') {
       const token = generateSecureToken();
+      const paymentLinkId_generated = `pl_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + 24); // 24 hour expiry
 
       // For partial payments, use remaining amount for payment link
       const paymentLinkAmount = useCardBalance && remainingAmountCents > 0 ? remainingAmountCents : amountCents;
 
-      const paymentLink = await tx.paymentLink.create({
+      const paymentLink = await tx.payment_links.create({
         data: {
+          id: paymentLinkId_generated,
           tenantId,
           token,
           amountCents: paymentLinkAmount,
@@ -246,8 +248,10 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
     }
 
     // Create purchase transaction
-    const purchaseTransaction = await tx.purchaseTransaction.create({
+    const purchaseTransactionId = `pt_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    const purchaseTransaction = await tx.purchase_transactions.create({
       data: {
+        id: purchaseTransactionId,
         tenantId,
         storeId: transactionStoreId,
         customerId: customer?.id || null,
@@ -262,12 +266,13 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
         paymentLinkId,
         paymentLinkExpiry,
         paidAt: (paymentMethod === 'CASH' || (useCardBalance && remainingAmountCents === 0)) ? new Date() : null,
+        updatedAt: new Date(),
       },
       include: {
-        store: { select: { name: true } },
-        customer: { select: { firstName: true, lastName: true, email: true } },
-        cashier: { select: { firstName: true, lastName: true } },
-        paymentLink: true,
+        stores: { select: { name: true } },
+        customers: { select: { firstName: true, lastName: true, email: true } },
+        users: { select: { firstName: true, lastName: true } },
+        payment_links: true,
       }
     });
 
@@ -422,9 +427,9 @@ router.post('/create', auth, rbac(['tenant_admin', 'cashier']), validate(createP
 
   // Generate payment link URL for QR payments
   let paymentUrl = null;
-  if (paymentMethod === 'QR_PAYMENT' && result.paymentLink) {
+  if (paymentMethod === 'QR_PAYMENT' && result.payment_links) {
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    paymentUrl = `${baseUrl}/payment/${result.paymentLink.token}`;
+    paymentUrl = `${baseUrl}/payment/${result.payment_links.token}`;
   }
 
   res.json({
@@ -451,10 +456,10 @@ router.post('/create-payment-intent/:token', asyncHandler(async (req: Request, r
     return;
   }
 
-  const paymentLink = await prisma.paymentLink.findUnique({
+  const paymentLink = await prisma.payment_links.findUnique({
     where: { token },
     include: {
-      purchaseTransactions: true
+      purchase_transactions: true
     }
   });
 
@@ -469,7 +474,7 @@ router.post('/create-payment-intent/:token', asyncHandler(async (req: Request, r
   }
 
   // Check if this is for a purchase transaction with card balance
-  const purchaseTransaction = paymentLink.purchaseTransactions[0];
+  const purchaseTransaction = paymentLink.purchase_transactions[0];
   const metadata: any = {
     paymentLinkId: paymentLink.id,
   };
@@ -500,11 +505,11 @@ router.post('/confirm-payment', auth, rbac(['tenant_admin', 'cashier']), validat
   const { tenantId, userId: cashierId } = req.user;
 
   const result = await prisma.$transaction(async (tx) => {
-    const purchaseTransaction = await tx.purchaseTransaction.findUnique({
+    const purchaseTransaction = await tx.purchase_transactions.findUnique({
       where: { id: purchaseTransactionId },
       include: {
-        customer: true,
-        paymentLink: true,
+        customers: true,
+        payment_links: true,
       }
     });
 
@@ -521,16 +526,17 @@ router.post('/confirm-payment', auth, rbac(['tenant_admin', 'cashier']), validat
     }
 
     // Update payment status
-    const updatedTransaction = await tx.purchaseTransaction.update({
+    const updatedTransaction = await tx.purchase_transactions.update({
       where: { id: purchaseTransactionId },
       data: {
         paymentStatus: 'COMPLETED',
         paidAt: new Date(),
+        updatedAt: new Date(),
       },
       include: {
-        store: { select: { name: true } },
-        customer: { select: { firstName: true, lastName: true, email: true } },
-        cashier: { select: { firstName: true, lastName: true } },
+        stores: { select: { name: true } },
+        customers: { select: { firstName: true, lastName: true, email: true } },
+        users: { select: { firstName: true, lastName: true } },
       }
     });
 
@@ -584,7 +590,7 @@ router.post('/confirm-payment', auth, rbac(['tenant_admin', 'cashier']), validat
                   customerName: `${card.customer!.firstName} ${card.customer!.lastName}`,
                   amount: (updatedTransaction.amountCents / 100).toFixed(2),
                   balance: (newBalance / 100).toFixed(2),
-                  storeName: updatedTransaction.store?.name || 'Store',
+                  storeName: updatedTransaction.stores?.name || 'Store',
                 },
                 tenantId
               );
@@ -681,7 +687,7 @@ router.post('/confirm-payment', auth, rbac(['tenant_admin', 'cashier']), validat
 
     // Mark payment link as used if exists
     if (purchaseTransaction.paymentLinkId) {
-      await tx.paymentLink.update({
+      await tx.payment_links.update({
         where: { id: purchaseTransaction.paymentLinkId },
         data: { usedAt: new Date() }
       });
@@ -707,17 +713,17 @@ router.post('/pay/:token', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    const paymentLink = await tx.paymentLink.findUnique({
+    const paymentLink = await tx.payment_links.findUnique({
       where: { token: token },
       include: {
-        purchaseTransactions: {
+        purchase_transactions: {
           where: { paymentStatus: 'PENDING' },
           include: {
-            store: { select: { name: true } },
-            customer: { select: { firstName: true, lastName: true } },
+            stores: { select: { name: true } },
+            customers: { select: { firstName: true, lastName: true } },
           }
         },
-        tenant: true
+        tenants: true
       }
     });
 
@@ -733,26 +739,27 @@ router.post('/pay/:token', asyncHandler(async (req: Request, res: Response) => {
       throw new Error('Payment link has expired');
     }
 
-    const purchaseTransaction = paymentLink.purchaseTransactions[0];
+    const purchaseTransaction = paymentLink.purchase_transactions[0];
     if (!purchaseTransaction) {
       throw new Error('No pending transaction found for this payment link');
     }
 
     // Update payment status
-    const updatedTransaction = await tx.purchaseTransaction.update({
+    const updatedTransaction = await tx.purchase_transactions.update({
       where: { id: purchaseTransaction.id },
       data: {
         paymentStatus: 'COMPLETED',
         paidAt: new Date(),
+        updatedAt: new Date(),
       },
       include: {
-        store: { select: { name: true } },
-        customer: { select: { firstName: true, lastName: true, email: true } },
+        stores: { select: { name: true } },
+        customers: { select: { firstName: true, lastName: true, email: true } },
       }
     });
 
     // Mark payment link as used
-    await tx.paymentLink.update({
+    await tx.payment_links.update({
       where: { id: paymentLink.id },
       data: { usedAt: new Date() }
     });
@@ -873,18 +880,18 @@ router.get('/', auth, rbac(['tenant_admin', 'cashier']), asyncHandler(async (req
   }
 
   const [transactions, total] = await Promise.all([
-    prisma.purchaseTransaction.findMany({
+    prisma.purchase_transactions.findMany({
       where,
       include: {
-        store: { select: { name: true } },
-        customer: { select: { firstName: true, lastName: true, email: true } },
-        cashier: { select: { firstName: true, lastName: true } },
+        stores: { select: { name: true } },
+        customers: { select: { firstName: true, lastName: true, email: true } },
+        users: { select: { firstName: true, lastName: true } },
       },
       orderBy: { createdAt: 'desc' },
       skip: offset,
       take: limitNum,
     }),
-    prisma.purchaseTransaction.count({ where }),
+    prisma.purchase_transactions.count({ where }),
   ]);
 
   const pages = Math.ceil(total / limitNum);
@@ -906,17 +913,17 @@ router.get('/payment-link/:token', asyncHandler(async (req: Request, res: Respon
     return;
   }
 
-  const paymentLink = await prisma.paymentLink.findUnique({
+  const paymentLink = await prisma.payment_links.findUnique({
     where: { token: token },
     include: {
-      purchaseTransactions: {
+      purchase_transactions: {
         where: { paymentStatus: 'PENDING' },
         include: {
-          store: { select: { name: true } },
-          customer: { select: { firstName: true, lastName: true } },
+          stores: { select: { name: true } },
+          customers: { select: { firstName: true, lastName: true } },
         }
       },
-      tenant: true
+      tenants: true
     }
   });
 
@@ -935,7 +942,7 @@ router.get('/payment-link/:token', asyncHandler(async (req: Request, res: Respon
     return;
   }
 
-  const purchaseTransaction = paymentLink.purchaseTransactions[0];
+  const purchaseTransaction = paymentLink.purchase_transactions[0];
   if (!purchaseTransaction) {
     res.status(404).json({ error: 'No pending transaction found' });
     return;
@@ -948,16 +955,16 @@ router.get('/payment-link/:token', asyncHandler(async (req: Request, res: Respon
       amountCents: paymentLink.amountCents,
       description: paymentLink.description,
       expiresAt: paymentLink.expiresAt,
-      tenantName: paymentLink.tenant.name,
+      tenantName: paymentLink.tenants.name,
     },
     transaction: {
       id: purchaseTransaction.id,
       amountCents: purchaseTransaction.amountCents,
       category: purchaseTransaction.category,
       description: purchaseTransaction.description,
-      storeName: purchaseTransaction.store?.name,
-      customerName: purchaseTransaction.customer ? 
-        `${purchaseTransaction.customer.firstName} ${purchaseTransaction.customer.lastName}` : null,
+      storeName: purchaseTransaction.stores?.name,
+      customerName: purchaseTransaction.customers ? 
+        `${purchaseTransaction.customers.firstName} ${purchaseTransaction.customers.lastName}` : null,
     }
   });
 }));
@@ -1005,11 +1012,14 @@ router.post('/add-credit', auth, rbac(['tenant_admin', 'cashier']), validate(add
 
     // Generate payment link
     const token = generateSecureToken();
+    const paymentLinkId = `pl_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    const purchaseTransactionId = `pt_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24); // 24 hour expiry
 
-    const paymentLink = await tx.paymentLink.create({
+    const paymentLink = await tx.payment_links.create({
       data: {
+        id: paymentLinkId,
         tenantId,
         token,
         amountCents,
@@ -1020,8 +1030,9 @@ router.post('/add-credit', auth, rbac(['tenant_admin', 'cashier']), validate(add
 
     // Create a special purchase transaction for store credit
     // This will be marked as COMPLETED when payment is received
-    const purchaseTransaction = await tx.purchaseTransaction.create({
+    const purchaseTransaction = await tx.purchase_transactions.create({
       data: {
+        id: purchaseTransactionId,
         tenantId,
         storeId,
         customerId: card.customerId!,
@@ -1034,10 +1045,11 @@ router.post('/add-credit', auth, rbac(['tenant_admin', 'cashier']), validate(add
         paymentStatus: 'PENDING' as PaymentStatus,
         paymentLinkId: paymentLink.id,
         cashbackCents: 0, // No cashback for store credit top-ups
+        updatedAt: new Date(),
       },
       include: {
-        customer: true,
-        store: true,
+        customers: true,
+        stores: true,
       }
     });
 
@@ -1071,12 +1083,12 @@ router.get('/payment-link-details/:token', asyncHandler(async (req: Request, res
     return;
   }
 
-  const paymentLink = await prisma.paymentLink.findUnique({
+  const paymentLink = await prisma.payment_links.findUnique({
     where: { token },
     include: {
-      purchaseTransactions: {
+      purchase_transactions: {
         include: {
-          customer: {
+          customers: {
             select: {
               id: true,
               firstName: true,
@@ -1084,7 +1096,7 @@ router.get('/payment-link-details/:token', asyncHandler(async (req: Request, res
               email: true,
             }
           },
-          store: {
+          stores: {
             select: {
               id: true,
               name: true,
@@ -1106,7 +1118,7 @@ router.get('/payment-link-details/:token', asyncHandler(async (req: Request, res
   }
 
   // Get the purchase transaction associated with this payment link
-  const purchaseTransaction = paymentLink.purchaseTransactions[0];
+  const purchaseTransaction = paymentLink.purchase_transactions[0];
   
   let cardInfo = null;
   if (purchaseTransaction?.cardUid) {
@@ -1152,8 +1164,8 @@ router.get('/payment-link-details/:token', asyncHandler(async (req: Request, res
       amountCents: purchaseTransaction.amountCents,
       category: purchaseTransaction.category,
       description: purchaseTransaction.description,
-      customer: purchaseTransaction.customer,
-      store: purchaseTransaction.store,
+      customer: purchaseTransaction.customers,
+      store: purchaseTransaction.stores,
       cardUid: purchaseTransaction.cardUid,
     } : null,
     cardInfo,
@@ -1175,10 +1187,10 @@ router.post('/update-payment-amount/:token', asyncHandler(async (req: Request, r
     return;
   }
 
-  const paymentLink = await prisma.paymentLink.findUnique({
+  const paymentLink = await prisma.payment_links.findUnique({
     where: { token },
     include: {
-      purchaseTransactions: true
+      purchase_transactions: true
     }
   });
 
@@ -1192,7 +1204,7 @@ router.post('/update-payment-amount/:token', asyncHandler(async (req: Request, r
     return;
   }
 
-  const purchaseTransaction = paymentLink.purchaseTransactions[0];
+  const purchaseTransaction = paymentLink.purchase_transactions[0];
   if (!purchaseTransaction?.cardUid) {
     res.status(400).json({ error: 'No card associated with this payment link' });
     return;
@@ -1222,7 +1234,7 @@ router.post('/update-payment-amount/:token', asyncHandler(async (req: Request, r
   const newPaymentAmount = purchaseTransaction.amountCents - balanceUsedCents;
 
   // Update the payment link amount
-  await prisma.paymentLink.update({
+  await prisma.payment_links.update({
     where: { id: paymentLink.id },
     data: { 
       amountCents: newPaymentAmount,

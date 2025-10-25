@@ -234,13 +234,16 @@ asyncHandler(async (req: Request & { customer?: any }, res: Response) => {
 
     // Create a payment link first (similar to POS Terminal approach)
     const result = await prisma.$transaction(async (tx) => {
-      // Generate payment link token
+      // Generate payment link token and ID
       const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      const paymentLinkId = `pl_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+      const purchaseTransactionId = `pt_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + 24); // 24 hour expiry
 
-      const paymentLink = await tx.paymentLink.create({
+      const paymentLink = await tx.payment_links.create({
         data: {
+          id: paymentLinkId,
           tenantId,
           token,
           amountCents,
@@ -250,8 +253,9 @@ asyncHandler(async (req: Request & { customer?: any }, res: Response) => {
       });
 
       // Create a temporary purchase transaction for this fund addition
-      const purchaseTransaction = await tx.purchaseTransaction.create({
+      const purchaseTransaction = await tx.purchase_transactions.create({
         data: {
+          id: purchaseTransactionId,
           tenantId,
           storeId: tenantId, // Use tenant ID as default store
           customerId,
@@ -265,6 +269,7 @@ asyncHandler(async (req: Request & { customer?: any }, res: Response) => {
           description: `STORE_CREDIT: Customer fund addition - $${(amountCents / 100).toFixed(2)}`,
           paymentLinkId: paymentLink.id,
           paymentLinkExpiry: expiresAt,
+          updatedAt: new Date(),
         }
       });
 
