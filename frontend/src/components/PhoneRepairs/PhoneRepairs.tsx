@@ -314,7 +314,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
   const openEditModal = (repair: RepairDevice) => {
     setSelectedRepair(repair);
     setFormData({
-      customerId: repair.customerId,
+      customerId: repair.customerId || '',
       deviceModel: repair.deviceModel,
       issueDescription: repair.issueDescription,
       estimatedCost: repair.estimatedCost?.toString() || '',
