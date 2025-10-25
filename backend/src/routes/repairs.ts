@@ -53,7 +53,7 @@ const sendCustomNotificationSchema = z.object({
 router.post(
   '/',
   auth,
-  rbac(['admin', 'manager', 'cashier']),
+  rbac(['tenant_admin', 'cashier', 'platform_admin']),
   validate(createRepairSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = req.user;
@@ -135,7 +135,7 @@ router.post(
 router.get(
   '/',
   auth,
-  rbac(['admin', 'manager', 'cashier']),
+  rbac(['tenant_admin', 'cashier', 'platform_admin']),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId } = req.user;
     const {
@@ -224,7 +224,7 @@ router.get(
 router.get(
   '/:id',
   auth,
-  rbac(['admin', 'manager', 'cashier']),
+  rbac(['tenant_admin', 'cashier', 'platform_admin']),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId } = req.user;
     const { id } = req.params;
@@ -266,7 +266,7 @@ router.get(
 router.patch(
   '/:id',
   auth,
-  rbac(['admin', 'manager', 'cashier']),
+  rbac(['tenant_admin', 'cashier', 'platform_admin']),
   validate(updateRepairSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId } = req.user;
@@ -313,7 +313,7 @@ router.patch(
 router.patch(
   '/:id/status',
   auth,
-  rbac(['admin', 'manager', 'cashier']),
+  rbac(['tenant_admin', 'cashier', 'platform_admin']),
   validate(updateStatusSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = req.user;
@@ -390,7 +390,7 @@ router.patch(
 router.post(
   '/:id/notify',
   auth,
-  rbac(['admin', 'manager', 'cashier']),
+  rbac(['tenant_admin', 'cashier', 'platform_admin']),
   validate(sendCustomNotificationSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId } = req.user;
