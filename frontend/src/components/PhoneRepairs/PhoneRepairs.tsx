@@ -33,8 +33,8 @@ interface Customer {
 
 interface RepairDevice {
   id: string;
-  customerId: string;
-  customer: Customer;
+  customerId: string | null;
+  customer?: Customer;
   deviceModel: string;
   issueDescription: string;
   status: 'DROPPED_OFF' | 'IN_PROGRESS' | 'READY_FOR_PICKUP' | 'COMPLETED';
@@ -296,9 +296,9 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
 
   const filteredRepairs = repairs.filter((repair) => {
     const matchesSearch =
-      repair.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      repair.deviceModel.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      repair.customer.phone.includes(searchTerm);
+      (repair.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+      (repair.deviceModel?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+      (repair.customer?.phone?.includes(searchTerm) || false);
 
     const matchesStatus = statusFilter === 'all' || repair.status === statusFilter;
 
@@ -499,20 +499,22 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
                   <h3 className="text-xl font-bold text-gray-800 mb-2">{repair.deviceModel}</h3>
 
                   {/* Customer Info */}
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <User className="w-4 h-4" />
-                      <span className="text-sm font-medium">{repair.customer.name}</span>
+                  {repair.customer && (
+                    <div className="space-y-2 mb-4">
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <User className="w-4 h-4" />
+                        <span className="text-sm font-medium">{repair.customer.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <Phone className="w-4 h-4" />
+                        <span className="text-sm">{repair.customer.phone}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <Mail className="w-4 h-4" />
+                        <span className="text-sm">{repair.customer.email}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Phone className="w-4 h-4" />
-                      <span className="text-sm">{repair.customer.phone}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Mail className="w-4 h-4" />
-                      <span className="text-sm">{repair.customer.email}</span>
-                    </div>
-                  </div>
+                  )}
 
                   {/* Issue Description */}
                   <div className="bg-gray-50 rounded-xl p-3 mb-4">
@@ -958,26 +960,28 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
                 </div>
 
                 {/* Customer Info */}
-                <div className="bg-gray-50 rounded-xl p-6">
-                  <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                    <User className="w-5 h-5" />
-                    Customer Information
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <User className="w-4 h-4 text-gray-500" />
-                      <span className="font-medium">{selectedRepair.customer.name}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Phone className="w-4 h-4 text-gray-500" />
-                      <span>{selectedRepair.customer.phone}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Mail className="w-4 h-4 text-gray-500" />
-                      <span>{selectedRepair.customer.email}</span>
+                {selectedRepair.customer && (
+                  <div className="bg-gray-50 rounded-xl p-6">
+                    <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                      <User className="w-5 h-5" />
+                      Customer Information
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <User className="w-4 h-4 text-gray-500" />
+                        <span className="font-medium">{selectedRepair.customer.name}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Phone className="w-4 h-4 text-gray-500" />
+                        <span>{selectedRepair.customer.phone}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Mail className="w-4 h-4 text-gray-500" />
+                        <span>{selectedRepair.customer.email}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Issue Description */}
                 <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6">
