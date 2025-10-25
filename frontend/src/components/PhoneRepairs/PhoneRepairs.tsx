@@ -386,7 +386,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
           { label: 'Dropped Off', value: stats.droppedOff, icon: Clock, color: 'from-blue-500 to-cyan-600' },
           { label: 'In Progress', value: stats.inProgress, icon: Wrench, color: 'from-yellow-500 to-orange-600' },
           { label: 'Ready', value: stats.ready, icon: CheckCircle, color: 'from-green-500 to-emerald-600' },
-          { label: 'Completed', value: stats.completed, icon: CheckCircle, color: 'from-gray-500 to-gray-600' },
+          { label: 'Picked Up', value: stats.pickedUp, icon: CheckCircle, color: 'from-gray-500 to-gray-600' },
         ].map((stat, index) => (
           <motion.div
             key={stat.label}
