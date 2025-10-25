@@ -177,7 +177,15 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     }
   };
 
-  const handleUpdateStatus = async (repairId: string, newStatus: string) => {
+  const handleUpdateStatus = async (repairId: string, newStatus: string, currentStatus: string) => {
+    // Confirmation dialog
+    const statusLabel = statusConfig[newStatus as keyof typeof statusConfig].label;
+    const currentStatusLabel = statusConfig[currentStatus as keyof typeof statusConfig].label;
+    
+    if (!confirm(`Are you sure you want to change status from "${currentStatusLabel}" to "${statusLabel}"?\n\nThis will automatically send SMS and Email notifications to the customer.`)) {
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
       const tenantSlug = window.location.pathname.split('/')[2];
@@ -186,7 +194,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      toast.success(`Status updated to ${statusConfig[newStatus as keyof typeof statusConfig].label}`);
+      toast.success(`Status updated to ${statusLabel}! Notifications sent to customer.`);
       fetchRepairs();
     } catch (error: any) {
       console.error('Error updating status:', error);
