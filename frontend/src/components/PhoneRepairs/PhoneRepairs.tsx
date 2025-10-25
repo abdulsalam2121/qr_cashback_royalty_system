@@ -508,7 +508,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
                     <div className="space-y-2 mb-4">
                       <div className="flex items-center gap-2 text-gray-600">
                         <User className="w-4 h-4" />
-                        <span className="text-sm font-medium">{repair.customer.name}</span>
+                        <span className="text-sm font-medium">{repair.customer.firstName} {repair.customer.lastName}</span>
                       </div>
                       <div className="flex items-center gap-2 text-gray-600">
                         <Phone className="w-4 h-4" />
@@ -655,7 +655,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
                       <option value="">Select a customer</option>
                       {customers.map((customer) => (
                         <option key={customer.id} value={customer.id}>
-                          {customer.name} - {customer.phone}
+                          {customer.firstName} {customer.lastName} - {customer.phone}
                         </option>
                       ))}
                     </select>
@@ -813,7 +813,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
                     <option value="">Select a customer</option>
                     {customers.map((customer) => (
                       <option key={customer.id} value={customer.id}>
-                        {customer.name} - {customer.phone}
+                        {customer.firstName} {customer.lastName} - {customer.phone}
                       </option>
                     ))}
                   </select>
@@ -974,7 +974,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
                     <div className="space-y-3">
                       <div className="flex items-center gap-3">
                         <User className="w-4 h-4 text-gray-500" />
-                        <span className="font-medium">{selectedRepair.customer.name}</span>
+                        <span className="font-medium">{selectedRepair.customer.firstName} {selectedRepair.customer.lastName}</span>
                       </div>
                       <div className="flex items-center gap-3">
                         <Phone className="w-4 h-4 text-gray-500" />
