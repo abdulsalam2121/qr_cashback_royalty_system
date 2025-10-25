@@ -432,7 +432,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
               <option value="DROPPED_OFF">Dropped Off</option>
               <option value="IN_PROGRESS">In Progress</option>
               <option value="READY_FOR_PICKUP">Ready for Pickup</option>
-              <option value="COMPLETED">Completed</option>
+              <option value="PICKED_UP">Picked Up</option>
             </select>
             <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
           </div>
