@@ -124,10 +124,11 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get(`/api/repairs?tenantId=${tenantId}`, {
+      const tenantSlug = window.location.pathname.split('/')[2]; // Extract from /t/:tenantSlug/...
+      const response = await axios.get(`/api/t/${tenantSlug}/repairs`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setRepairs(response.data);
+      setRepairs(response.data.repairs || response.data);
     } catch (error) {
       console.error('Error fetching repairs:', error);
       toast.error('Failed to load repairs');
@@ -139,10 +140,11 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
   const fetchCustomers = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`/api/customers?tenantId=${tenantId}`, {
+      const tenantSlug = window.location.pathname.split('/')[2]; // Extract from /t/:tenantSlug/...
+      const response = await axios.get(`/api/t/${tenantSlug}/customers`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setCustomers(response.data);
+      setCustomers(response.data.customers || response.data);
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
@@ -152,12 +154,15 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
+      const tenantSlug = window.location.pathname.split('/')[2];
       await axios.post(
-        '/api/repairs',
+        `/api/t/${tenantSlug}/repairs`,
         {
-          ...formData,
-          tenantId,
+          customerId: formData.customerId,
+          phoneModel: formData.deviceModel,
+          issueDetails: formData.issueDescription,
           estimatedCost: formData.estimatedCost ? parseFloat(formData.estimatedCost) : undefined,
+          technicianNotes: formData.notes,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );

@@ -231,7 +231,7 @@ router.get(
 
     const repair = await prisma.repairDevice.findFirst({
       where: {
-        id,
+        id: id!,
         tenantId,
       },
       include: {
