@@ -79,8 +79,8 @@ const statusConfig = {
     bgColor: 'bg-green-50',
     borderColor: 'border-green-200',
   },
-  COMPLETED: {
-    label: 'Completed',
+  PICKED_UP: {
+    label: 'Picked Up',
     icon: CheckCircle,
     color: 'bg-gray-500',
     textColor: 'text-gray-600',
@@ -296,8 +296,12 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
   };
 
   const filteredRepairs = repairs.filter((repair) => {
+    const customerName = repair.customer 
+      ? `${repair.customer.firstName} ${repair.customer.lastName}`.toLowerCase() 
+      : '';
+    
     const matchesSearch =
-      (repair.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+      customerName.includes(searchTerm.toLowerCase()) ||
       (repair.deviceModel?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
       (repair.customer?.phone?.includes(searchTerm) || false);
 
@@ -307,7 +311,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
   });
 
   const getNextStatus = (currentStatus: string) => {
-    const statusFlow = ['DROPPED_OFF', 'IN_PROGRESS', 'READY_FOR_PICKUP', 'COMPLETED'];
+    const statusFlow = ['DROPPED_OFF', 'IN_PROGRESS', 'READY_FOR_PICKUP', 'PICKED_UP'];
     const currentIndex = statusFlow.indexOf(currentStatus);
     return currentIndex < statusFlow.length - 1 ? statusFlow[currentIndex + 1] : null;
   };
@@ -344,7 +348,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     droppedOff: repairs.filter((r) => r.status === 'DROPPED_OFF').length,
     inProgress: repairs.filter((r) => r.status === 'IN_PROGRESS').length,
     ready: repairs.filter((r) => r.status === 'READY_FOR_PICKUP').length,
-    completed: repairs.filter((r) => r.status === 'COMPLETED').length,
+    pickedUp: repairs.filter((r) => r.status === 'PICKED_UP').length,
   };
 
   return (
