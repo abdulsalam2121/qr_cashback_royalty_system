@@ -1,7 +1,9 @@
+-- prisma:nonTransactional
+
 -- CreateEnum
 CREATE TYPE "PaymentMethod" AS ENUM ('COD', 'QR_PAYMENT', 'CASH', 'CARD');
 
--- CreateEnum  
+-- CreateEnum
 CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'COMPLETED', 'FAILED', 'EXPIRED', 'CANCELLED');
 
 -- CreateTable
