@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import { getCurrentUserToken } from '../../firebase/auth';
 
 interface Customer {
   id: string;
@@ -120,6 +121,17 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     phone: '',
   });
 
+  // Helper function to get axios config with Firebase token
+  const getAxiosConfig = async () => {
+    const token = await getCurrentUserToken();
+    return {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : '',
+      },
+      withCredentials: true,
+    };
+  };
+
   useEffect(() => {
     fetchRepairs();
     fetchCustomers();
@@ -128,11 +140,9 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
   const fetchRepairs = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const config = await getAxiosConfig();
       const tenantSlug = window.location.pathname.split('/')[2]; // Extract from /t/:tenantSlug/...
-      const response = await axios.get(`/api/t/${tenantSlug}/repairs`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await axios.get(`/api/t/${tenantSlug}/repairs`, config);
       setRepairs(response.data.repairs || response.data);
     } catch (error) {
       console.error('Error fetching repairs:', error);
@@ -144,11 +154,9 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
 
   const fetchCustomers = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const config = await getAxiosConfig();
       const tenantSlug = window.location.pathname.split('/')[2]; // Extract from /t/:tenantSlug/...
-      const response = await axios.get(`/api/t/${tenantSlug}/customers`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await axios.get(`/api/t/${tenantSlug}/customers`, config);
       setCustomers(response.data.customers || response.data);
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -158,7 +166,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
   const handleAddRepair = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
+      const config = await getAxiosConfig();
       const tenantSlug = window.location.pathname.split('/')[2];
       await axios.post(
         `/api/t/${tenantSlug}/repairs`,
@@ -169,7 +177,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
           estimatedCost: formData.estimatedCost ? parseFloat(formData.estimatedCost) : undefined,
           technicianNotes: formData.notes,
         },
-        { headers: { Authorization: `Bearer ${token}` } }
+        config
       );
       toast.success('Repair created successfully!');
       setShowAddModal(false);
