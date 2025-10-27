@@ -120,17 +120,6 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     phone: '',
   });
 
-  // Helper function to get axios config with Firebase token
-  const getAxiosConfig = async () => {
-    const token = await getCurrentUserToken();
-    return {
-      headers: {
-        Authorization: token ? `Bearer ${token}` : '',
-      },
-      withCredentials: true,
-    };
-  };
-
   useEffect(() => {
     fetchRepairs();
     fetchCustomers();
@@ -139,10 +128,9 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
   const fetchRepairs = async () => {
     try {
       setLoading(true);
-      const config = await getAxiosConfig();
-      const tenantSlug = window.location.pathname.split('/')[2]; // Extract from /t/:tenantSlug/...
-      const response = await axios.get(`/api/t/${tenantSlug}/repairs`, config);
-      setRepairs(response.data.repairs || response.data);
+      const tenantSlug = window.location.pathname.split('/')[2];
+      const response = await api.tenant.repairs.getRepairs(tenantSlug);
+      setRepairs(response.repairs || response);
     } catch (error) {
       console.error('Error fetching repairs:', error);
       toast.error('Failed to load repairs');
@@ -153,10 +141,9 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
 
   const fetchCustomers = async () => {
     try {
-      const config = await getAxiosConfig();
-      const tenantSlug = window.location.pathname.split('/')[2]; // Extract from /t/:tenantSlug/...
-      const response = await axios.get(`/api/t/${tenantSlug}/customers`, config);
-      setCustomers(response.data.customers || response.data);
+      const tenantSlug = window.location.pathname.split('/')[2];
+      const response = await api.tenant.getCustomers(tenantSlug);
+      setCustomers(response.customers || response);
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
