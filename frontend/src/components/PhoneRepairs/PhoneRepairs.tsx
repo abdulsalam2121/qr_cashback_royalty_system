@@ -199,7 +199,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const config = await getAxiosConfig();
       const tenantSlug = window.location.pathname.split('/')[2];
       await axios.patch(
         `/api/t/${tenantSlug}/repairs/${repairId}/status`,
@@ -207,7 +207,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
           status: newStatus,
           sendNotification: true // Explicitly enable notifications
         },
-        { headers: { Authorization: `Bearer ${token}` } }
+        config
       );
       toast.success(`Status updated to ${statusLabel}! Notifications sent to customer.`);
       fetchRepairs();
@@ -234,7 +234,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const config = await getAxiosConfig();
       const tenantSlug = window.location.pathname.split('/')[2];
       
       // First update the repair details
@@ -246,7 +246,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
           estimatedCost: formData.estimatedCost ? parseFloat(formData.estimatedCost) : undefined,
           technicianNotes: formData.notes,
         },
-        { headers: { Authorization: `Bearer ${token}` } }
+        config
       );
       
       // If status changed, update it separately (this triggers notifications in backend)
@@ -257,7 +257,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
             status: formData.status,
             sendNotification: true // Explicitly enable notifications
           },
-          { headers: { Authorization: `Bearer ${token}` } }
+          config
         );
         toast.success('Repair updated and notifications sent!');
       } else {
@@ -278,11 +278,9 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     if (!confirm('Are you sure you want to delete this repair?')) return;
 
     try {
-      const token = localStorage.getItem('token');
+      const config = await getAxiosConfig();
       const tenantSlug = window.location.pathname.split('/')[2];
-      await axios.delete(`/api/t/${tenantSlug}/repairs/${repairId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.delete(`/api/t/${tenantSlug}/repairs/${repairId}`, config);
       toast.success('Repair deleted successfully!');
       fetchRepairs();
     } catch (error: any) {
@@ -293,15 +291,15 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
 
   const handleResendNotification = async (repairId: string) => {
     try {
-      const token = localStorage.getItem('token');
+      const config = await getAxiosConfig();
       const tenantSlug = window.location.pathname.split('/')[2];
       await axios.post(
-        `/api/t/${tenantSlug}/repairs/${repairId}/custom-notify`,
+        `/api/t/${tenantSlug}/repairs/${repairId}/notify`,
         {
           message: 'Status update notification',
           sendVia: ['SMS', 'EMAIL'],
         },
-        { headers: { Authorization: `Bearer ${token}` } }
+        config
       );
       toast.success('Notification sent successfully!');
     } catch (error: any) {
@@ -313,7 +311,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
   const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
+      const config = await getAxiosConfig();
       const tenantSlug = window.location.pathname.split('/')[2];
       const response = await axios.post(
         `/api/t/${tenantSlug}/customers`,
@@ -323,7 +321,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
           phone: newCustomer.phone,
           email: newCustomer.email,
         },
-        { headers: { Authorization: `Bearer ${token}` } }
+        config
       );
       toast.success('Customer added successfully!');
       setCustomers([...customers, response.data]);
