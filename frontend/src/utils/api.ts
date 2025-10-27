@@ -33,10 +33,14 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     if (idToken) {
       headers['Authorization'] = `Bearer ${idToken}`;
       if (import.meta.env.DEV) {
+        console.log('✅ Firebase token added to request');
       }
+    } else {
+      console.warn('⚠️ No Firebase token available - user may not be logged in');
     }
   } catch (error) {
     // If no user is logged in or token expired, continue without token
+    console.error('❌ Error getting Firebase token:', error);
     if (import.meta.env.DEV) {
     }
   }

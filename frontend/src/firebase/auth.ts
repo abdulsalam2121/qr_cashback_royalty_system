@@ -109,12 +109,19 @@ export const signOut = async (): Promise<void> => {
 
 export const getCurrentUserToken = async (): Promise<string | null> => {
   const user = auth.currentUser;
-  if (!user) return null;
+  console.log('🔐 getCurrentUserToken called, user:', user ? `${user.email} (${user.uid})` : 'null');
+  
+  if (!user) {
+    console.warn('⚠️ No Firebase user logged in');
+    return null;
+  }
   
   try {
-    return await user.getIdToken(true); // Force refresh
+    const token = await user.getIdToken(true); // Force refresh
+    console.log('✅ Firebase token retrieved successfully, length:', token.length);
+    return token;
   } catch (error) {
-    console.error('Error getting user token:', error);
+    console.error('❌ Error getting user token:', error);
     return null;
   }
 };
