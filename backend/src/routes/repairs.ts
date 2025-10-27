@@ -3,11 +3,13 @@ import { z } from 'zod';
 import { PrismaClient, RepairStatus, NotificationType } from '@prisma/client';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { validate } from '../middleware/validate.js';
-import { auth } from '../middleware/auth.js';
+import { authUnified } from '../middleware/authUnified.js';
 import { rbac } from '../middleware/rbac.js';
 import { sendRepairNotification } from '../services/repairNotificationService.js';
 
-const router = express.Router();
+// const router = express.Router();
+const router = express.Router({ mergeParams: true });
+
 const prisma = new PrismaClient();
 
 // Validation Schemas
@@ -52,7 +54,7 @@ const sendCustomNotificationSchema = z.object({
 // ==================== CREATE REPAIR ====================
 router.post(
   '/',
-  auth,
+  authUnified,
   rbac(['tenant_admin', 'cashier', 'platform_admin']),
   validate(createRepairSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -134,7 +136,7 @@ router.post(
 // ==================== GET ALL REPAIRS ====================
 router.get(
   '/',
-  auth,
+  authUnified,
   rbac(['tenant_admin', 'cashier', 'platform_admin']),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId } = req.user;
@@ -223,7 +225,7 @@ router.get(
 // ==================== GET SINGLE REPAIR ====================
 router.get(
   '/:id',
-  auth,
+  authUnified,
   rbac(['tenant_admin', 'cashier', 'platform_admin']),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId } = req.user;
@@ -265,7 +267,7 @@ router.get(
 // ==================== UPDATE REPAIR ====================
 router.patch(
   '/:id',
-  auth,
+  authUnified,
   rbac(['tenant_admin', 'cashier', 'platform_admin']),
   validate(updateRepairSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -312,7 +314,7 @@ router.patch(
 // ==================== UPDATE REPAIR STATUS ====================
 router.patch(
   '/:id/status',
-  auth,
+  authUnified,
   rbac(['tenant_admin', 'cashier', 'platform_admin']),
   validate(updateStatusSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -389,7 +391,7 @@ router.patch(
 // ==================== SEND CUSTOM NOTIFICATION ====================
 router.post(
   '/:id/notify',
-  auth,
+  authUnified,
   rbac(['tenant_admin', 'cashier', 'platform_admin']),
   validate(sendCustomNotificationSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -439,7 +441,7 @@ router.post(
 // ==================== DELETE REPAIR ====================
 router.delete(
   '/:id',
-  auth,
+  authUnified,
   rbac(['tenant_admin', 'platform_admin']),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId } = req.user;
@@ -470,7 +472,7 @@ router.delete(
 // ==================== GET REPAIR STATISTICS ====================
 router.get(
   '/stats/overview',
-  auth,
+  authUnified,
   rbac(['tenant_admin', 'platform_admin']),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId } = req.user;
