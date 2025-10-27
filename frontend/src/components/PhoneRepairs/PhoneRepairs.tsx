@@ -21,9 +21,8 @@ import {
   RefreshCw,
   Eye,
 } from 'lucide-react';
-import axios from 'axios';
 import { toast } from 'react-hot-toast';
-import { getCurrentUserToken } from '../../firebase/auth';
+import { api } from '../../utils/api';
 
 interface Customer {
   id: string;

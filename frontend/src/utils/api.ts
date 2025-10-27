@@ -908,6 +908,52 @@ createPaymentIntent: async (token: string): Promise<any> => {
     },
   },
 
+  // Phone Repairs API
+  repairs: {
+    getRepairs: async (tenantSlug: string, params?: string): Promise<{ repairs: any[] }> => {
+      const query = params ? `?${params}` : '';
+      return request(`/t/${tenantSlug}/repairs${query}`);
+    },
+
+    getRepair: async (tenantSlug: string, id: string): Promise<{ repair: any }> => {
+      return request(`/t/${tenantSlug}/repairs/${id}`);
+    },
+
+    createRepair: async (tenantSlug: string, repairData: any): Promise<{ repair: any }> => {
+      return request(`/t/${tenantSlug}/repairs`, {
+        method: 'POST',
+        body: JSON.stringify(repairData),
+      });
+    },
+
+    updateRepair: async (tenantSlug: string, id: string, repairData: any): Promise<{ repair: any }> => {
+      return request(`/t/${tenantSlug}/repairs/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(repairData),
+      });
+    },
+
+    updateRepairStatus: async (tenantSlug: string, id: string, statusData: { status: string; sendNotification?: boolean; notes?: string }): Promise<{ repair: any }> => {
+      return request(`/t/${tenantSlug}/repairs/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify(statusData),
+      });
+    },
+
+    deleteRepair: async (tenantSlug: string, id: string): Promise<{ message: string }> => {
+      return request(`/t/${tenantSlug}/repairs/${id}`, {
+        method: 'DELETE',
+      });
+    },
+
+    sendNotification: async (tenantSlug: string, id: string, notificationData: { message: string; sendVia: string[]; subject?: string }): Promise<{ message: string }> => {
+      return request(`/t/${tenantSlug}/repairs/${id}/notify`, {
+        method: 'POST',
+        body: JSON.stringify(notificationData),
+      });
+    },
+  },
+
   // Public card view (tenant-scoped)
   getPublicCard: async (tenantSlug: string, cardUid: string): Promise<Card> => {
     const params = new URLSearchParams(window.location.search);
