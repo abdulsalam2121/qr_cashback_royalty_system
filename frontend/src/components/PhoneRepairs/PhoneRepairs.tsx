@@ -152,26 +152,21 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
   const handleAddRepair = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const config = await getAxiosConfig();
       const tenantSlug = window.location.pathname.split('/')[2];
-      await axios.post(
-        `/api/t/${tenantSlug}/repairs`,
-        {
-          customerId: formData.customerId,
-          phoneModel: formData.deviceModel,
-          issueDetails: formData.issueDescription,
-          estimatedCost: formData.estimatedCost ? parseFloat(formData.estimatedCost) : undefined,
-          technicianNotes: formData.notes,
-        },
-        config
-      );
+      await api.repairs.createRepair(tenantSlug, {
+        customerId: formData.customerId,
+        phoneModel: formData.deviceModel,
+        issueDetails: formData.issueDescription,
+        estimatedCost: formData.estimatedCost ? parseFloat(formData.estimatedCost) : undefined,
+        technicianNotes: formData.notes,
+      });
       toast.success('Repair created successfully!');
       setShowAddModal(false);
       resetForm();
       fetchRepairs();
     } catch (error: any) {
       console.error('Error creating repair:', error);
-      toast.error(error.response?.data?.error || 'Failed to create repair');
+      toast.error(error?.message || 'Failed to create repair');
     }
   };
 
