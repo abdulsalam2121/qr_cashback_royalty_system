@@ -134,9 +134,14 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
       const response = await api.repairs.getRepairs(tenantSlug);
       console.log('✅ Repairs fetched successfully:', response);
       setRepairs(response.repairs || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error fetching repairs:', error);
-      toast.error('Failed to load repairs');
+      console.error('Error details:', {
+        message: error?.message,
+        status: error?.status,
+        error: error
+      });
+      toast.error(`Failed to load repairs: ${error?.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
