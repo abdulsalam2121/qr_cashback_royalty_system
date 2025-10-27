@@ -129,8 +129,8 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     try {
       setLoading(true);
       const tenantSlug = window.location.pathname.split('/')[2];
-      const response = await api.tenant.repairs.getRepairs(tenantSlug);
-      setRepairs(response.repairs || response);
+      const response = await api.repairs.getRepairs(tenantSlug);
+      setRepairs(response.repairs || []);
     } catch (error) {
       console.error('Error fetching repairs:', error);
       toast.error('Failed to load repairs');
@@ -143,7 +143,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     try {
       const tenantSlug = window.location.pathname.split('/')[2];
       const response = await api.tenant.getCustomers(tenantSlug);
-      setCustomers(response.customers || response);
+      setCustomers(response.customers || []);
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
