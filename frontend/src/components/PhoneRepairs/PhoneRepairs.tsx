@@ -121,7 +121,6 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
   });
 
   useEffect(() => {
-    console.log('🔧 PhoneRepairs component mounted, tenantId:', tenantId);
     fetchRepairs();
     fetchCustomers();
   }, [tenantId]);
@@ -130,17 +129,10 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     try {
       setLoading(true);
       const tenantSlug = window.location.pathname.split('/')[2];
-      console.log('🔍 Fetching repairs for tenant:', tenantSlug);
       const response = await api.repairs.getRepairs(tenantSlug);
-      console.log('✅ Repairs fetched successfully:', response);
       setRepairs(response.repairs || []);
     } catch (error: any) {
-      console.error('❌ Error fetching repairs:', error);
-      console.error('Error details:', {
-        message: error?.message,
-        status: error?.status,
-        error: error
-      });
+      console.error('Error fetching repairs:', error);
       toast.error(`Failed to load repairs: ${error?.message || 'Unknown error'}`);
     } finally {
       setLoading(false);

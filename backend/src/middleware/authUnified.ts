@@ -40,7 +40,6 @@ export const authUnified = async (
         const decoded = await admin.auth().verifyIdToken(token);
         
         if (!decoded.email) {
-          console.error('[authUnified] Firebase token has no email');
           res.status(401).json({ error: 'Invalid token: no email' });
           return;
         }
@@ -61,7 +60,6 @@ export const authUnified = async (
         });
 
         if (!user || !user.active) {
-          console.error('[authUnified] User not found or inactive:', decoded.email);
           res.status(401).json({ error: 'User not found or inactive' });
           return;
         }
@@ -82,11 +80,9 @@ export const authUnified = async (
           admin: decoded.admin === true,
         };
 
-        console.log('[authUnified] Firebase auth successful for user:', user.email, 'tenantId:', user.tenantId);
         next();
         return;
       } catch (firebaseError) {
-        console.error('[authUnified] Firebase token verification failed:', firebaseError);
         // Don't return yet, try JWT as fallback
       }
     }
@@ -112,7 +108,6 @@ export const authUnified = async (
         });
 
         if (!user || !user.active) {
-          console.error('[authUnified] JWT user not found or inactive:', decoded.userId);
           res.status(401).json({ error: 'Invalid or expired token' });
           return;
         }
@@ -124,17 +119,14 @@ export const authUnified = async (
           tenantId: user.tenantId,
           ...(user.storeId && { storeId: user.storeId }),
         };
-        console.log('[authUnified] JWT auth successful for user:', user.email);
         next();
         return;
       } catch (jwtError) {
-        console.error('[authUnified] JWT verification failed:', jwtError);
         // JWT token failed
       }
     }
 
     // No valid token found
-    console.error('[authUnified] No valid token found');
     res.status(401).json({ error: 'Authentication required' });
     return;
   } catch (error) {
