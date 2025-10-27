@@ -180,21 +180,16 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     }
 
     try {
-      const config = await getAxiosConfig();
       const tenantSlug = window.location.pathname.split('/')[2];
-      await axios.patch(
-        `/api/t/${tenantSlug}/repairs/${repairId}/status`,
-        { 
-          status: newStatus,
-          sendNotification: true // Explicitly enable notifications
-        },
-        config
-      );
+      await api.repairs.updateRepairStatus(tenantSlug, repairId, {
+        status: newStatus,
+        sendNotification: true,
+      });
       toast.success(`Status updated to ${statusLabel}! Notifications sent to customer.`);
       fetchRepairs();
     } catch (error: any) {
       console.error('Error updating status:', error);
-      toast.error(error.response?.data?.error || 'Failed to update status');
+      toast.error(error?.message || 'Failed to update status');
     }
   };
 
@@ -215,31 +210,22 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     }
 
     try {
-      const config = await getAxiosConfig();
       const tenantSlug = window.location.pathname.split('/')[2];
       
       // First update the repair details
-      await axios.put(
-        `/api/t/${tenantSlug}/repairs/${selectedRepair.id}`,
-        {
-          phoneModel: formData.deviceModel,
-          issueDetails: formData.issueDescription,
-          estimatedCost: formData.estimatedCost ? parseFloat(formData.estimatedCost) : undefined,
-          technicianNotes: formData.notes,
-        },
-        config
-      );
+      await api.repairs.updateRepair(tenantSlug, selectedRepair.id, {
+        phoneModel: formData.deviceModel,
+        issueDetails: formData.issueDescription,
+        estimatedCost: formData.estimatedCost ? parseFloat(formData.estimatedCost) : undefined,
+        technicianNotes: formData.notes,
+      });
       
       // If status changed, update it separately (this triggers notifications in backend)
       if (statusChanged) {
-        await axios.patch(
-          `/api/t/${tenantSlug}/repairs/${selectedRepair.id}/status`,
-          { 
-            status: formData.status,
-            sendNotification: true // Explicitly enable notifications
-          },
-          config
-        );
+        await api.repairs.updateRepairStatus(tenantSlug, selectedRepair.id, {
+          status: formData.status,
+          sendNotification: true,
+        });
         toast.success('Repair updated and notifications sent!');
       } else {
         toast.success('Repair updated successfully!');
@@ -251,7 +237,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
       fetchRepairs();
     } catch (error: any) {
       console.error('Error updating repair:', error);
-      toast.error(error.response?.data?.error || 'Failed to update repair');
+      toast.error(error?.message || 'Failed to update repair');
     }
   };
 
@@ -259,59 +245,48 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     if (!confirm('Are you sure you want to delete this repair?')) return;
 
     try {
-      const config = await getAxiosConfig();
       const tenantSlug = window.location.pathname.split('/')[2];
-      await axios.delete(`/api/t/${tenantSlug}/repairs/${repairId}`, config);
+      await api.repairs.deleteRepair(tenantSlug, repairId);
       toast.success('Repair deleted successfully!');
       fetchRepairs();
     } catch (error: any) {
       console.error('Error deleting repair:', error);
-      toast.error(error.response?.data?.error || 'Failed to delete repair');
+      toast.error(error?.message || 'Failed to delete repair');
     }
   };
 
   const handleResendNotification = async (repairId: string) => {
     try {
-      const config = await getAxiosConfig();
       const tenantSlug = window.location.pathname.split('/')[2];
-      await axios.post(
-        `/api/t/${tenantSlug}/repairs/${repairId}/notify`,
-        {
-          message: 'Status update notification',
-          sendVia: ['SMS', 'EMAIL'],
-        },
-        config
-      );
+      await api.repairs.sendNotification(tenantSlug, repairId, {
+        message: 'Status update notification',
+        sendVia: ['SMS', 'EMAIL'],
+      });
       toast.success('Notification sent successfully!');
     } catch (error: any) {
       console.error('Error sending notification:', error);
-      toast.error(error.response?.data?.error || 'Failed to send notification');
+      toast.error(error?.message || 'Failed to send notification');
     }
   };
 
   const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const config = await getAxiosConfig();
       const tenantSlug = window.location.pathname.split('/')[2];
-      const response = await axios.post(
-        `/api/t/${tenantSlug}/customers`,
-        {
-          firstName: newCustomer.name.split(' ')[0],
-          lastName: newCustomer.name.split(' ').slice(1).join(' ') || newCustomer.name.split(' ')[0],
-          phone: newCustomer.phone,
-          email: newCustomer.email,
-        },
-        config
-      );
+      const response = await api.tenant.createCustomer(tenantSlug, {
+        firstName: newCustomer.name.split(' ')[0],
+        lastName: newCustomer.name.split(' ').slice(1).join(' ') || newCustomer.name.split(' ')[0],
+        phone: newCustomer.phone,
+        email: newCustomer.email,
+      });
       toast.success('Customer added successfully!');
-      setCustomers([...customers, response.data]);
-      setFormData({ ...formData, customerId: response.data.id });
+      setCustomers([...customers, response.customer]);
+      setFormData({ ...formData, customerId: response.customer.id });
       setShowCustomerModal(false);
       setNewCustomer({ name: '', email: '', phone: '' });
     } catch (error: any) {
       console.error('Error adding customer:', error);
-      toast.error(error.response?.data?.error || 'Failed to add customer');
+      toast.error(error?.message || 'Failed to add customer');
     }
   };
 
