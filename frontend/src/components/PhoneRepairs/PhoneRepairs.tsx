@@ -143,7 +143,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
     try {
       const tenantSlug = window.location.pathname.split('/')[2];
       const response = await api.tenant.getCustomers(tenantSlug);
-      setCustomers(response.customers || []);
+      setCustomers(response.customers as any || []);
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
@@ -280,7 +280,7 @@ export const PhoneRepairs: React.FC<PhoneRepairsProps> = ({ tenantId }) => {
         email: newCustomer.email,
       });
       toast.success('Customer added successfully!');
-      setCustomers([...customers, response.customer]);
+      setCustomers([...customers, response.customer as any]);
       setFormData({ ...formData, customerId: response.customer.id });
       setShowCustomerModal(false);
       setNewCustomer({ name: '', email: '', phone: '' });
