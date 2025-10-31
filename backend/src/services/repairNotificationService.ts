@@ -9,7 +9,7 @@ const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_T
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
 
-const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+const twilioPhoneNumber = process.env.TWILIO_FROM_NUMBER;
 
 // Email Configuration
 const emailTransporter = nodemailer.createTransport({
@@ -38,6 +38,10 @@ interface RepairWithCustomer {
     phone: string | null;
     email: string | null;
   } | null;
+  tenant: {
+    id: string;
+    name: string | null;
+  };
 }
 
 /**
