@@ -206,8 +206,6 @@ router.get(
     const repairsWithParsedData = repairs.map((repair) => ({
       ...repair,
       accessories: repair.accessories ? JSON.parse(repair.accessories) : null,
-      estimatedCost: repair.estimatedCost ? repair.estimatedCost / 100 : null,
-      actualCost: repair.actualCost ? repair.actualCost / 100 : null,
     }));
 
     res.json({
